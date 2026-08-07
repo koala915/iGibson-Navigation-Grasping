@@ -283,6 +283,10 @@ python3 integration/mission_pipeline.py --real --show \
 
 ## T6 — 丟垃圾（最簡化）
 
+**最新結果（2026-08-07）：實車投放成功。** 團隊已在實體 X3Plus 上目視確認
+`run_release_only()` 完成伸手、開爪、物品入桶與回 home。此結果確認的是定點投放動作；
+巡航、導航至投放點、交接與投放後續巡的完整端到端流程仍須分別驗證。
+
 ```bash
 python3 integration/mission_pipeline.py --real --show \
   --route <route.yaml> \
@@ -301,8 +305,8 @@ python3 integration/mission_pipeline.py --real --show \
 - `[Done] Release motion complete`
 - 之後回到 `PATROL`，且是**中斷點的下一個** waypoint
 
-**注意**：沒有放開的驗證。`released` 的意思是**動作跑完了**，不是「東西在桶子裡」。
-要確認就自己看。
+**注意**：程式沒有自動放開／入桶感測。`released` 的意思仍是**動作跑完了**；
+2026-08-07 的成功結果來自團隊目視確認，不是桶內感測器的自動判定。
 
 ---
 

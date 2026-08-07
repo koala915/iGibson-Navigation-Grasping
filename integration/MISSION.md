@@ -186,6 +186,9 @@ python3 integration/mission_pipeline.py --real --show \
   系統性偏移，這裡是第一個要回頭看的地方。
 - **巡航中發現物體並前往（PATROL→INVESTIGATE→APPROACH）尚未實車驗證**。這段
   2026-08-04 修掉三個只會在實機上顯現成「它無視垃圾」的邏輯錯誤，見下方。
+- **垃圾桶投放（T6 最簡化版）已於 2026-08-07 在實車目視確認成功**：機械手臂完成
+  `run_release_only()` 的伸手、開爪與回 home，物品確實落入垃圾桶。這項證據只涵蓋
+  定點投放動作，不等同巡航、導航、交接或完整端到端任務已通過。
 - **v21 是 `candidate` 不是 approved**。`manifest.json` 的 `protocol_valid: false`
   （正式評估的 home jitter 沒照協議跑）。成績是真的但沒有認證，簡報要照這個講法。
 - **`route.yaml` 需要重取樣**。宣告 0.75 m 間距，實際最小 0.049 m（0.049 m/cell 網格上
@@ -249,6 +252,10 @@ policy x=0.240 | base_footprint x=0.220 | front-axle x=0.140 | y=+0.000 m
 ```
 
 ## 丟垃圾 — 最簡化版
+
+> **實車狀態（2026-08-07）：成功。** 團隊已目視確認實體 X3Plus 完成伸手、開爪、
+> 物品入桶與手臂回 home。系統目前沒有桶內相機、重量或存在感測器，因此程式本身仍只能
+> 回報投放動作完成，無法自動判定物品是否在桶內。
 
 到達 `route.yaml` 標註的 `trash_bin.approach` 點之後，直接跑 v21 的
 `run_release_only()`：**不看垃圾桶在哪、不瞄準、不需要量測越過桶子的手臂姿態**。

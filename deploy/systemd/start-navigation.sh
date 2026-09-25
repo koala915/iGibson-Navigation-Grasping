@@ -65,10 +65,21 @@ main() {
 
     echo "navigation ROS_IP=$ROS_IP"
 
-    source /opt/ros/melodic/setup.bash
-    source /home/jetson/ROS/X3/yahboomcar_ws/devel/setup.bash
-    exec python3 -u \
-        /home/jetson/ROS/X3/yahboomcar_ws/src/yahboomcar_bringup/scripts/ai_motor_server_P0.py
+    local ros_setup ws_setup motor_server python_bin
+    ros_setup="${X3PLUS_ROS_SETUP:-/opt/ros/melodic/setup.bash}"
+    ws_setup="${X3PLUS_WS_SETUP:-/home/jetson/ROS/X3/yahboomcar_ws/devel/setup.bash}"
+    motor_server="${X3PLUS_MOTOR_SERVER:-/home/jetson/ROS/X3/yahboomcar_ws/src/yahboomcar_bringup/scripts/ai_motor_server_P0.py}"
+    python_bin="${X3PLUS_PYTHON:-python3}"
+
+    # ROS's own setup scripts read variables they never define (ROS_DISTRO in
+    # profile.d/1.ros_distro.sh), so they cannot be sourced under `set -u`.
+    # The first hardware run of this script died on exactly that line and
+    # systemd restarted it until the start limit (2026-09-25).
+    set +u
+    source "$ros_setup"
+    source "$ws_setup"
+    set -u
+    exec "$python_bin" -u "$motor_server"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

@@ -71,4 +71,20 @@ printf "3: eth0 inet 192.168.0.8/24 brd 192.168.0.255 scope global eth0\\n"
 expect_status 1 env X3PLUS_IP_BIN="$tmp_dir/ip-ambiguous" \
     bash -c "source '$here/start-navigation.sh'; discover_ros_ip"
 
+# Run main() end to end against stand-in ROS setup files. The first one reads
+# a variable it never sets, as ROS's real profile.d/1.ros_distro.sh does with
+# ROS_DISTRO: main() must source it with nounset off, then reach the server.
+# The resolver tests above never got this far, which is how that bug shipped.
+printf '%s\n' 'export SEEN_ROS="${ROS_DISTRO_NEVER_SET}ros"' >"$tmp_dir/ros-setup.bash"
+printf '%s\n' 'export SEEN_WS=ws' >"$tmp_dir/ws-setup.bash"
+make_helper fake-python 'printf "server %s %s args=%s\\n" "$SEEN_ROS" "$SEEN_WS" "$*"'
+started="$(ROS_IP=192.168.0.42 \
+    X3PLUS_ROS_SETUP="$tmp_dir/ros-setup.bash" \
+    X3PLUS_WS_SETUP="$tmp_dir/ws-setup.bash" \
+    X3PLUS_MOTOR_SERVER=/opt/motor_server.py \
+    X3PLUS_PYTHON="$tmp_dir/fake-python" \
+    "$here/start-navigation.sh")"
+[[ "$started" == *"server ros ws args=-u /opt/motor_server.py"* ]]
+expect_status 2 env ROS_IP=999.0.0.1 "$here/start-navigation.sh"
+
 echo "systemd helper tests passed"

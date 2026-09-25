@@ -31,7 +31,9 @@ HARDWARE PREREQUISITES
 Run:
     python vision_grasp_pipeline.py --selftest          # logic check, no hw/cam
     python vision_grasp_pipeline.py                      # dry-run (no motion), needs cams
-    python vision_grasp_pipeline.py --real --show       # full self-driving grasp
+
+The integrated --real path is intentionally refused until measured grasp-home
+homography mapping is connected to final alignment and target latching.
 """
 from __future__ import annotations
 
@@ -130,7 +132,11 @@ TURN_SPEED_RATIO = 0.85
 ARM_FAR_VX_MPS = 0.10
 ARM_MID_VX_MPS = 0.07
 ARM_NEAR_VX_MPS = 0.045
-ARM_MIN_SPEED = 24
+# The integrated runtime writes SI velocities with set_car_motion(). The old
+# TCP/PWM minimum of 24 would turn a requested 0.045 m/s approach into 0.168
+# m/s, so it must not be applied to this path. A board that cannot execute the
+# lower command must stop rather than silently exceed the safety limit.
+ARM_MIN_SPEED = 0
 ARM_MAX_SPEED = 38
 ARM_FAR_DIST_M = 0.70
 ARM_MID_DIST_M = 0.45
@@ -140,7 +146,7 @@ ARM_OFFSET_FORWARD_DEADZONE_M = 0.035
 ARM_OFFSET_TURN_THRESHOLD_M = 0.12
 ARM_KP_WZ = 0.5
 ARM_MAX_WZ = 0.35
-ARM_MIN_TURN_SPEED = 24
+ARM_MIN_TURN_SPEED = 0
 
 # ── pipeline-specific (new) ──
 # Camera -> arm-base frame mapping for the latched grasp target. These now come
@@ -392,7 +398,9 @@ def speed_from_vx(vx_mps, min_speed=MIN_SPEED, max_speed=MAX_SPEED):
 def speed_from_wz(wz_rad_s, min_speed=MIN_SPEED, max_speed=MAX_SPEED):
     if KZ <= 1e-9:
         return min_speed
-    return int(round(clamp(abs(wz_rad_s) / KZ, min_speed, max_speed)))
+    # Floor instead of round: the reconstructed SI command must never exceed
+    # the angular cap the caller just applied.
+    return int(math.floor(clamp(abs(wz_rad_s) / KZ, min_speed, max_speed)))
 
 
 def get_rear_distance_state(dist_front_m):
@@ -637,6 +645,9 @@ class Navigator:
         self._last_arm = None         # dict: dist, offset, box_w_px, class_name, depth
         self._last_arm_hit = None     # arm_cam_geometry.GroundHit from the last detect
         self._last_arm_height = None  # declared height used for that hit, if any
+        # Set by every _detect_arm call. True means a fresh frame was processed
+        # and either yielded a usable target or a trustworthy no-target result.
+        self._arm_observation_valid = False
 
     # ── camera lifecycle ──
     def open_cameras(self):
@@ -683,12 +694,14 @@ class Navigator:
     # ── detection helper ──
     def _detect_arm(self):
         """Return (found, dist_arm_m, offset_x_m, box_w_px, class_name)."""
+        self._arm_observation_valid = False
         ok, frame, ts = self._arm.read()
         if not ok or (time.time() - ts) > MAX_FRAME_AGE:
             return False, -1.0, 0.0, 0.0, None
         res = self.model.predict(source=frame, conf=YOLO_CONF, imgsz=IMG_SIZE, verbose=False)[0]
         box = select_largest_box(res)
         if box is None:
+            self._arm_observation_valid = True
             return False, -1.0, 0.0, 0.0, None
         if not getattr(self, "_arm_frame_size_checked", False):
             self._arm_frame_size_checked = True
@@ -721,6 +734,7 @@ class Navigator:
             return False, -1.0, 0.0, 0.0, None
         self._last_arm_hit = hit
         self._last_arm_height = obj_h
+        self._arm_observation_valid = True
         return True, hit.ground_dist_m, hit.lateral_m, box_w_px, class_name
 
     def _detect_rear(self):
@@ -873,14 +887,17 @@ class Navigator:
               + (f"{obj_h:.3f}m" if obj_h is not None else "None (grasp side estimates)"))
         return pos, round(width_m, 4), (round(obj_h, 4) if obj_h is not None else None)
 
-    def verify_grasp(self, latched_pos) -> bool:
+    def verify_grasp(self, latched_pos) -> Optional[bool]:
         """Re-detect from the arm cam. Object still at the same spot ⇒ failed.
 
-        Returns True if the grasp looks successful (object gone / moved away).
+        Returns True if valid observations show the object gone/moved, False if
+        it remains at the latched position, and None when the camera/detection
+        geometry did not produce enough usable observations to decide.
         """
         self.open_cameras()
         time.sleep(0.3)
         hits = 0
+        usable = 0
         for _ in range(5):
             # No `dist > 0` filter here. Ground distance is measured from the
             # camera's own ground projection and is legitimately negative for
@@ -888,7 +905,10 @@ class Navigator:
             # it would report "object gone" for a still-present object, i.e. turn a
             # failed grasp into a reported success. _detect_arm() already returns
             # found=False when the geometry is genuinely unusable.
+            self._arm_observation_valid = False
             found, dist, offset, _w, _class_name = self._detect_arm()
+            if getattr(self, "_arm_observation_valid", False):
+                usable += 1
             if found:
                 obj_x = dist + self.cam_to_base_x
                 obj_y = self.sign_y * offset + self.cam_to_base_y
@@ -899,7 +919,10 @@ class Navigator:
         if hits >= 2:
             print(f"[verify] object still at spot ({hits}/5) -> grasp FAILED")
             return False
-        print(f"[verify] object gone ({hits}/5 near spot) -> grasp OK")
+        if usable < 3:
+            print(f"[verify] only {usable}/5 usable observations -> grasp UNKNOWN")
+            return None
+        print(f"[verify] object gone ({hits}/5 near spot, {usable}/5 usable) -> grasp OK")
         return True
 
 

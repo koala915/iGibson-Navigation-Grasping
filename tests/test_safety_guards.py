@@ -54,6 +54,7 @@ from integration.nav_rl import (
 )
 from integration import vision_grasp_pipeline as vgp
 from integration import nav_rl_grasp_pipeline as nrgp
+from integration import ros_io
 from startup_device_check import camera_identity
 from stream_cam import CameraState
 
@@ -197,6 +198,81 @@ class SafetyGuardTests(unittest.TestCase):
                 "range_max": 10.0,
                 "ranges": [1.0],
             })
+
+    def test_all_nan_scan_is_rejected_but_all_positive_inf_is_valid(self):
+        base = {
+            "angle_min": -math.pi,
+            "angle_increment": 0.01,
+            "range_min": 0.05,
+            "range_max": 12.0,
+        }
+        with self.assertRaisesRegex(ValueError, "no usable ranges"):
+            laser_scan_to_points(dict(base, ranges=[math.nan] * 20))
+        self.assertEqual(laser_scan_to_points(dict(base, ranges=[math.inf] * 20)), [])
+
+    def test_amcl_rejects_wrong_frame_bad_quaternion_and_negative_covariance(self):
+        q = ros_io.yaw_to_quaternion(0.2)
+        cov = [0.0] * 36
+        cov[0] = cov[7] = cov[35] = 0.01
+        msg = {
+            "header": {"frame_id": "map", "stamp": {"secs": 1, "nsecs": 0}},
+            "pose": {"pose": {
+                "position": {"x": 1.0, "y": 2.0},
+                "orientation": dict(zip(("x", "y", "z", "w"), q)),
+            }, "covariance": cov},
+        }
+        ros_io.parse_amcl_pose(msg)
+        wrong_frame = json.loads(json.dumps(msg))
+        wrong_frame["header"]["frame_id"] = "odom"
+        with self.assertRaisesRegex(ValueError, "frame"):
+            ros_io.parse_amcl_pose(wrong_frame)
+        zero_q = json.loads(json.dumps(msg))
+        zero_q["pose"]["pose"]["orientation"] = {k: 0.0 for k in ("x", "y", "z", "w")}
+        with self.assertRaisesRegex(ValueError, "quaternion"):
+            ros_io.parse_amcl_pose(zero_q)
+        negative_cov = json.loads(json.dumps(msg))
+        negative_cov["pose"]["covariance"][35] = -0.01
+        with self.assertRaisesRegex(ValueError, "covariance"):
+            ros_io.parse_amcl_pose(negative_cov)
+
+    def test_fine_alignment_speed_never_exceeds_declared_si_limits(self):
+        near_speed = vgp.choose_arm_forward_speed("ARM_NEAR")
+        vx, _vy, _wz = vgp.action_to_vxyz("forward", near_speed)
+        self.assertLessEqual(vx, vgp.ARM_NEAR_VX_MPS)
+        turn_speed = vgp.speed_from_wz(vgp.ARM_MAX_WZ,
+                                       vgp.ARM_MIN_TURN_SPEED,
+                                       vgp.ARM_MAX_SPEED)
+        _vx, _vy, wz = vgp.action_to_vxyz("turn_left", turn_speed)
+        self.assertLessEqual(wz, vgp.ARM_MAX_WZ)
+
+    def test_grasp_verification_is_unknown_without_usable_frames(self):
+        nav = vgp.Navigator.__new__(vgp.Navigator)
+        nav.open_cameras = lambda: None
+        nav.cam_to_base_x = nav.cam_to_base_y = 0.0
+        nav.sign_y = 1.0
+        nav._detect_arm = lambda: (False, -1.0, 0.0, 0.0, None)
+        with mock.patch.object(vgp.time, "sleep", return_value=None):
+            self.assertIsNone(nav.verify_grasp([0.24, 0.0, 0.02]))
+
+    def test_controller_close_releases_serial_even_if_another_cleanup_fails(self):
+        class Part:
+            def __init__(self, fail=False):
+                self.closed, self.fail = False, fail
+            def close(self):
+                self.closed = True
+                if self.fail:
+                    raise RuntimeError("cleanup failed")
+            def _close_device(self):
+                self.closed = True
+
+        controller = GraspController.__new__(GraspController)
+        controller.detection = Part(fail=True)
+        controller.servo = Part()
+        controller.fk = Part()
+        with contextlib.redirect_stdout(io.StringIO()):
+            controller.close()
+        self.assertTrue(controller.servo.closed)
+        self.assertTrue(controller.fk.closed)
 
     def test_ros_scan_left_right_mapping_is_not_mirrored(self):
         cfg = NavRLConfig(lidar_angle_dir=1.0)

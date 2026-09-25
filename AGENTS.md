@@ -2,6 +2,11 @@
 
 **規格的單一事實來源是 [`CLAUDE.md`](CLAUDE.md)。先讀那一份，再回來看這裡。**
 
+**剛接手的話，在讀規格之前先看
+[`docs/handoff/HANDOFF_2026-09-20.md`](docs/handoff/HANDOFF_2026-09-20.md)** ——
+現況、可以跑的指令、卡在哪、下一步，以及「機器上的檔案跟 repo 不同步」這個最容易
+踩到的坑。規格告訴你系統應該長什麼樣，交接文件告訴你它現在實際長什麼樣。
+
 這個檔案以前是 `CLAUDE.md` 的第二份副本。副本必然會漂移，而它確實漂移了：
 到 2026-08-06 為止它還說主部署腳本是根目錄的 `x3plus_real_grasp.py`、
 `max_delta_deg=3.0`、Stage 1 的觸發條件是 `dist < 5cm` —— 這三項全都是 v17 的
@@ -34,10 +39,10 @@
 
 3. **改完要跑回歸測試，而且不需要硬體。**
    ```bash
-   python3 grasp/v21/test_deploy_controller.py    # 須 119 全過
+   python3 grasp/v21/test_deploy_controller.py    # 須 138 全過
    python3 grasp/v21/test_servo_read.py           # 須  37 全過
    python3 grasp/v21/test_deploy_floor_guard.py   # 須 641 全過
-   python3 ui/test_server.py                      # 須  47 全過
+   python3 ui/test_server.py                      # 須  48 全過
    python3 integration/mission_fsm.py --selftest
    ```
    CI（`.github/workflows/tests.yml`）會跑完整清單。

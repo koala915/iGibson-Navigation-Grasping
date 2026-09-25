@@ -1,0 +1,20 @@
+[Unit]
+Description=X3Plus resident vision bridge (YOLO to grasp service)
+# Ordered after the grasp service because that side owns the TCP 5555 listener.
+After=grasp-service.service
+BindsTo=grasp-service.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=jetson
+Group=jetson
+WorkingDirectory=/home/jetson/Documents/deploy_jetson2
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/jetson/grasp_venv/bin/python3 -u /home/jetson/Documents/deploy_jetson2/integration/vision_grasp_bridge.py --host 127.0.0.1 --port 5555 --model /home/jetson/Documents/deploy_jetson2/detection/models/best.pt --stream /dev/v4l/by-id/usb-Sonix_Technology_Co.__Ltd._USB_2.0_Camera-video-index0 --class-height sugarbox=0.065 --pose v23_e1_grasp_home --policy-x-range 0.205 0.280 --policy-y-range -0.070 0.065 --homography /home/jetson/Documents/deploy_jetson2/integration/grasp_home_homography_e1.json --grasp-forward-offset-mm 5.0 --imgsz 320 --rate 1.0
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

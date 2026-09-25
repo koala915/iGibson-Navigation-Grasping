@@ -1,0 +1,305 @@
+[
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v21/test_deploy_controller.py"
+    ],
+    "exit_code": 0,
+    "seconds": 107.31,
+    "log": "01_v21_test_deploy_controller.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v21/test_servo_read.py"
+    ],
+    "exit_code": 0,
+    "seconds": 3.41,
+    "log": "02_v21_test_servo_read.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v21/test_deploy_floor_guard.py"
+    ],
+    "exit_code": 0,
+    "seconds": 11.88,
+    "log": "03_v21_test_deploy_floor_guard.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v21/test_one_command_launcher.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.3,
+    "log": "04_v21_test_one_command_launcher.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tests/test_safety_guards.py"
+    ],
+    "exit_code": 0,
+    "seconds": 6.88,
+    "log": "05_tests_test_safety_guards.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tests/test_mission_end_to_end.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.36,
+    "log": "06_tests_test_mission_end_to_end.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tests/test_model_package.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.66,
+    "log": "07_tests_test_model_package.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tests/test_grasp_home_homography.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.41,
+    "log": "08_tests_test_grasp_home_homography.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tests/test_stream_cam_capture.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.45,
+    "log": "09_tests_test_stream_cam_capture.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tests/test_vision_grasp_bridge_pose.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.38,
+    "log": "10_tests_test_vision_grasp_bridge_pose.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "tests/test_trash_target.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.16,
+    "log": "11_tests_test_trash_target.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "ui/test_server.py"
+    ],
+    "exit_code": 0,
+    "seconds": 7.38,
+    "log": "12_ui_test_server.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v23/test_deploy_controller.py"
+    ],
+    "exit_code": 0,
+    "seconds": 106.12,
+    "log": "13_v23_test_deploy_controller.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v23/test_servo_read.py"
+    ],
+    "exit_code": 0,
+    "seconds": 3.38,
+    "log": "14_v23_test_servo_read.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v23/test_deploy_floor_guard.py"
+    ],
+    "exit_code": 0,
+    "seconds": 11.77,
+    "log": "15_v23_test_deploy_floor_guard.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v23/test_one_command_launcher.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.38,
+    "log": "16_v23_test_one_command_launcher.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v23/test_three_pose_scan.py"
+    ],
+    "exit_code": 0,
+    "seconds": 0.17,
+    "log": "17_v23_test_three_pose_scan.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/mission_fsm.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.12,
+    "log": "18_integration_mission_fsm.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/mission_pipeline.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.28,
+    "log": "19_integration_mission_pipeline.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/vision_grasp_pipeline.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.12,
+    "log": "20_integration_vision_grasp_pipeline.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/nav_rl.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.25,
+    "log": "21_integration_nav_rl.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/nav_rl_grasp_pipeline.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.25,
+    "log": "22_integration_nav_rl_grasp_pipeline.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/feedback_odom.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.12,
+    "log": "23_integration_feedback_odom.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/map_goal_provider.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.12,
+    "log": "24_integration_map_goal_provider.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/ros_io.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.19,
+    "log": "25_integration_ros_io.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/mission_status.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.12,
+    "log": "26_integration_mission_status.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/grasp_home_homography.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.23,
+    "log": "27_integration_grasp_home_homography.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/arm_cam_geometry.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.09,
+    "log": "28_integration_arm_cam_geometry.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/solve_cam_to_base.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.09,
+    "log": "29_integration_solve_cam_to_base.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "integration/solve_arm_cam_extrinsics.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.11,
+    "log": "30_integration_solve_arm_cam_extrinsics.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "grasp/v23/pose_explorer.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 6.92,
+    "log": "31_v23_pose_explorer.txt"
+  },
+  {
+    "command": [
+      "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "ui/launcher.py",
+      "--selftest"
+    ],
+    "exit_code": 0,
+    "seconds": 0.17,
+    "log": "32_ui_launcher.txt"
+  }
+]

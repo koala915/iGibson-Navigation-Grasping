@@ -37,6 +37,7 @@ from integration import map_goal_provider as mgp
 from integration import mission_fsm as mfsm
 from integration import mission_pipeline as mp
 from integration import nav_rl_grasp_pipeline as nrgp
+from integration import feedback_odom as fo
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -389,6 +390,63 @@ def drive(runner, max_ticks=600):
 # ════════════════════════════════════════════════════════════════════════════
 
 class MissionEndToEnd(unittest.TestCase):
+
+    def test_odom_publisher_joins_and_ages_a_frozen_snapshot(self):
+        cfg = fo.FeedbackOdomConfig(feedback_timeout_s=0.3)
+        state = fo.OdomState(0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                             100.0, True, True, True, "")
+        reader = type("Reader", (), {})()
+        reader.odom = type("Odom", (), {
+            "cfg": cfg,
+            "covariance": lambda self: [0.0] * 36,
+        })()
+        reader.poll = lambda now=None: state
+        rio = type("Rio", (), {
+            "publish_odom_and_tf": lambda self, *a, **kw: None,
+        })()
+        pub = mp.OdomPublisher(reader, rio, rate_hz=100.0)
+        pub._state = state
+        aged = pub.state(now=101.0)
+        self.assertFalse(aged.fresh)
+        self.assertFalse(aged.stationary)
+        pub.start()
+        pub.stop()
+        pub.join(timeout=1.0)
+        self.assertFalse(pub.is_alive())
+
+    def test_closed_stdin_never_counts_as_operator_start(self):
+        runner = build_runner()
+        runner.started = False
+        with mock.patch("builtins.input", side_effect=EOFError), redirect_stdout(io.StringIO()):
+            runner._await_operator()
+        self.assertFalse(runner.started)
+        self.assertIn("confirmation unavailable", runner.fault)
+
+    def test_real_integrated_mission_is_refused_before_loading_assets(self):
+        args = mp.parse_args([
+            "--real",
+            "--i-confirm-serial-owner",
+            "--lidar-orientation-evidence", "verified.json",
+            "--i-confirm-arm-cam-pose",
+            "--unlock-candidate-real",
+        ])
+        with self.assertRaisesRegex(SystemExit, "homography"):
+            mp.build_and_run(args)
+
+    def test_real_mission_reuses_the_v21_candidate_release_gate(self):
+        args = mp.parse_args([
+            "--real",
+            "--i-confirm-serial-owner",
+            "--lidar-orientation-evidence", "verified.json",
+            "--i-confirm-arm-cam-pose",
+        ])
+        with self.assertRaisesRegex(SystemExit, "release gate"):
+            mp.build_and_run(args)
+
+    def test_real_mission_never_allows_skipping_model_hashes(self):
+        args = mp.parse_args(["--real", "--skip-model-hash"])
+        with self.assertRaisesRegex(SystemExit, "never permits"):
+            mp.build_and_run(args)
 
     def test_a_long_arm_block_recovers_the_map_fix_instead_of_pausing(self):
         """A grasp holds the loop for minutes; DELIVER must not pause on that.

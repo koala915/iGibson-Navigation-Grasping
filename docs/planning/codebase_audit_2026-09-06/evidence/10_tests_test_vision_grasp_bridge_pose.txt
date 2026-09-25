@@ -1,0 +1,8 @@
+....................
+----------------------------------------------------------------------
+Ran 20 tests in 0.041s
+
+OK
+[bridge] camera open attempt 1/2 failed: backend could not open the source
+[bridge] camera open attempt 1/2 failed: source opened but produced no frame in 2 probe reads
+[bridge] camera open attempt 2/2 failed: source opened but produced no frame in 2 probe reads

@@ -1,0 +1,113 @@
+[WARN] 沒有偵測到 VIRTUAL_ENV。若下面的 import 檢查失敗，先執行 source ~/grasp_venv/bin/activate
+three-pose scan tests (no camera, serial, PyBullet, YOLO, or PPO)
+
+  [ok] exactly three ordered lateral poses load
+  [ok] return pose is explicit
+  [ok] the one reference homography resolves relative to the config
+  [ok] runtime refuses a missing reference homography
+  [ok] validation collection can run before the reference file is present
+  [ok] duplicate arm poses are rejected
+  [ok] unvisited motion cannot enter the scanner
+  [ok] an unmeasured side-view rotation cannot enter runtime
+  [ok] single-homography reuse rejects every non-S1 pose change
+  [ok] an edited yaw pivot is rejected
+  [ok] the opposite S1 rotation direction is rejected
+  [ok] unreviewed yaw beyond 25 degrees is rejected
+  [ok] explicit validation collection may visit an unapproved side pose
+  [ok] return E1 cannot drift from a configured pose
+  [ok] a different configured pose cannot replace E1
+  [ok] every search pose keeps the jaw fully open
+  [ok] S1=70 looks left and S1=110 looks right in base coordinates
+  [ok] S1 mapping is a width- and radius-preserving rigid rotation
+
+1. within-pose stability
+  [ok] stable samples collapse to a median
+  [ok] a moving or flickering target is rejected
+  [ok] one pose cannot switch object class
+
+2. cross-pose consensus
+  [ok] one exclusive view may supply the target
+  [ok] agreeing views fuse by median
+  [ok] different objects or bad calibrations fail closed
+  [ok] three misses never become a default grasp
+
+3. E1 release gate
+  [ok] an encoder-confirmed E1 return releases an agreeing target
+  [ok] an unconfirmed E1 return cannot release a target
+  [ok] an interrupted scan returns no target even after reaching E1
+  [ok] a scan error cannot release a stale partial target
+  [ok] calibration returns to E1 without starting a grasp
+
+4. launcher handoff
+  [ok] scanner motion carries an explicit supervised-hardware acknowledgement
+  [ok] scanner receives its config and the v23 policy envelope
+  [ok] scanner receives the same +5 mm base-X correction as the single view
+  [ok] scan calibration reports raw geometry without runtime correction
+  [ok] post-scan controller has no live camera/socket source
+  [ok] post-scan controller receives a frozen base target
+  [ok] legacy E1 single-view path remains unchanged
+  [ok] launcher parses the one machine-readable result
+  [ok] ordinary scanner logs cannot become a target
+  [ok] non-finite scan results are refused
+  [ok] terminal Ctrl+C cannot hit launcher and scanner simultaneously
+  [ok] the E1-return window is derived per run, not a flat constant
+  [ok] the scanner is signalled from exactly ONE place, so it gets one SIGINT
+  [ok] grace 42s covers the worst-case return 28s plus the 8s confirming detection
+  [ok] the return budget is built from max_iters x settle, not guessed
+  [ok] an unreadable config shortens the window rather than inventing one
+  [ok] reading the config lengthens the window by the confirmation cost
+[launcher] stopping fake (SIGINT)
+  [ok] two stop_process calls send exactly ONE SIGINT ([<Signals.SIGINT: 2>])
+[launcher] slow did not exit within its grace window; terminating.
+  [ok] an already-signalled, still-running child is NOT signalled again
+  [ok] ...it is waited for, then escalated once its window expires
+  [ok] an already-exited child is never signalled at all
+
+11. a lone ROTATED view is confirmed at the reference, or refused
+  [ok] one LEFT view needs confirming
+  [ok] one RIGHT view needs confirming
+  [ok] one E1 view does NOT -- at S1=90 no rotation is applied
+  [ok] two views already cross-check each other
+  [ok] an unrecognised pose name is treated as rotated, not assumed safe
+  [ok] unconfirmed lone rotated view is REFUSED by default
+  [ok] ...and the refusal says why, not just that it failed
+[scan] WARNING: single rotated view, unconfirmed at the reference pose, accepted only because --accept-single-rotated-view was given.
+  [ok] --accept-single-rotated-view is the only way past it
+  [ok] a confirming reference detection is fused in as a second view
+  [ok] ...and both poses are recorded in the released target
+  [ok] a reference detection that disagrees REFUSES, it does not average
+  [ok] --accept-single-rotated-view cannot override an actual disagreement
+  [ok] the confirmation has to be the same object class
+  [ok] when confirmation is not needed the lone view still releases
+  [ok] an interrupted scan still releases nothing, confirmed or not
+  [ok] an unconfirmed E1 RETURN still releases nothing
+  [ok] the confirming grab happens while the camera is still open
+  [ok] confirmation is skipped on runs that are already refused
+
+12. the fabricated scan pose poisons the trig model, not feeds it
+  [ok] a parsed pose carries no homography key -- the shared one is in mapping
+  [ok] its extrinsics are non-finite, not plausible placeholders
+  [ok] the arm angles it DOES carry are real -- stamp_payload reads them
+  [ok] ...and it still builds when no homography path is supplied
+  [ok] stamping still works, which is this pose's only real job
+  [ok] ground_hit REFUSES rather than returning a confident number
+
+13. --unlock-unvalidated-scan waives the evidence flags and NOTHING else
+  [ok] without the flag an unvalidated pose is refused
+  [ok] with the flag the config loads
+  [ok] ...and it still RECORDS that the evidence is missing, not fakes it
+  [ok] the flag does not waive S1-only
+  [ok] the flag does not waive the yaw sign
+  [ok] the flag does not waive the pivot
+  [ok] the flag does not waive the return pose
+  [ok] the flag does not waive the open jaw
+  [ok] the waiver appears in exactly 2 conditionals (2)
+
+14. the runtime scan path builds its pose from a REAL parsed config
+  [ok] _scan_one_pose takes the homography from mapping, not from the pose
+  [ok] _dynamic_pose no longer SUBSCRIPTS a key the parser never emits
+  [ok] LEFT builds a stampable pose from the parsed config
+  [ok] E1 builds a stampable pose from the parsed config
+  [ok] RIGHT builds a stampable pose from the parsed config
+
+all 89 checks passed — scan ownership, calibration, consensus, and fixed-target handoff stay fail-closed

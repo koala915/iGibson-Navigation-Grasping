@@ -1,0 +1,12 @@
+[map-goal] bearing convention OK
+[map-goal] pose freshness gating OK
+[map-goal] patrol advance + loop OK
+[map-goal] interrupt/resume OK
+[map-goal] nearest_index OK
+[map-goal] route validation OK
+[map-goal] forbidden-area rejection OK
+[map-goal] staircase re-sample OK (81 -> 6, min gap 0.049 -> 0.544 m, all points on the original path)
+[map-goal] loop re-sample keeps the wrap-around gap (0.559 m) OK
+[map-goal] a too-tight re-sample is still rejected (0.500 m) OK
+[map-goal] re-sample argument validation OK
+[map-goal] SELFTEST PASSED

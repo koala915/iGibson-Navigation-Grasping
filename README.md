@@ -167,6 +167,8 @@ graph TD
 ```
 grasp/          夾取：PPO 策略部署、伺服機控制、URDF/FK、安全閘
   v21/            現行夾取流程（唯一在實機夾取成功過的版本）
+  v23/            E1 實機候選控制器（分支中，尚未接模式 A/B/C）
+  v24/            訓練端 E1 replacement 候選 pair；鎖檔 wrapper 重用 v23 控制器
   x3plus/         PyBullet FK 用的 URDF 與 meshes
 detection/      辨識：YOLOv11 手臂相機、bbox→距離幾何、相機校正
 integration/    整合：任務機、路線、里程計、ROS I/O、四種執行模式
@@ -221,13 +223,13 @@ python3 ui/server.py --simulate
 以下測試不需要硬體：
 
 ```bash
-python3 grasp/v21/test_deploy_controller.py    # 119 checks — 部署控制器
+python3 grasp/v21/test_deploy_controller.py    # 138 checks — 部署控制器
 python3 grasp/v21/test_servo_read.py           #  37 checks — 半雙工匯流排讀取
 python3 grasp/v21/test_deploy_floor_guard.py   # 641 checks — 預防式地板防護
-python3 ui/test_server.py                      #  47 tests  — 操作台伺服器
-python3 tests/test_safety_guards.py            #  63 tests  — 安全閘
-python3 tests/test_mission_end_to_end.py       #  23 tests  — 任務層端到端
-python3 tests/test_model_package.py            #   9 tests  — 模型打包驗證
+python3 ui/test_server.py                      #  48 tests  — 操作台伺服器
+python3 tests/test_safety_guards.py            #  68 tests  — 安全閘
+python3 tests/test_mission_end_to_end.py       #  28 tests  — 任務層端到端
+python3 tests/test_model_package.py            #  11 tests  — 模型打包驗證
 python3 tests/test_trash_target.py             #  18 tests  — 離機目標轉接（符號慣例）
 ```
 
@@ -245,8 +247,9 @@ python3 integration/ros_io.py --selftest
 ## 安全設計
 
 - 未帶 `--real` 時只印出伺服機指令而不送出。首次連接硬體前先跑一次空跑並目視確認角度。
-- 驅動硬體需兩道獨立的閘同時成立：伺服器以 `--allow-real` 啟動，且該次請求帶有
-  操作者在介面上勾選的確認。
+- `--allow-real` 與介面確認目前只是操作台的前兩道閘。A/B/C 所需的 serial owner、
+  LiDAR 方向與 grasp-home homography 證據尚未由操作台提交，因此三種實機請求都會
+  fail-closed；完整任務只能 dry-run。
 - v21 權重的 manifest 狀態為 `candidate`，`--real` 另需 `--unlock-candidate-real`，
   並要求操作者在場。
 - FloorGuard 為預防式：在指令送出前夾住會使夾爪穿越地板的動作，而非事後回報。
@@ -269,6 +272,8 @@ python3 integration/ros_io.py --selftest
 - 操作台不提供相機畫面。Jetson Nano 的 RAM 使用率已達九成，在控制迴路中編碼 JPEG
   是操作台成本最高的一項，該路徑已於 2026-08-06 移除並有測試阻擋其回歸。
 - v21 與 v17/v18 的權重不可混用（incremental 對 absolute），原因見上節。
+- 完整任務的 final align/latch 尚未接入量測過的 grasp-home homography；
+  `mission_pipeline.py --real` 會在開啟任何裝置前拒絕。
 
 ---
 

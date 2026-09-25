@@ -447,16 +447,28 @@ def laser_scan_to_points(message: Mapping[str, Any]) -> List[Tuple[float, float]
             or not math.isfinite(range_max) or range_max <= range_min):
         raise ValueError("LaserScan range limits must satisfy 0 <= min < max")
 
+    if not ranges:
+        raise ValueError("LaserScan ranges must not be empty")
     points: List[Tuple[float, float]] = []
+    usable_samples = 0
     for i, raw_dist in enumerate(ranges):
         try:
             dist = float(raw_dist)
         except (TypeError, ValueError):
             continue
+        # Positive infinity is the ROS convention for a valid ray with no
+        # return. NaN, -inf and finite values outside the declared sensor range
+        # do not establish that the sensor produced a usable sample.
+        if math.isinf(dist) and dist > 0.0:
+            usable_samples += 1
+            continue
         if not math.isfinite(dist) or dist < range_min or dist > range_max:
             continue
+        usable_samples += 1
         angle_deg = math.degrees(angle_min + i * angle_increment)
         points.append((angle_deg, dist))
+    if usable_samples == 0:
+        raise ValueError("LaserScan contains no usable ranges")
     return points
 
 

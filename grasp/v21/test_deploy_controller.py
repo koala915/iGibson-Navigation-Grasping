@@ -79,6 +79,37 @@ class FakeServoPlant:
         return self.true[idx1based - 1]
 
 
+class SlippingJawPlant(FakeServoPlant):
+    """A jaw that keeps moving under load, just slower than it was told to.
+
+    This is the case the absolute progress test cannot see. The object is
+    gripped but creeps, so the encoder advances more than
+    jaw_contact_min_progress_deg every iteration, `tracking` reads true, the
+    contact streak resets, and the command squeezes harder for the rest of the
+    close -- the clicking heard on hardware.
+    """
+
+    def __init__(self, start_deg, grip_at_deg, slip_deg_per_write=3.0,
+                 total_slip_deg=18.0, **kw):
+        super().__init__(start_deg, **kw)
+        self.grip_at = float(grip_at_deg)
+        self.slip = float(slip_deg_per_write)
+        # A real object creeps a little and then holds. Letting it slide forever
+        # would make the jaw reach the stop for an honest reason and the force
+        # ceiling would look broken when it was working.
+        self.hard_stop = float(grip_at_deg) + float(total_slip_deg)
+        self.jaw_commands = []
+
+    def write(self, deg6):
+        self.jaw_commands.append(float(deg6[5]))
+        before = self.true[5]
+        super().write(deg6)
+        if self.true[5] > self.grip_at:
+            # Past the object: it yields self.slip per command at most, and stops
+            # yielding altogether once it has given up total_slip_deg.
+            self.true[5] = min(self.true[5], before + self.slip, self.hard_stop)
+
+
 def build(plant, **cfg_over):
     """Controller wired to a fake plant, with no model and no PyBullet policy."""
     with contextlib.redirect_stdout(io.StringIO()):
@@ -200,6 +231,259 @@ def test_small_home_residual_has_a_bounded_recovery_window():
           "the normal 2.0 deg gate still refuses the same stalled pose")
 
 
+def test_finger_error_delays_the_pads_ready_gate():
+    print("")
+    print("[1c] the measured finger error reaches pads_ready, not just the guard")
+    # Found on hardware 2026-08-30. With a 6.5 cm box the gate went true while the
+    # z error was still 23 mm: modelled pads at 53 mm against a 65 mm object top,
+    # real pads about 15 mm higher and therefore ABOVE the object. pads_ready
+    # forces the jaw to MIN_CLOSE_ACTION, so it shut during the approach and the
+    # closed jaw jammed the arm short of the target. Correcting only the floor
+    # guard leaves this untouched -- the two consumers fail in opposite
+    # directions and both need the same physical number.
+    with contextlib.redirect_stdout(io.StringIO()):
+        import x3plus_real_grasp as _X
+    home = list(_X.DeployConfig().home_deg)
+    obj = np.array([0.2666, -0.0158, 0.0325], dtype=np.float64)
+    height = 0.065
+
+    plain, _ = build(FakeServoPlant(home, max_delta_deg=0.0))
+    corrected, _ = build(FakeServoPlant(home, max_delta_deg=0.0),
+                         floor_finger_error_m=0.015)
+    wrist = dc.episode_wrist_z_offset(height, float(obj[2]))
+    plain._wrist_z_offset = wrist
+    corrected._wrist_z_offset = wrist
+    with contextlib.redirect_stdout(io.StringIO()):
+        a = plain._grasp_geometry(obj, height)
+        b = corrected._grasp_geometry(obj, height)
+
+    delta = b["pad_after_close_m"] - a["pad_after_close_m"]
+    check(abs(delta - 0.015) < 1e-9,
+          f"pad_after_close rises by exactly the finger error ({delta*1000:.2f} mm)")
+    check(a["finger_error_m"] == 0.0 and abs(b["finger_error_m"] - 0.015) < 1e-12,
+          "the geometry reports which correction it used")
+    check(b["object_top_m"] == a["object_top_m"],
+          "the object is unchanged -- only where the pads are believed to be")
+
+    # The gate must be strictly harder to satisfy, never easier.
+    check(b["pad_after_close_m"] > a["pad_after_close_m"],
+          "the corrected pads sit HIGHER, so the gate fires later, not sooner")
+    if a["pads_ready"]:
+        check(not b["pads_ready"] or b["pad_after_close_m"] <= b["object_top_m"] - dc.STAGE1_MIN_ENGAGE_DEPTH,
+              "a pose the model called ready is only still ready if the REAL pads "
+              "clear the engagement depth")
+
+    # Default must remain training-identical, or every existing run changes.
+    default_cfg = _X.DeployConfig()
+    check(default_cfg.floor_finger_error_m == 0.0,
+          "the default is still 0.0, so nothing changes without an explicit opt-in")
+
+
+def test_tcp_forward_error_moves_control_forward_without_moving_the_object():
+    print("\n[1c2] TCP landing correction asks for another 10 mm forward")
+    with contextlib.redirect_stdout(io.StringIO()):
+        import x3plus_real_grasp as _X
+
+    raw = np.array([0.250, -0.010, 0.080], dtype=np.float64)
+    corrected = _X.control_tcp_position(raw, 0.010)
+    check(abs(corrected[0] - 0.240) < 1e-12,
+          "a +10mm FK forward error subtracts 10mm from control TCP X")
+    check(np.allclose(corrected[1:], raw[1:]) and np.allclose(raw, [0.25, -0.01, 0.08]),
+          "Y/Z and the caller's raw FK position stay unchanged")
+    try:
+        _X.control_tcp_position(raw, 0.021)
+    except ValueError:
+        check(True, "TCP correction is hard-bounded at 20mm")
+    else:
+        check(False, "TCP correction is hard-bounded at 20mm")
+
+    class StubFK:
+        @staticmethod
+        def compute(_arm, _grip):
+            return raw.copy(), np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+
+    builder = _X.ObsBuilder(
+        StubFK(), None, None, dc.OBS_28_INCREMENTAL,
+        tcp_forward_error_m=0.010)
+    obj = np.array([0.270, -0.010, 0.0325], dtype=np.float32)
+    obs = builder.build(
+        np.zeros(5, dtype=np.float32), -1.5, obj, 0,
+        np.zeros(6, dtype=np.float32))
+    check(abs(float(obs[6]) - 0.240) < 1e-6,
+          "policy tcp_pos receives the corrected X")
+    check(abs(float(obs[13]) - 0.270) < 1e-6,
+          "policy object_pos remains the measured camera coordinate")
+    check(abs(float(obs[16]) - 0.030) < 1e-6,
+          "policy rel_pos asks for 10mm more forward travel")
+
+    plant = FakeServoPlant(list(_X.DeployConfig().home_deg))
+    ctrl, cfg = build(plant)
+    cfg.tcp_forward_error_m = 0.010
+    ctrl._wrist_z_offset = dc.episode_wrist_z_offset(0.065, 0.0325)
+    raw_tcp, _ = ctrl.fk.compute(ctrl._current_arm_rads, ctrl._current_grip_rad)
+    gate = ctrl._grasp_geometry(obj, 0.065)
+    check(abs(float(gate["tcp"][0]) - (float(raw_tcp[0]) - 0.010)) < 1e-9,
+          "close gate uses the same corrected TCP as the policy")
+
+
+def test_a_slipping_object_is_contact_not_a_reason_to_squeeze():
+    print("")
+    print("[1d] a jaw that moves SLOWER than commanded is contact too")
+    with contextlib.redirect_stdout(io.StringIO()):
+        import x3plus_real_grasp as _X
+    home = list(_X.DeployConfig().home_deg)
+
+    def close(**over):
+        plant = SlippingJawPlant(home, grip_at_deg=110.0, slip_deg_per_write=3.0)
+        ctrl, cfg = build(plant, **over)
+        arm = ctrl.mapper.hw_deg_to_sim_arm(home[:5])
+        with contextlib.redirect_stdout(io.StringIO()):
+            out = ctrl.move_guarded_and_verified(
+                arm, ctrl.mapper.hw_deg_to_sim_grip(180.0), label="close",
+                run_time_ms=1, settle_s=0.0, tol_deg=2.0,
+                stop_on_jaw_contact=True)
+        return plant, out
+
+    # The encoder advances 3 deg per write, above the 2 deg absolute threshold,
+    # so `tracking` reads true and the streak resets on every iteration. The
+    # absolute detector only wins once the object stops yielding altogether --
+    # by which time the command has squeezed a long way past first contact. That
+    # over-squeeze is the clicking, and it is what the ratio test removes.
+    OBJECT_AT = 110.0
+    slow, slow_out = close()
+    fast, fast_out = close(jaw_contact_track_fraction=0.5)
+    slow_excess = max(slow.jaw_commands) - OBJECT_AT
+    fast_excess = max(fast.jaw_commands) - OBJECT_AT
+    check(slow_excess > 25.0,
+          f"the absolute test alone squeezes {slow_excess:.0f} deg past contact")
+    check(fast_excess < slow_excess / 2.0,
+          f"the ratio test cuts that to {fast_excess:.0f} deg")
+
+    plant, out = fast, fast_out
+    check(bool(out.get("jaw_contact")),
+          "the ratio test DOES detect it")
+    check(out.get("jaw_contact_mode") == "slipping",
+          f"...and says which test fired ({out.get('jaw_contact_mode')})")
+    check("slower than commanded" in out.get("reason", ""),
+          "the reason line distinguishes a slip from a stall")
+
+    # Nothing about the ordinary blocked jaw changes.
+    hard = FakeServoPlant(home, object_blocks_at_deg=110.0)
+    ctrl, cfg = build(hard)
+    arm = ctrl.mapper.hw_deg_to_sim_arm(home[:5])
+    with contextlib.redirect_stdout(io.StringIO()):
+        out = ctrl.move_guarded_and_verified(
+            arm, ctrl.mapper.hw_deg_to_sim_grip(180.0), label="close",
+            run_time_ms=1, settle_s=0.0, tol_deg=2.0, stop_on_jaw_contact=True)
+    check(bool(out.get("jaw_contact")) and out.get("jaw_contact_mode") == "stalled",
+          "a hard block is still reported as a stall, not a slip")
+
+
+def test_stage0_policy_close_uses_the_slow_tracking_detector():
+    print("")
+    print("[1dd] Stage-0 policy close catches slip, not just a frozen encoder")
+    with contextlib.redirect_stdout(io.StringIO()):
+        import x3plus_real_grasp as _X
+    home = list(_X.DeployConfig().home_deg)
+    ctrl, cfg = build(
+        FakeServoPlant(home),
+        stage0_s6_stall_steps=2,
+        jaw_contact_track_fraction=0.5)
+
+    def reset():
+        ctrl._stage0_s6_prev_deg = None
+        ctrl._stage0_s6_prev_cmd_deg = None
+        ctrl._stage0_s6_stall_count = 0
+
+    # The previous command still had 8 degrees to travel. Advancing by only 3
+    # degrees consumes 37.5% of it, twice in succession: this is exactly the
+    # loaded/slipping pattern from the hardware log that the old unchanged-only
+    # Stage-0 shortcut missed.
+    reset()
+    ctrl._observe_stage0_jaw(140.0, 148.0, True)
+    one = ctrl._observe_stage0_jaw(143.0, 151.0, True)
+    two = ctrl._observe_stage0_jaw(146.0, 154.0, True)
+    check(one["mode"] == "slipping" and one["count"] == 1,
+          "one slow sample starts, but does not yet confirm, contact")
+    check(two["mode"] == "slipping" and two["count"] == 2,
+          "two consecutive slow samples confirm the Stage-0 contact")
+    check(abs(two["encoder_progress_deg"] - 3.0) < 1e-9
+          and abs(two["requested_progress_deg"] - 8.0) < 1e-9,
+          "the evidence reports 3 degrees moved out of 8 requested")
+
+    # A free jaw consumes the request and must not be mistaken for an object.
+    reset()
+    ctrl._observe_stage0_jaw(140.0, 148.0, True)
+    free = ctrl._observe_stage0_jaw(148.0, 156.0, True)
+    check(not free["blocked"] and free["count"] == 0,
+          "a normally tracking free jaw does not trigger")
+
+    # The feature remains an explicit opt-in, and losing eligibility breaks a
+    # streak so evidence cannot leak across unrelated policy motion.
+    cfg.jaw_contact_track_fraction = 0.0
+    reset()
+    ctrl._observe_stage0_jaw(140.0, 148.0, True)
+    disabled = ctrl._observe_stage0_jaw(143.0, 151.0, True)
+    check(not disabled["blocked"], "fraction 0 preserves unchanged-only behaviour")
+    cfg.jaw_contact_track_fraction = 0.5
+    reset()
+    ctrl._observe_stage0_jaw(140.0, 148.0, True)
+    ctrl._observe_stage0_jaw(143.0, 151.0, True)
+    ctrl._observe_stage0_jaw(146.0, 154.0, False)
+    after_reset = ctrl._observe_stage0_jaw(149.0, 157.0, True)
+    check(after_reset["count"] == 0,
+          "an ineligible sample clears the contact streak")
+
+
+def test_the_jaw_command_can_never_outrun_the_encoder():
+    print("")
+    print("[1e] the force ceiling bounds torque even when no detector fires")
+    with contextlib.redirect_stdout(io.StringIO()):
+        import x3plus_real_grasp as _X
+    home = list(_X.DeployConfig().home_deg)
+
+    # Detection switched off entirely, so only the ceiling is left.
+    plant = SlippingJawPlant(home, grip_at_deg=110.0, slip_deg_per_write=3.0)
+    ctrl, cfg = build(plant, jaw_contact_lag_deg=1e6)
+    arm = ctrl.mapper.hw_deg_to_sim_arm(home[:5])
+    with contextlib.redirect_stdout(io.StringIO()):
+        ctrl.move_guarded_and_verified(
+            arm, ctrl.mapper.hw_deg_to_sim_grip(180.0), label="close",
+            run_time_ms=1, settle_s=0.0, tol_deg=2.0, stop_on_jaw_contact=True)
+    capped = max(plant.jaw_commands)
+    check(capped <= plant.true[5] + cfg.jaw_max_lag_deg + 1e-6,
+          f"the command never exceeds encoder + {cfg.jaw_max_lag_deg:.0f} deg "
+          f"(max {capped:.1f}, encoder {plant.true[5]:.1f})")
+
+    # And with the ceiling removed the same run walks to the stop -- which is
+    # what makes the check above meaningful rather than incidental.
+    loose = SlippingJawPlant(home, grip_at_deg=110.0, slip_deg_per_write=3.0)
+    ctrl2, _ = build(loose, jaw_contact_lag_deg=1e6, jaw_max_lag_deg=0.0)
+    with contextlib.redirect_stdout(io.StringIO()):
+        ctrl2.move_guarded_and_verified(
+            ctrl2.mapper.hw_deg_to_sim_arm(home[:5]),
+            ctrl2.mapper.hw_deg_to_sim_grip(180.0), label="close",
+            run_time_ms=1, settle_s=0.0, tol_deg=2.0, stop_on_jaw_contact=True)
+    uncapped = max(loose.jaw_commands)
+    check(uncapped - loose.true[5] > cfg.jaw_max_lag_deg,
+          f"without the ceiling the error grows past it "
+          f"({uncapped - loose.true[5]:.0f} deg vs {cfg.jaw_max_lag_deg:.0f})")
+    check(uncapped > capped,
+          f"...and the command goes further ({uncapped:.0f} vs {capped:.0f} deg)")
+
+    # A free jaw must still arrive; the ceiling may not throttle normal closing.
+    free = FakeServoPlant(home)
+    ctrl3, cfg3 = build(free)
+    with contextlib.redirect_stdout(io.StringIO()):
+        out = ctrl3.move_guarded_and_verified(
+            ctrl3.mapper.hw_deg_to_sim_arm(home[:5]),
+            ctrl3.mapper.hw_deg_to_sim_grip(180.0), label="close",
+            run_time_ms=1, settle_s=0.0, tol_deg=2.0)
+    check(out["reached"], "an unobstructed jaw still reaches its target")
+    check(cfg3.jaw_max_lag_deg > cfg3.jaw_hold_bias_deg,
+          "the ceiling stays above the deliberate hold bias")
+
+
 def test_write_failure_stops_and_does_not_advance():
     print("\n[2] a write failure stops the move and leaves state untouched")
     plant = FakeServoPlant([90, 67.08, 9.79, 9.79, 90, 30])
@@ -262,6 +546,31 @@ def test_object_stall_is_accepted():
     check(status == "confirmed",
           f"grasp check accepts a genuine stall (got {status!r})", why)
 
+
+def test_open_jaw_is_not_a_grasp():
+    print("\n[5b] jaw still open -> grasp REJECTED")
+    # Nothing is commanded here: the jaw sits where a dropped object leaves it.
+    # The check used to measure only distance from the CLOSED stop, so a wide
+    # open jaw scored 100% and read as the most confident grasp possible --
+    # which is how run_release_only() came to reach out and mime a drop over an
+    # empty gripper on hardware (2026-09-20).
+    plant = FakeServoPlant([90, 67.08, 9.79, 9.79, 90, 30], object_blocks_at_deg=None)
+    ctrl, cfg = build(plant)
+    with contextlib.redirect_stdout(io.StringIO()):
+        status, why = ctrl._grasp_looks_real()
+    check(status == "rejected", f"an open jaw is not a grasp (got {status!r})", why)
+    check("not around anything" in why, f"the reason names the open jaw: {why}")
+
+
+def test_half_open_jaw_is_not_a_grasp():
+    print("\n[5c] jaw only a third closed -> grasp REJECTED")
+    # Between the two bounds: short of the closed stop (so the old lower bound
+    # passed it) but nowhere near closed enough to be around an object.
+    plant = FakeServoPlant([90, 67.08, 9.79, 9.79, 90, 75], object_blocks_at_deg=None)
+    ctrl, cfg = build(plant)
+    with contextlib.redirect_stdout(io.StringIO()):
+        status, why = ctrl._grasp_looks_real()
+    check(status == "rejected", f"a barely-closed jaw is not a grasp (got {status!r})", why)
 
 def test_close_is_rate_limited_and_needs_many_commands():
     print("\n[6] a full close is rate-limited and needs many commands")
@@ -1048,10 +1357,15 @@ def main() -> int:
     tests = (
         test_long_move_needs_many_steps,
         test_small_home_residual_has_a_bounded_recovery_window,
+        test_finger_error_delays_the_pads_ready_gate,
+        test_a_slipping_object_is_contact_not_a_reason_to_squeeze,
+        test_the_jaw_command_can_never_outrun_the_encoder,
         test_write_failure_stops_and_does_not_advance,
         test_read_failure_stops_and_does_not_advance,
         test_empty_jaw_closes_fully_and_is_rejected,
         test_object_stall_is_accepted,
+        test_open_jaw_is_not_a_grasp,
+        test_half_open_jaw_is_not_a_grasp,
         test_close_is_rate_limited_and_needs_many_commands,
         test_grasp_check_fails_closed_on_unreadable_servo,
         test_emergency_raise_increases_clearance,

@@ -1,0 +1,1124 @@
+[
+  {
+    "path": ".gitignore",
+    "classification": "ACTIVE",
+    "basis": "配置/輔助資產；沒有足夠證據宣稱DEAD",
+    "tracked": true
+  },
+  {
+    "path": "AGENTS.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "CLAUDE.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "INDEX.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "README.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "README.txt",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": false
+  },
+  {
+    "path": "SUMMER_MEETING_PPT.md",
+    "classification": "EXPERIMENTAL",
+    "basis": "本機報告/生成器，不是機器人runtime；保留使用者未提交工作",
+    "tracked": false
+  },
+  {
+    "path": "SUMMER_RESULTS_REPORT.md",
+    "classification": "EXPERIMENTAL",
+    "basis": "本機報告/生成器，不是機器人runtime；保留使用者未提交工作",
+    "tracked": false
+  },
+  {
+    "path": "TROUBLESHOOTING.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "progress.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "requirements-ci.txt",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "startup_device_check.py",
+    "classification": "TEST",
+    "basis": "裝置preflight入口；非純離線unit test",
+    "tracked": true
+  },
+  {
+    "path": "stream_cam.py",
+    "classification": "ACTIVE",
+    "basis": "被文件/操作流程使用的standalone camera服務；非ROS driver",
+    "tracked": true
+  },
+  {
+    "path": ".github/workflows/tests.yml",
+    "classification": "ACTIVE",
+    "basis": "UI資產/啟動環境工具或CI；不是獨立motor controller",
+    "tracked": true
+  },
+  {
+    "path": "detection/arm_cam.py",
+    "classification": "LEGACY",
+    "basis": "較早vision/navigation standalone；TCP或cmd_vel旁路，未被mission匯入",
+    "tracked": true
+  },
+  {
+    "path": "detection/arm_center_setmotor.py",
+    "classification": "LEGACY",
+    "basis": "較早vision/navigation standalone；TCP或cmd_vel旁路，未被mission匯入",
+    "tracked": true
+  },
+  {
+    "path": "detection/nav_arm_cam.py",
+    "classification": "LEGACY",
+    "basis": "較早vision/navigation standalone；TCP或cmd_vel旁路，未被mission匯入",
+    "tracked": true
+  },
+  {
+    "path": "detection/rear_cam_sam2_publisher.py",
+    "classification": "ACTIVE",
+    "basis": "可選offboard視覺publisher；不直接持有motor",
+    "tracked": true
+  },
+  {
+    "path": "detection/requirements_detection.txt",
+    "classification": "LEGACY",
+    "basis": "較早vision/navigation standalone；TCP或cmd_vel旁路，未被mission匯入",
+    "tracked": true
+  },
+  {
+    "path": "detection/calibration/action_speed_calibration_result.json",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/calibration/calibrate_arm_camera_theta.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/calibration/calibrate_intrinsics.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/calibration/calibrate_mecanum_setmotor.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/calibration/calibrate_rearcam.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/calibration/calibrate_vy_only.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/calibration/calibrate_wx_only.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/calibration/wz_90deg_calibration_result.json",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/armcam_photoshot.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/check_rl_model.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/detect_video.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/multiple_ball_detect.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/rear_cam_autophoto.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/snapshot_sim.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/test.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/train_yolo.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/debug_tools/yolo_test.py",
+    "classification": "TEST",
+    "basis": "校正/診斷utility；其中部分可送TCP motor command，非一律offline-safe",
+    "tracked": true
+  },
+  {
+    "path": "detection/models/README.roboflow.txt",
+    "classification": "LEGACY",
+    "basis": "較早vision/navigation standalone；TCP或cmd_vel旁路，未被mission匯入",
+    "tracked": true
+  },
+  {
+    "path": "detection/models/data.yaml",
+    "classification": "LEGACY",
+    "basis": "較早vision/navigation standalone；TCP或cmd_vel旁路，未被mission匯入",
+    "tracked": true
+  },
+  {
+    "path": "detection/rear_nav/rear_to_arm_blind_handoff.py",
+    "classification": "LEGACY",
+    "basis": "較早vision/navigation standalone；TCP或cmd_vel旁路，未被mission匯入",
+    "tracked": true
+  },
+  {
+    "path": "docs/calibration/CALIBRATION_PLAN.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/calibration/CAMERA_CALIBRATION_PARAMETERS.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/calibration/arm_pose.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/calibration/c3_calib_real_20260802.json",
+    "classification": "ACTIVE",
+    "basis": "配置/輔助資產；沒有足夠證據宣稱DEAD",
+    "tracked": true
+  },
+  {
+    "path": "docs/calibration/e1_grasp_home_points_20260829.json",
+    "classification": "ACTIVE",
+    "basis": "配置/輔助資產；沒有足夠證據宣稱DEAD",
+    "tracked": true
+  },
+  {
+    "path": "docs/handoff/DESKTOP_AI_MODEL_EXPORT_PROMPT.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/handoff/GRASP_HOME_FOV_RETRAINING_HANDOFF.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/handoff/HANDOFF.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/handoff/HANDOFF_VERIFY_2026-08-04.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/handoff/JETSON_RECOVERY_BOOT_TEST_HANDOFF_2026-07-18.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/images/session.json",
+    "classification": "ACTIVE",
+    "basis": "配置/輔助資產；沒有足夠證據宣稱DEAD",
+    "tracked": true
+  },
+  {
+    "path": "docs/operations/JETSON_DRYRUN_CHECKLIST.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/operations/MODE_B_TEST_PLAN.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/operations/STARTUP_DEVICE_CHECK.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/planning/GRASP_TRAINING_REQUIREMENTS_2026-07-27.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/planning/MISSION_PLAN.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/planning/MODEL_RELEASE_WORKFLOW.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "docs/planning/PROJECT_EXECUTION_ROADMAP_2026-08-31.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": false
+  },
+  {
+    "path": "docs/planning/V21_DEPLOY_REVIEW_AND_PLAN_2026-07-30.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "document/SRS_iGibson_v2.md",
+    "classification": "EXPERIMENTAL",
+    "basis": "本機報告/生成器，不是機器人runtime；保留使用者未提交工作",
+    "tracked": false
+  },
+  {
+    "path": "document/build_srs.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "本機報告/生成器，不是機器人runtime；保留使用者未提交工作",
+    "tracked": false
+  },
+  {
+    "path": "grasp/Rosmaster_Lib_reference.py",
+    "classification": "LEGACY",
+    "basis": "driver參考源碼；runtime import的是外部Rosmaster_Lib，不是此檔",
+    "tracked": true
+  },
+  {
+    "path": "grasp/fk_test.py",
+    "classification": "TEST",
+    "basis": "FK/servo/bus/pose/workspace工具；real或硬體probe須獨立維護模式",
+    "tracked": true
+  },
+  {
+    "path": "grasp/joint_direction_calibration.py",
+    "classification": "TEST",
+    "basis": "FK/servo/bus/pose/workspace工具；real或硬體probe須獨立維護模式",
+    "tracked": true
+  },
+  {
+    "path": "grasp/move_arm.py",
+    "classification": "TEST",
+    "basis": "FK/servo/bus/pose/workspace工具；real或硬體probe須獨立維護模式",
+    "tracked": true
+  },
+  {
+    "path": "grasp/requirements_jetson.txt",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "grasp/servo_test.py",
+    "classification": "TEST",
+    "basis": "FK/servo/bus/pose/workspace工具；real或硬體probe須獨立維護模式",
+    "tracked": true
+  },
+  {
+    "path": "grasp/workspace_scan.py",
+    "classification": "TEST",
+    "basis": "FK/servo/bus/pose/workspace工具；real或硬體probe須獨立維護模式",
+    "tracked": true
+  },
+  {
+    "path": "grasp/x3plus_real_grasp.py",
+    "classification": "LEGACY",
+    "basis": "v17 absolute備援；model_tools wrapper仍會subprocess呼叫，非DEAD",
+    "tracked": true
+  },
+  {
+    "path": "grasp/deploy_v23/DEPLOY_V23_MANIFEST.md",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "grasp/deploy_v23/README.md",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "grasp/deploy_v23/action_execution_v21.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "grasp/deploy_v23/deploy_contract.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "grasp/deploy_v23/x3plus_real_grasp.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "grasp/deploy_v23/x3plus/__init__.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "grasp/deploy_v23/x3plus/yahboomcar.urdf",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "grasp/trained_6d_models_v18/README.md",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "grasp/trained_6d_models_v18/manifest.json",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "grasp/trained_6d_models_v18/verify_v18.py",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/HANDOFF.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/README.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/action_execution_v21.py",
+    "classification": "ACTIVE",
+    "basis": "v21 controller使用的incremental safety action execution",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/bus_probe.py",
+    "classification": "TEST",
+    "basis": "FK/servo/bus/pose/workspace工具；real或硬體probe須獨立維護模式",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/deploy_contract.py",
+    "classification": "ACTIVE",
+    "basis": "v21 controller與tests匯入的模型契約",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/jetson_one_command_grasp.py",
+    "classification": "ACTIVE",
+    "basis": "v21正式獨立抓取候選launcher；不是完整mission",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/jetson_verify.sh",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/manifest.json",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/pose_check.py",
+    "classification": "TEST",
+    "basis": "FK/servo/bus/pose/workspace工具；real或硬體probe須獨立維護模式",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/test_deploy_controller.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/test_deploy_floor_guard.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/test_one_command_launcher.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/test_servo_read.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/x3plus_real_grasp.py",
+    "classification": "ACTIVE",
+    "basis": "Mission動態載入 + v21 standalone controller",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/evidence/v21_formal_claim.json",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/evidence/v21_formal_evaluation_seed90210.json",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/evidence/v21_seed816_training_metadata.json",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/evidence/v21_selection_lock.json",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/reference/README.md",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v21/reference/x3plus_real_grasp.release_branch.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/README.md",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/action_execution_v21.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/bus_probe.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/deploy_contract.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/jetson_one_command_grasp.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/jetson_verify.sh",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/manifest.json",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/pose_check.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/pose_explorer.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/test_deploy_controller.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/test_deploy_floor_guard.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/test_one_command_launcher.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/test_servo_read.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/test_three_pose_scan.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/three_pose_scan.json",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/three_pose_scan.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/x3plus_real_grasp.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/handoff/DEPLOY_V23_MANIFEST.md",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/handoff/README.md",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/v23/handoff/README_as_delivered.md",
+    "classification": "EXPERIMENTAL",
+    "basis": "v23 candidate獨立路徑；有實測記錄但mission loader仍選v21",
+    "tracked": true
+  },
+  {
+    "path": "grasp/x3plus/__init__.py",
+    "classification": "ACTIVE",
+    "basis": "ACTIVE FK/URDF asset package marker；不是hardware test",
+    "tracked": true
+  },
+  {
+    "path": "grasp/x3plus/yahboomcar.urdf",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "integration/DEPLOY_VERIFY.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "integration/KALMAN_FILTER_DESIGN.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "integration/MISSION.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "integration/NAV_RL.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "integration/README.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "integration/SETMOTOR_ODOM_INTEGRATION.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "integration/TEST_PLAN.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "integration/arm_cam_geometry.py",
+    "classification": "ACTIVE",
+    "basis": "Bridge/nav/calibration共用幾何與pose身份",
+    "tracked": true
+  },
+  {
+    "path": "integration/capture_arm_cam_obs.py",
+    "classification": "TEST",
+    "basis": "部署檢查、camera/geometry校正或smoke工具；按CLI區分offline與hardware",
+    "tracked": true
+  },
+  {
+    "path": "integration/feedback_odom.py",
+    "classification": "ACTIVE",
+    "basis": "Mission OdomPublisher使用；board-motion feedback積分",
+    "tracked": true
+  },
+  {
+    "path": "integration/grasp_home_homography.py",
+    "classification": "ACTIVE",
+    "basis": "Bridge/standalone校正投影；mission尚未完整接入",
+    "tracked": true
+  },
+  {
+    "path": "integration/grasp_home_homography_e1.json",
+    "classification": "ACTIVE",
+    "basis": "配置/輔助資產；沒有足夠證據宣稱DEAD",
+    "tracked": true
+  },
+  {
+    "path": "integration/map_goal_provider.py",
+    "classification": "ACTIVE",
+    "basis": "Mission使用；external route與AMCL→goal",
+    "tracked": true
+  },
+  {
+    "path": "integration/mission_fsm.py",
+    "classification": "ACTIVE",
+    "basis": "MissionRunner匯入；pure state transitions",
+    "tracked": true
+  },
+  {
+    "path": "integration/mission_pipeline.py",
+    "classification": "ACTIVE",
+    "basis": "正式整合候選入口；build_and_run直接組裝所有adapter",
+    "tracked": true
+  },
+  {
+    "path": "integration/mission_status.py",
+    "classification": "ACTIVE",
+    "basis": "Mission/UI間狀態與控制協定",
+    "tracked": true
+  },
+  {
+    "path": "integration/nav_rl.py",
+    "classification": "ACTIVE",
+    "basis": "Mission/RLNavigator使用；55D PPO與LaserScan adapter",
+    "tracked": true
+  },
+  {
+    "path": "integration/nav_rl_grasp_pipeline.py",
+    "classification": "ACTIVE",
+    "basis": "ACTIVE類別庫；standalone Mode C為EXPERIMENTAL且有B18",
+    "tracked": true
+  },
+  {
+    "path": "integration/preflight.py",
+    "classification": "TEST",
+    "basis": "部署檢查、camera/geometry校正或smoke工具；按CLI區分offline與hardware",
+    "tracked": true
+  },
+  {
+    "path": "integration/ros_io.py",
+    "classification": "ACTIVE",
+    "basis": "Mission使用；rosbridge odom/TF/pose/status I/O",
+    "tracked": true
+  },
+  {
+    "path": "integration/smoke_mode_b.py",
+    "classification": "TEST",
+    "basis": "部署檢查、camera/geometry校正或smoke工具；按CLI區分offline與hardware",
+    "tracked": true
+  },
+  {
+    "path": "integration/solve_arm_cam_extrinsics.py",
+    "classification": "TEST",
+    "basis": "部署檢查、camera/geometry校正或smoke工具；按CLI區分offline與hardware",
+    "tracked": true
+  },
+  {
+    "path": "integration/solve_cam_to_base.py",
+    "classification": "TEST",
+    "basis": "部署檢查、camera/geometry校正或smoke工具；按CLI區分offline與hardware",
+    "tracked": true
+  },
+  {
+    "path": "integration/trash_target.py",
+    "classification": "ACTIVE",
+    "basis": "Mission可選offboard target adapter",
+    "tracked": true
+  },
+  {
+    "path": "integration/verify_camera_grasp_frame.py",
+    "classification": "TEST",
+    "basis": "部署檢查、camera/geometry校正或smoke工具；按CLI區分offline與hardware",
+    "tracked": true
+  },
+  {
+    "path": "integration/verify_x3plus_deploy.py",
+    "classification": "TEST",
+    "basis": "部署檢查、camera/geometry校正或smoke工具；按CLI區分offline與hardware",
+    "tracked": true
+  },
+  {
+    "path": "integration/vision_grasp_bridge.py",
+    "classification": "ACTIVE",
+    "basis": "Mode B與one-command launcher使用；pose-stamped TCP sender",
+    "tracked": true
+  },
+  {
+    "path": "integration/vision_grasp_pipeline.py",
+    "classification": "ACTIVE",
+    "basis": "ACTIVE Navigator/base helpers；standalone legacy orchestration已限制real",
+    "tracked": true
+  },
+  {
+    "path": "integration/nav_best_model/P2_J_collision_guard_rewardparams.json",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "integration/nav_best_model/doorway_ft_training_config.json",
+    "classification": "ACTIVE",
+    "basis": "模型/幾何/契約資產；需與實際consumer和版本配對",
+    "tracked": true
+  },
+  {
+    "path": "model_tools/__init__.py",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "model_tools/export_model_package.py",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "model_tools/fetch_model_release.py",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "model_tools/grasp_v18_manifest.template.json",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "model_tools/install_model_package.py",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "model_tools/model_package.py",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "model_tools/run_grasp_package.py",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "model_tools/verify_model_package.py",
+    "classification": "LEGACY",
+    "basis": "舊模型package流程；wrapper固定v17，不能當v21/v23通用launcher",
+    "tracked": true
+  },
+  {
+    "path": "tests/test_grasp_home_homography.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "tests/test_mission_end_to_end.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "tests/test_model_package.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "tests/test_safety_guards.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "tests/test_stream_cam_capture.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "tests/test_trash_target.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "tests/test_vision_grasp_bridge_pose.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "training/action_execution_v21.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "training/deploy_contract.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "training/test_deploy_controller.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "training/x3plus_real_grasp.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "training/x3plus/__init__.py",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "training/x3plus/yahboomcar.urdf",
+    "classification": "LEGACY",
+    "basis": "交接/舊來源保留；不在現行mission import鏈；部分Arm_Lib版本不得執行",
+    "tracked": false
+  },
+  {
+    "path": "ui/README.md",
+    "classification": "ACTIVE",
+    "basis": "文件/依賴記錄；描述不等於runtime證據，歷史handoff需按日期解讀",
+    "tracked": true
+  },
+  {
+    "path": "ui/install_desktop_shortcut.sh",
+    "classification": "ACTIVE",
+    "basis": "UI資產/啟動環境工具或CI；不是獨立motor controller",
+    "tracked": true
+  },
+  {
+    "path": "ui/jetson_check.sh",
+    "classification": "ACTIVE",
+    "basis": "UI資產/啟動環境工具或CI；不是獨立motor controller",
+    "tracked": true
+  },
+  {
+    "path": "ui/launch_ui.sh",
+    "classification": "ACTIVE",
+    "basis": "UI資產/啟動環境工具或CI；不是獨立motor controller",
+    "tracked": true
+  },
+  {
+    "path": "ui/launcher.py",
+    "classification": "ACTIVE",
+    "basis": "launch_ui.sh真正exec入口",
+    "tracked": true
+  },
+  {
+    "path": "ui/make_qr.py",
+    "classification": "ACTIVE",
+    "basis": "UI QR helper",
+    "tracked": true
+  },
+  {
+    "path": "ui/prototype.html",
+    "classification": "ACTIVE",
+    "basis": "UI資產/啟動環境工具或CI；不是獨立motor controller",
+    "tracked": true
+  },
+  {
+    "path": "ui/server.py",
+    "classification": "ACTIVE",
+    "basis": "Console entry與child管理；B09/B19尚需修",
+    "tracked": true
+  },
+  {
+    "path": "ui/test_server.py",
+    "classification": "TEST",
+    "basis": "離線suite候選；已執行清單以offline_test_results.json為準",
+    "tracked": true
+  },
+  {
+    "path": "ui/static/app.js",
+    "classification": "ACTIVE",
+    "basis": "UI資產/啟動環境工具或CI；不是獨立motor controller",
+    "tracked": true
+  },
+  {
+    "path": "ui/static/index.html",
+    "classification": "ACTIVE",
+    "basis": "UI資產/啟動環境工具或CI；不是獨立motor controller",
+    "tracked": true
+  },
+  {
+    "path": "ui/static/style.css",
+    "classification": "ACTIVE",
+    "basis": "UI資產/啟動環境工具或CI；不是獨立motor controller",
+    "tracked": true
+  },
+  {
+    "path": "yolo/sugarbox_yolo11_release/README.md",
+    "classification": "EXPERIMENTAL",
+    "basis": "獨立模型demo/資料配置；mission實際載入detection/models/best.pt",
+    "tracked": true
+  },
+  {
+    "path": "yolo/sugarbox_yolo11_release/data.yaml",
+    "classification": "EXPERIMENTAL",
+    "basis": "獨立模型demo/資料配置；mission實際載入detection/models/best.pt",
+    "tracked": true
+  },
+  {
+    "path": "yolo/sugarbox_yolo11_release/predict_demo.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "獨立模型demo/資料配置；mission實際載入detection/models/best.pt",
+    "tracked": true
+  },
+  {
+    "path": "yolo/sugarbox_yolo11_release/webcam_demo.py",
+    "classification": "EXPERIMENTAL",
+    "basis": "獨立模型demo/資料配置；mission實際載入detection/models/best.pt",
+    "tracked": true
+  }
+]

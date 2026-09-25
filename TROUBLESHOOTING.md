@@ -21,6 +21,16 @@
 - **解法**：RTX 3050（驅動支援 CUDA 12.7）→ `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124`。先 `nvidia-smi` 看驅動支援的 CUDA 版本，選 ≤ 它的 cuXXX build（cu124 最穩）。驗證 `torch.cuda.is_available()` 與 `r[0].boxes.data.device == cuda:0`。
 - **教訓**：cu124 channel 會把 torch 降到對應版本（2.12→2.6），ultralytics 仍相容，正常。
 
+### 4. Jetson 執行時出現 `SyntaxError: future feature annotations is not defined`
+- **症狀**：在 Jetson 上直接執行 `python3 jetson_one_command_grasp.py` 時報錯 `SyntaxError: future feature annotations is not defined` 或缺少相依套件。
+- **原因**：Jetson Nano (JetPack 4.x / Ubuntu 18.04) 系統預設 `python3` 版本為 **Python 3.6.9**。本專案完整的運作環境（Python 3.8、PyTorch、Stable-Baselines3、PyBullet 等）皆建置於 **`~/grasp_venv`** 虛擬環境中。
+- **解法**：執行前必須先進入虛擬環境：
+  ```bash
+  source ~/grasp_venv/bin/activate && cd ~/Documents/iGibson-Navigation-Grasping/grasp/v21 && python3 jetson_one_command_grasp.py --check
+  ```
+  `jetson_verify.sh` 第 20 行亦有檢查 `VIRTUAL_ENV` 環境變數。
+- **教訓**：Jetson 上本專案一律用 `~/grasp_venv` 的 Python 3.8 執行；系統預設 `python3` (3.6.9) 未安裝專案套件且不支援 PEP 563，跑任何腳本均無法運作。
+
 ---
 
 ## 相機 / 串流
@@ -131,5 +141,47 @@
   導航用 `--lidar-backend ros --ros-host 127.0.0.1`。
 - **教訓**：不能用裝置檔名判斷雷達品牌；以 driver 回報的 model/firmware/health 與實際
   `/scan` rate 為準。TG30 不安裝 `rplidar-roboticia`。
+
+### 15. 一鍵夾取走到 C3 才被視覺端擋下：`grasp-home detection requires --homography`（✅ 已解 2026-08-14）
+- **症狀**：`jetson_one_command_grasp.py` 一路正常 —— 檔案檢查過、模型載入、序列埠開啟、
+  手臂確認到 C3 home —— 然後 bridge 印
+  `grasp-home detection requires --homography; nav-home H/theta/cam offsets are invalid
+  after the arm moves`、exit 1，launcher 把控制器一起收掉。
+- **原因**：launcher 沒跟上 bridge。bridge 後來把 C3 姿勢改成 fail-closed：那裡只接受
+  **實測的 pixel→base homography**，舊的 nav-home `H/θ/cam_x/cam_y/sign_y` 一律拒收，
+  `--i-accept-predicted-extrinsics` 也擋不掉（那個旗標只對 nav-home 有效）。
+  launcher 卻還在傳那組 nav-home 參數、而且沒傳 `--homography`。
+  2026-08-03 那次成功是在加閘之前跑的，所以不是「以前會動現在壞了」，是**閘變嚴了**。
+- **解法**：launcher 現在傳 `--homography`，並且在**開硬體之前**用 bridge 同一道閘
+  （≥6 點、最大誤差 <2cm）驗這個檔；沒有校正檔就直接不啟動。校正檔用同一支的
+  `--calibrate` 產生（手臂停在 C3 home，相機連續印 median undistorted 像素）。
+  舊的 `--cam-x/--cam-y/--sign-y` 已從 launcher 移除，不是留著沒作用。
+- **教訓**：**檢查要放在成本發生之前。** 這個錯誤本身沒問題，錯的是它在手臂已經上電、
+  走到 C3 之後才發生。凡是「跑到一半才會發現」的前置條件，都應該在 preflight 就查。
+  另外兩個程序各自版本正確、卻對不上彼此的介面，靠讀單邊程式碼是看不出來的
+  —— `test_one_command_launcher.py` 就是釘住這條接線的。
+
+## 導航 / 定位
+
+### 14. 先設好 AMCL 再開 mission_pipeline，定位就爛掉（✅ 已解 2026-08-10）
+- **症狀**：RViz 2D Pose Estimate 明明已經收斂，一啟動
+  `integration/mission_pipeline.py` 就一路
+  `FAIL: AMCL not usable (AMCL position variance 0.3434 > 0.0625 m^2)`，
+  self-check 永遠不過、`--wait-start` 連 Enter 都沒得按。重設一次定位、再重開主程式，
+  同樣的事再發生一次。
+- **原因**：`odom → base_footprint` 的**唯一**發布者就是主程式自己
+  （`mission_pipeline.OdomPublisher`，20 Hz，走 `ros_io.publish_odom_and_tf`），
+  而 `feedback_odom.FeedbackOdom` 每次程序啟動都從 (0, 0, 0) 重新積分。
+  主程式一開，odom 原點就跳回車子當下的位置，AMCL 手上的 `map→odom` 立刻對不上，
+  粒子被那個假位移推開 → variance 爆掉。這不是門檻太嚴，是定位真的丟了。
+- **解法**：把設定位挪到啟動主程式**之後**。主程式維持運行（它一開始印 `FAIL` 是正常的）
+  → RViz 設緊初始化 → `rosservice call /request_nomotion_update` →
+  確認 `covariance[0]`、`covariance[7]` < 0.0625 → self-check 每 tick 自己重跑，
+  轉成 `AMCL ok at (...)` 後才按 Enter。**中途不要重開主程式**，重開就是再歸零一次。
+  `integration/MISSION.md`「上機啟動順序」已改成這個順序。
+- **教訓**：誰發 odom，誰就決定定位什麼時候可以設。這條專案裡本來就寫在
+  `SETMOTOR_ODOM_INTEGRATION.md` §4.3（「odom reset 只允許在 AMCL 尚未依賴目前 odom 時
+  執行」）與 §10.2（步驟 4 才啟動主 pipeline），只是 `MISSION.md` 的操作順序沒跟上，
+  照著做就一定踩到。
 
 ---

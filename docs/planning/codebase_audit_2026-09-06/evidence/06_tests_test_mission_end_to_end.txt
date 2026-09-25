@@ -1,0 +1,30 @@
+test_blocking_align_obeys_its_deadline (__main__.FineAlignSafetyRegression.test_blocking_align_obeys_its_deadline) ... ok
+test_blocking_align_obeys_live_health_and_lidar_brake (__main__.FineAlignSafetyRegression.test_blocking_align_obeys_live_health_and_lidar_brake) ... ok
+test_a_long_arm_block_recovers_the_map_fix_instead_of_pausing (__main__.MissionEndToEnd.test_a_long_arm_block_recovers_the_map_fix_instead_of_pausing)
+A grasp holds the loop for minutes; DELIVER must not pause on that. ... ok
+test_arm_camera_is_not_consulted_while_the_arm_is_folded (__main__.MissionEndToEnd.test_arm_camera_is_not_consulted_while_the_arm_is_folded) ... ok
+test_arm_is_folded_for_driving_and_raised_only_at_the_handoff (__main__.MissionEndToEnd.test_arm_is_folded_for_driving_and_raised_only_at_the_handoff) ... ok
+test_base_must_report_stationary_before_fine_align_or_arm_raise (__main__.MissionEndToEnd.test_base_must_report_stationary_before_fine_align_or_arm_raise) ... ok
+test_carry_pause_selfcheck_reparks_without_opening_the_jaw (__main__.MissionEndToEnd.test_carry_pause_selfcheck_reparks_without_opening_the_jaw) ... ok
+test_delivery_targets_the_bin_not_a_patrol_waypoint (__main__.MissionEndToEnd.test_delivery_targets_the_bin_not_a_patrol_waypoint) ... ok
+test_detection_exception_breaks_the_consecutive_streak (__main__.MissionEndToEnd.test_detection_exception_breaks_the_consecutive_streak) ... ok
+test_failed_alignment_gives_up_after_the_retry_budget (__main__.MissionEndToEnd.test_failed_alignment_gives_up_after_the_retry_budget) ... ok
+test_failed_controller_result_is_a_failed_attempt_not_an_infinite_grasp (__main__.MissionEndToEnd.test_failed_controller_result_is_a_failed_attempt_not_an_infinite_grasp) ... ok
+test_full_cycle_reaches_every_state_and_returns_to_patrol (__main__.MissionEndToEnd.test_full_cycle_reaches_every_state_and_returns_to_patrol) ... ok
+test_goal_source_switches_keep_the_camera_fix_but_clear_the_delay (__main__.MissionEndToEnd.test_goal_source_switches_keep_the_camera_fix_but_clear_the_delay) ... ok
+test_grasp_and_release_each_run_exactly_once (__main__.MissionEndToEnd.test_grasp_and_release_each_run_exactly_once) ... ok
+test_no_deliver_stops_and_holds_without_the_bin (__main__.MissionEndToEnd.test_no_deliver_stops_and_holds_without_the_bin) ... ok
+test_oversized_detection_never_corrupts_the_map_blacklist (__main__.MissionEndToEnd.test_oversized_detection_never_corrupts_the_map_blacklist) ... ok
+test_pause_while_carrying_preserves_object_and_resumes_delivery (__main__.MissionEndToEnd.test_pause_while_carrying_preserves_object_and_resumes_delivery) ... ok
+test_real_refuses_to_start_when_amcl_cannot_be_refreshed (__main__.MissionEndToEnd.test_real_refuses_to_start_when_amcl_cannot_be_refreshed)
+No /request_nomotion_update means no recovery from standing still. ... ok
+test_retry_records_nav_home_so_every_attempt_raises_back_to_c3 (__main__.MissionEndToEnd.test_retry_records_nav_home_so_every_attempt_raises_back_to_c3) ... ok
+test_stale_map_goal_pauses_patrol_instead_of_only_stopping (__main__.MissionEndToEnd.test_stale_map_goal_pauses_patrol_instead_of_only_stopping) ... ok
+test_state_is_clean_when_patrol_resumes (__main__.MissionEndToEnd.test_state_is_clean_when_patrol_resumes) ... ok
+test_the_order_is_the_documented_one (__main__.MissionEndToEnd.test_the_order_is_the_documented_one) ... ok
+test_zero_blacklist_radius_really_disables_blacklisting (__main__.MissionEndToEnd.test_zero_blacklist_radius_really_disables_blacklisting) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 0.011s
+
+OK

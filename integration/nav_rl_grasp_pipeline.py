@@ -19,7 +19,9 @@ policy instead of the hand-tuned rear-camera state machine:
 Run:
     python nav_rl_grasp_pipeline.py --selftest              # pure logic, no hw
     python nav_rl_grasp_pipeline.py --no-lidar              # dry-run w/o lidar
-    python nav_rl_grasp_pipeline.py --real --show           # full run (needs lidar)
+
+The integrated --real path is intentionally refused until measured grasp-home
+homography mapping is connected to final alignment and target latching.
 
 HARDWARE PREREQUISITES (same as vision_grasp_pipeline.py, plus lidar):
     * port-7000 motor server / ROS base driver NOT running
@@ -443,15 +445,17 @@ def run_pipeline(args):
             else:
                 report.say("VERIFY", "VERIFY", "checking the object left the floor",
                            attempt=attempt)
-                if nav.verify_grasp(obj_pos):
+                verification = nav.verify_grasp(obj_pos)
+                if verification is True:
                     report.say("COMPLETE", "STOP",
                                f"grasp succeeded on attempt {attempt}", attempt=attempt,
                                lifted=1)
                     print(f"[pipeline] OK grasp succeeded on attempt {attempt}.")
                     success = True
                     break
-                report.say("RETRY", "BACK_OFF", "object is still on the floor",
-                           attempt=attempt)
+                reason = ("object is still on the floor" if verification is False
+                          else "grasp verification unavailable")
+                report.say("RETRY", "BACK_OFF", reason, attempt=attempt)
             print("[pipeline] FAILED grasp — retreating and retrying.")
             controller.move_home()   # guarded; ensures gripper open for retry
             time.sleep(1.0)

@@ -151,12 +151,31 @@ class DeployConfig:
     # path with FK before anything is sent, and shorten or refuse the motion. There is
     # no backstop here by design — if this layer fails, the gripper hits the floor.
     floor_guard_enable: bool = True
-    # Raises the two finger pads by this much in the GUARD's geometry only, to undo
-    # the measured URDF finger error (16.7 mm too long; pose_check.py, 2026-07-31).
-    # Default 0.0 = the training-identical, conservative metric: the guard believes
-    # the pads are 16.7 mm lower than they are and stops that much early, which is
-    # what deadlocked run 6. Opt in with --floor-finger-error-mm AFTER confirming the
-    # real clearance with a ruler; getting it wrong drives the fingers into the floor.
+    # Raises the two finger pads by this much wherever this code reasons about
+    # where the pads ARE, undoing the measured URDF finger error (16.7 mm too long
+    # at C3, pose_check.py 2026-07-31; 11.9 mm open / 15.4 mm closed re-measured
+    # 2026-08-29).
+    #
+    # TWO consumers, and they fail in opposite directions, which is why the error
+    # has to reach both:
+    #
+    #   FloorGuard          believes the pads are LOWER than they are, so it stops
+    #                       early. Conservative. This is what deadlocked run 6.
+    #   _grasp_geometry     believes the same thing, and there it means pads_ready
+    #                       fires while the real pads are still ABOVE the object.
+    #                       Not conservative at all.
+    #
+    # The second was found on hardware 2026-08-30: with a 6.5 cm box the gate went
+    # true at z-error 23 mm, modelled pads at 53 mm against a 65 mm object top,
+    # real pads about 68 mm -- above the object. The jaw is forced to at least
+    # MIN_CLOSE_ACTION once pads_ready, so it shut 25 steps before the arm was in
+    # position and then jammed the arm short of the target. Found on the v23 pose;
+    # the geometry is the same here.
+    #
+    # Default stays 0.0, the training-identical metric. Opt in with
+    # --floor-finger-error-mm AFTER measuring the real clearance with a ruler
+    # (pose_check.py --real prints both jaw angles); getting it wrong in the other
+    # direction drives the fingers into the floor.
     floor_finger_error_m: float = 0.0
     floor_safety_margin: float = 0.008   # m, deliberately looser than sim's 0.005:
                                          # real servos overshoot more than the model
@@ -226,10 +245,44 @@ class DeployConfig:
     jaw_contact_lag_deg: float = 5.0     # command ahead of encoder by more = blocked
     jaw_contact_streak: int = 2          # consecutive blocked iterations before declaring
     jaw_hold_bias_deg: float = 8.0       # grip-force knob: hold this far past contact
+
+    # The absolute progress test above has a blind spot, heard on hardware as a
+    # repeated clicking during the close: an object that SLIPS a little under the
+    # jaw lets the encoder move more than jaw_contact_min_progress_deg, so
+    # `tracking` reads true, the contact streak resets, and the command keeps
+    # advancing into an object it has already reached. The jaw is moving, so
+    # nothing looks stalled; it is just moving slower than it was told to.
+    #
+    # Comparing the encoder's step against the COMMANDED step catches that,
+    # because it asks the scale-free question -- is the jaw keeping up? A free
+    # jaw returns about 1.0, a blocked one about 0.0, and one squeezing a
+    # slipping object lands in between.
+    #
+    # 0.0 disables it, which is the shipped default: the 2026-07-31 grasp that
+    # worked used the absolute test alone, and this only ever makes contact fire
+    # EARLIER. 0.5 is the value measured on hardware 2026-08-30 (on the v23 pose,
+    # but the finger, the object and the gearbox are the same ones).
+    jaw_contact_track_fraction: float = 0.0
+    # Ratio test is skipped below this commanded step, where the quotient is
+    # dominated by encoder quantisation rather than by the object.
+    jaw_contact_min_cmd_step_deg: float = 1.0
+
+    # Hard ceiling on how far the jaw command may run past the encoder during a
+    # close. This is a bound on FORCE, not a detector: the servo makes grip force
+    # out of position error, so capping the error caps the torque by construction
+    # and the gearbox can no longer be driven to the stop-to-stop error that
+    # grinds -- even if every detector above misses, which is exactly what
+    # happened when the object slipped. Sized above jaw_hold_bias_deg so a normal
+    # close and the deliberate hold are never throttled; it binds only on the
+    # runaway.
+    jaw_max_lag_deg: float = 15.0
+
     # Opt-in hardware shortcut: while Stage 0's policy is already closing the jaw,
-    # treat a measured S6 that remains unchanged for N consecutive policy steps as
-    # contact and lift with only the explicitly configured small hold bias. Zero
-    # stall steps disables the shortcut.
+    # treat N consecutive blocked readings as contact and lift with only the
+    # explicitly configured small hold bias. "Blocked" includes both a stationary
+    # encoder and, when jaw_contact_track_fraction is enabled, an encoder that
+    # advances too slowly to consume the previous command's outstanding travel.
+    # Zero stall steps disables the shortcut.
     # The run loop also requires the jaw to be >50% closed and still clearly short
     # of the empty 180-degree stop, so a stable open or fully-closed jaw cannot pass.
     stage0_s6_stall_steps: int = 0
@@ -948,20 +1001,38 @@ class FKComputer:
         self.physics_client = p.connect(p.DIRECT)
         p.setGravity(0, 0, -9.81, physicsClientId=self.physics_client)
 
-        urdf_abs = str(Path(__file__).parent / urdf_path)
-        if not Path(urdf_abs).exists():
+        urdf_abs = Path(__file__).parent / urdf_path
+        if not urdf_abs.exists():
             raise FileNotFoundError(f"URDF not found: {urdf_abs}")
+
+        # Prefer the FK-only URDF when it has been generated: collision meshes on the
+        # six gripper links only, which is every link whose AABB anything here reads.
+        # Drops 59.5 MB of STL nobody parses for a reason (3.66 s -> 0.14 s measured;
+        # the Nano reads the same bytes off an SD card). Proven identical over 402
+        # poses by x3plus/make_deploy_urdf.py --verify. Falling back to the full URDF
+        # when it is absent costs startup time and nothing else.
+        deploy_urdf = urdf_abs.with_name(urdf_abs.stem + "_deploy" + urdf_abs.suffix)
+        chosen = deploy_urdf if deploy_urdf.exists() else urdf_abs
 
         # Loaded at the training-frame offset, not the origin: iGibson's loader merges
         # links and settles the base, so a bare origin load puts every reported
         # position ~2.2 cm away from what the policy saw in training. See
         # deploy_contract.URDF_TO_TRAINING_FRAME.
+        #
+        # IGNORE_VISUAL_SHAPES, and deliberately NOT the collision flag. The .obj
+        # visual meshes are ~88 MB and nothing here renders: DIRECT mode, no
+        # getCameraImage, no getVisualShapeData. URDF_IGNORE_COLLISION_SHAPES would
+        # be faster still and is a trap: it does not raise, it silently returns a
+        # pad_bottom_z 27 mm too high -- clearance the floor guard does not have,
+        # against an 8 mm margin.
         self.body_id = p.loadURDF(
-            urdf_abs,
+            str(chosen),
             basePosition=list(dc.URDF_TO_TRAINING_FRAME),
             useFixedBase=True,
+            flags=p.URDF_IGNORE_VISUAL_SHAPES,
             physicsClientId=self.physics_client,
         )
+        self.urdf_used = chosen
 
         # Discover joint indices (same suffix-match logic as x3plus_ground_grasp_env.py)
         target_arm = ["arm_joint1", "arm_joint2", "arm_joint3", "arm_joint4", "arm_joint5"]
@@ -998,7 +1069,26 @@ class FKComputer:
 
         self.ee_link = self.arm_indices[-1]   # arm_joint5 child link — orientation only
 
-        print(f"[FK] PyBullet DIRECT ready. tcp=gripper_center("
+        # The floor guard is made of getAABB on these links, and getAABB does not
+        # raise when the collision shape is missing or a placeholder — it quietly
+        # returns a smaller box, i.e. clearance the robot does not have. Both ways
+        # of losing it (URDF_IGNORE_COLLISION_SHAPES, or a deploy URDF that stripped
+        # the wrong link) show up here as "not a mesh", so check once at load rather
+        # than discover it with the fingers in the floor.
+        missing = []
+        for idx in {self.tcp_link_r, self.tcp_link_l, *(i for i, _ in self.grip_drive)}:
+            shapes = p.getCollisionShapeData(self.body_id, idx,
+                                             physicsClientId=self.physics_client)
+            if not shapes or shapes[0][2] != p.GEOM_MESH:
+                missing.append(idx)
+        if missing:
+            raise RuntimeError(
+                f"{chosen.name}: gripper links {sorted(missing)} have no collision "
+                f"mesh, so pad_bottom_z would report clearance that is not there. "
+                f"Regenerate with x3plus/make_deploy_urdf.py --verify, or delete the "
+                f"_deploy URDF to fall back to the full one.")
+
+        print(f"[FK] PyBullet DIRECT ready ({chosen.name}). tcp=gripper_center("
               f"{self.tcp_link_r},{self.tcp_link_l}) arm={self.arm_indices} "
               f"grip_linkage={[i for i, _ in self.grip_drive]}")
 
@@ -1362,6 +1452,11 @@ class DetectionReceiver:
             self._server.close()
         except OSError:
             pass
+        thread = getattr(self, "_thread", None)
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=3.0)
+            if thread.is_alive():
+                print("[DetectionReceiver][WARN] listener did not stop within 3.0s")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1918,6 +2013,7 @@ class GraspController:
         guard_actions = []
         last_err = None
         prev_jaw = None
+        prev_jaw_cmd = None
         contact_streak = 0
 
         for it in range(max_iters):
@@ -1961,6 +2057,19 @@ class GraspController:
 
             hw = self.mapper.sim_arm_to_hw_deg(safe_arm)
             hw.append(self.mapper.sim_grip_to_hw_deg(safe_grip))
+            if stop_on_jaw_contact and prev_jaw is not None:
+                # Force ceiling. Never ask the jaw to be more than
+                # jaw_max_lag_deg past where it actually is; torque is that error.
+                limit = float(self.cfg.jaw_max_lag_deg)
+                if limit > 0.0:
+                    open_ = float(self.cfg.gripper_hw_open)
+                    closed = float(self.cfg.gripper_hw_closed)
+                    sign = 1.0 if closed >= open_ else -1.0
+                    ceiling = prev_jaw + sign * limit
+                    if sign > 0.0 and hw[5] > ceiling:
+                        hw[5] = ceiling
+                    elif sign < 0.0 and hw[5] < ceiling:
+                        hw[5] = ceiling
             if not self.servo.send_degrees(hw, run_time_ms=run_time_ms):
                 return {"reached": False, "reason": "servo write failed",
                         "iters": it, "guard": guard_actions}
@@ -1994,19 +2103,35 @@ class GraspController:
                 # layer tracks, not the far-off `want_hw` target.
                 jaw_cmd = float(self.servo._last_deg[5])
                 if prev_jaw is not None and ginfo["action"] == "pass":
-                    tracking = abs(jaw_rd - prev_jaw) >= self.cfg.jaw_contact_min_progress_deg
+                    enc_step = abs(jaw_rd - prev_jaw)
+                    tracking = enc_step >= self.cfg.jaw_contact_min_progress_deg
                     lagging = abs(jaw_cmd - jaw_rd) >= self.cfg.jaw_contact_lag_deg
-                    contact_streak = contact_streak + 1 if (lagging and not tracking) else 0
+                    # Slipping: the jaw IS moving, but far slower than commanded.
+                    # Only meaningful once the command asked for a real step.
+                    fraction = float(self.cfg.jaw_contact_track_fraction)
+                    cmd_step = (abs(jaw_cmd - prev_jaw_cmd)
+                                if prev_jaw_cmd is not None else 0.0)
+                    slipping = (
+                        fraction > 0.0
+                        and cmd_step >= self.cfg.jaw_contact_min_cmd_step_deg
+                        and enc_step < fraction * cmd_step)
+                    blocked = lagging and (not tracking or slipping)
+                    contact_streak = contact_streak + 1 if blocked else 0
                     if contact_streak >= max(1, int(self.cfg.jaw_contact_streak)):
                         hold = self._park_jaw_hold(jaw_rd, grip_target_rad, run_time_ms)
                         return {"reached": False, "jaw_contact": True,
                                 "jaw_contact_deg": jaw_rd, "jaw_hold_deg": hold,
-                                "reason": (f"no progress — jaw contact at {jaw_rd:.1f} deg, "
-                                           f"holding at {hold:.1f} deg"),
+                                "jaw_contact_mode": ("slipping" if slipping
+                                                     else "stalled"),
+                                "reason": (
+                                    f"{'slower than commanded' if slipping else 'no progress'}"
+                                    f" — jaw contact at {jaw_rd:.1f} deg, "
+                                    f"holding at {hold:.1f} deg"),
                                 "iters": it + 1, "guard": guard_actions}
                 else:
                     contact_streak = 0
                 prev_jaw = jaw_rd
+                prev_jaw_cmd = jaw_cmd
 
             # If the guard is clamping, the arm is being deliberately held short of the
             # request — that is not a stall, so only treat lack of progress as failure
@@ -2022,6 +2147,11 @@ class GraspController:
                     hold = self._park_jaw_hold(jaw_rd, grip_target_rad, run_time_ms)
                     return {"reached": False, "jaw_contact": True,
                             "jaw_contact_deg": jaw_rd, "jaw_hold_deg": hold,
+                            # Reached only by a whole-arm stall, never the slip
+                            # case -- but it must still say so, or a caller
+                            # reading jaw_contact_mode gets None from the branch
+                            # that fires FIRST on a hard block.
+                            "jaw_contact_mode": "stalled",
                             "reason": (f"no progress — jaw contact at {jaw_rd:.1f} deg, "
                                        f"holding at {hold:.1f} deg"),
                             "iters": it + 1, "guard": guard_actions}
@@ -2064,6 +2194,79 @@ class GraspController:
         self._grip_hold_rad = self.mapper.hw_deg_to_sim_grip(hold)
         return hold
 
+    def _observe_stage0_jaw(self, jaw_deg: float, jaw_cmd_deg: float,
+                            eligible: bool) -> dict:
+        """Update Stage-0 contact evidence from one measured S6 sample.
+
+        Stage 0 differs from the scripted Stage-1 close: every PPO action is
+        incremental and is re-anchored to the latest encoder reading. Comparing
+        two successive command *positions* therefore hides a slipping object --
+        the next command follows the slipping encoder and both appear to advance
+        together. Instead, remember how much of the previous command was still
+        outstanding and ask whether the next encoder sample consumed it.
+
+        A stopped jaw keeps the original absolute detector. A moving jaw is
+        classified as contact only when the ratio test is explicitly enabled,
+        the previous outstanding request was large enough to be meaningful, and
+        measured closing progress is below the configured fraction. Evidence must
+        remain consecutive; any ineligible or normally tracking sample resets it.
+        """
+        jaw = float(jaw_deg)
+        cmd = float(jaw_cmd_deg)
+        result = {
+            "blocked": False,
+            "mode": None,
+            "count": 0,
+            "encoder_progress_deg": 0.0,
+            "requested_progress_deg": 0.0,
+        }
+
+        prev_jaw = self._stage0_s6_prev_deg
+        prev_cmd = self._stage0_s6_prev_cmd_deg
+        if not eligible:
+            self._stage0_s6_prev_deg = None
+            self._stage0_s6_prev_cmd_deg = None
+            self._stage0_s6_stall_count = 0
+            return result
+
+        if prev_jaw is not None and prev_cmd is not None:
+            open_ = float(self.cfg.gripper_hw_open)
+            closed = float(self.cfg.gripper_hw_closed)
+            close_sign = 1.0 if closed >= open_ else -1.0
+            signed_encoder = close_sign * (jaw - float(prev_jaw))
+            encoder_progress = max(0.0, signed_encoder)
+            # This was the position error left immediately after the preceding
+            # policy step. The following sample is the first fair opportunity to
+            # see whether the servo consumed it.
+            requested_progress = max(
+                0.0, close_sign * (float(prev_cmd) - float(prev_jaw)))
+            unchanged = (abs(jaw - float(prev_jaw))
+                         <= self.cfg.stage0_s6_stall_epsilon_deg)
+            fraction = float(self.cfg.jaw_contact_track_fraction)
+            minimum_request = max(float(self.cfg.jaw_contact_min_cmd_step_deg),
+                                  float(self.cfg.jaw_contact_lag_deg))
+            slipping = (
+                not unchanged
+                and fraction > 0.0
+                and requested_progress >= minimum_request
+                and encoder_progress < fraction * requested_progress)
+            blocked = unchanged or slipping
+            self._stage0_s6_stall_count = (
+                self._stage0_s6_stall_count + 1 if blocked else 0)
+            result.update({
+                "blocked": blocked,
+                "mode": ("stalled" if unchanged else
+                         ("slipping" if slipping else None)),
+                "count": self._stage0_s6_stall_count,
+                "encoder_progress_deg": encoder_progress,
+                "requested_progress_deg": requested_progress,
+            })
+
+        self._stage0_s6_prev_deg = jaw
+        self._stage0_s6_prev_cmd_deg = cmd
+        result["count"] = self._stage0_s6_stall_count
+        return result
+
     def _grasp_geometry(self, obj_pos, obj_height: float) -> dict:
         """Geometry shared by action preprocessing and the stage-0 close gate."""
         height = float(obj_height)
@@ -2090,8 +2293,12 @@ class GraspController:
 
         # Same quantity as training _pads_ready_to_close(): actual pad AABB bottom,
         # minus only the close-drop that has not happened yet.
+        # ... plus the measured URDF finger error, because this gate asks a
+        # question about the REAL pads and fk.pad_bottom_z answers about the
+        # modelled ones. cfg.floor_finger_error_m is 0.0 by default, so this is
+        # identical to training unless the operator has measured and opted in.
         remaining_drop = max(0.0, dc.GRASP_CLOSE_DROP - close_drop)
-        pad_bottom = self.fk.pad_bottom_z(arm, grip)
+        pad_bottom = self.fk.pad_bottom_z(arm, grip) + self.cfg.floor_finger_error_m
         pad_after_close = pad_bottom - remaining_drop
         object_top = float(obj_pos[2]) + 0.5 * height
         pads_ready = bool(
@@ -2105,6 +2312,7 @@ class GraspController:
             "centred": bool(centred),
             "pads_ready": pads_ready,
             "pad_after_close_m": float(pad_after_close),
+            "finger_error_m": float(self.cfg.floor_finger_error_m),
             "object_top_m": float(object_top),
         }
 
@@ -2278,6 +2486,20 @@ class GraspController:
         span = abs(closed - open_)
         stall = abs(closed - grip_deg)
         frac = stall / span if span > 1e-6 else 0.0
+        # A jaw that is barely closed is not holding anything either. This check
+        # used to have a lower bound only -- "stopped short of fully closed" --
+        # so a fully OPEN jaw scored 100% short and read as a confident grasp.
+        # That is precisely the state run_release_only() exists to catch: an
+        # object lost between the grasp and the bin. Measured on hardware
+        # 2026-09-20: release on an empty jaw reported "CONFIRMED - jaw stalled
+        # at 30.0deg (100.0% short of closed)" and ran the whole drop motion.
+        # The floor is the fraction the stage-0 shortcut already requires before
+        # it will call a stall a grasp, so the two paths agree on "closed enough".
+        closed_frac = abs(grip_deg - open_) / span if span > 1e-6 else 0.0
+        if closed_frac < self.cfg.timeout_close_min_grip_frac:
+            return "rejected", (f"jaw sits at {grip_deg:.1f}deg, only {closed_frac*100:.0f}% of "
+                                f"the way closed from {open_:.0f}deg — the fingers are not "
+                                f"around anything")
         if frac < self.cfg.grasp_stall_min_fraction:
             return "rejected", (f"jaw reached {grip_deg:.1f}deg, only {frac*100:.1f}% short of "
                            f"fully closed ({closed:.0f}deg) — nothing detected between "
@@ -2626,6 +2848,7 @@ class GraspController:
         self._prev_action = np.zeros(6, dtype=np.float32)
         self._action_execution.reset(self._current_grip_rad)
         self._stage0_s6_prev_deg = None
+        self._stage0_s6_prev_cmd_deg = None
         self._stage0_s6_stall_count = 0
 
         # Latch AFTER the arm has confirmed the home pose: that is the only pose at
@@ -2843,14 +3066,8 @@ class GraspController:
                 eligible = (closing
                             and closed_frac >= self.cfg.timeout_close_min_grip_frac
                             and short_of_stop >= self.cfg.grasp_stall_min_fraction)
-                if eligible and self._stage0_s6_prev_deg is not None:
-                    unchanged = (abs(jaw_hw - self._stage0_s6_prev_deg)
-                                 <= self.cfg.stage0_s6_stall_epsilon_deg)
-                    self._stage0_s6_stall_count = (self._stage0_s6_stall_count + 1
-                                                   if unchanged else 0)
-                else:
-                    self._stage0_s6_stall_count = 0
-                self._stage0_s6_prev_deg = jaw_hw if eligible else None
+                jaw_cmd = float(self.servo._last_deg[5])
+                evidence = self._observe_stage0_jaw(jaw_hw, jaw_cmd, eligible)
 
                 if self._stage0_s6_stall_count >= self.cfg.stage0_s6_stall_steps:
                     status, why = self._grasp_looks_real()
@@ -2866,8 +3083,14 @@ class GraspController:
                                    else max(hold_hw, closed))
                         self._grip_hold_rad = self.mapper.hw_deg_to_sim_grip(hold_hw)
                         self._stage = 2
-                        print(f"\n[Stage] 0→2  S6 unchanged for "
-                              f"{self._stage0_s6_stall_count} steps at {jaw_hw:.1f}deg; "
+                        mode = evidence.get("mode") or "stalled"
+                        detail = (f"encoder moved "
+                                  f"{evidence['encoder_progress_deg']:.1f}deg of "
+                                  f"{evidence['requested_progress_deg']:.1f}deg requested"
+                                  if mode == "slipping" else "encoder stopped")
+                        print(f"\n[Stage] 0→2  S6 {mode} for "
+                              f"{self._stage0_s6_stall_count} steps at {jaw_hw:.1f}deg "
+                              f"({detail}); "
                               f"{why}. Holding at {hold_hw:.1f}deg "
                               f"(+{self.cfg.jaw_hold_bias_deg:.0f}deg bias).")
                         outcome = self._scripted_lift_and_return()
@@ -2879,6 +3102,7 @@ class GraspController:
                     # must never accumulate into a later success.
                     self._stage0_s6_stall_count = 0
                     self._stage0_s6_prev_deg = None
+                    self._stage0_s6_prev_cmd_deg = None
             print(f"\r[Step {step+1:3d}] Stage={self._stage} "
                   f"target_dist={dist_to_target:.3f}m "
                   f"grip_cmd={float(action[5]):.2f} "
@@ -2937,9 +3161,19 @@ class GraspController:
         return False
 
     def close(self):
-        if self.detection is not None:
-            self.detection.close()
-        self.fk.close()
+        # Each resource is independent. One failed cleanup must not keep the
+        # serial receive thread alive and leave /dev/myserial claimed.
+        for name, obj, method in (
+            ("detection", getattr(self, "detection", None), "close"),
+            ("servo", getattr(self, "servo", None), "_close_device"),
+            ("fk", getattr(self, "fk", None), "close"),
+        ):
+            if obj is None:
+                continue
+            try:
+                getattr(obj, method)()
+            except Exception as exc:
+                print(f"[WARN] {name} cleanup failed: {exc}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -3117,6 +3351,20 @@ def parse_args():
                         "Read it off the model's manifest.json — it cannot be inferred.")
     p.add_argument("--max-steps", type=int, default=300)
     p.add_argument("--hz", type=float, default=10.0)
+    p.add_argument("--jaw-track-fraction", type=float, default=None,
+                   help="treat the jaw as having reached the object when the "
+                        "encoder advances less than this FRACTION of what was "
+                        "commanded (0 disables, 0.5 measured on hardware "
+                        "2026-08-30). The absolute test alone only sees a jaw "
+                        "that has STOPPED, so an object that slips keeps "
+                        "resetting the streak and the command squeezes on -- the "
+                        "clicking heard during a close. Applies to the Stage-1 "
+                        "close AND the Stage-0 shortcut.")
+    p.add_argument("--jaw-max-lag-deg", type=float, default=None,
+                   help="hard ceiling on how far the jaw command may run past "
+                        "the encoder during a close (default 15). Grip force IS "
+                        "that position error, so this caps the torque by "
+                        "construction even when no detector fires. 0 disables.")
     p.add_argument("--floor-finger-error-mm", type=float, default=0.0,
                    help="Raise the finger pads by this much in the FLOOR GUARD's "
                         "geometry only, to undo the measured URDF finger error "
@@ -3198,6 +3446,24 @@ def main():
         cfg.jaw_hold_bias_deg = 1.0
         print(f"[Init] Stage-0 S6 stall: {cfg.stage0_s6_stall_steps} unchanged "
               f"steps confirms contact; hold bias {cfg.jaw_hold_bias_deg:.0f} deg.")
+    if args.jaw_track_fraction is not None:
+        value = float(args.jaw_track_fraction)
+        if not math.isfinite(value) or not 0.0 <= value < 1.0:
+            print(f"[FATAL] --jaw-track-fraction {value} is outside [0, 1). "
+                  "1.0 or more would call every close a contact immediately.")
+            return 2
+        cfg.jaw_contact_track_fraction = value
+    if args.jaw_max_lag_deg is not None:
+        value = float(args.jaw_max_lag_deg)
+        if not math.isfinite(value) or value < 0.0 or value > 90.0:
+            print(f"[FATAL] --jaw-max-lag-deg {value} is outside [0, 90].")
+            return 2
+        if 0.0 < value < cfg.jaw_hold_bias_deg:
+            print(f"[FATAL] --jaw-max-lag-deg {value} is below the "
+                  f"{cfg.jaw_hold_bias_deg} deg hold bias, so the ceiling would "
+                  "throttle the deliberate grip itself.")
+            return 2
+        cfg.jaw_max_lag_deg = value
     if args.floor_finger_error_mm:
         # Bounded on purpose: this shifts the ONLY thing standing between the policy
         # and the floor, and a typo'd 167 would hand the guard 16.7 cm of imaginary

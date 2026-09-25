@@ -1,0 +1,269 @@
+{
+  "reports": [
+    "ACTUAL_RUNTIME_ARCHITECTURE.md",
+    "BUG_AND_RISK_REGISTER.md",
+    "CODEBASE_AUDIT.md",
+    "CODEBASE_CLASSIFICATION.md",
+    "CONTROL_OWNERSHIP_ANALYSIS.md",
+    "INTEGRATION_PLAN.md",
+    "MASTER_BRINGUP_PLAN.md"
+  ],
+  "source_files_changed_since_inventory": [],
+  "broken_local_links": [],
+  "offline_commands": 32,
+  "offline_failed": [],
+  "urdf_validation": [
+    {
+      "path": "grasp/deploy_v23/x3plus/yahboomcar.urdf",
+      "links": 21,
+      "joints": 20,
+      "missing_meshes": [],
+      "sha256": "0a43968783b178d2f270572dc2e01c684722864af1bf8a0c52f05a66fe9d2be2",
+      "fixed_joints": [
+        {
+          "name": "base_joint",
+          "parent": {
+            "link": "base_footprint"
+          },
+          "child": {
+            "link": "base_link"
+          },
+          "origin": {
+            "xyz": "0.0 0.0 0.0815",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "base_imu",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "imu_link"
+          },
+          "origin": {
+            "xyz": "-0.06 0.01 0.01",
+            "rpy": "0 3.1415 1.5707"
+          }
+        },
+        {
+          "name": "laser_joint",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "laser_link"
+          },
+          "origin": {
+            "xyz": "0.0435 5.25826986680105E-05 0.11",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "eyes_joint",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "eyes"
+          },
+          "origin": {
+            "xyz": "0.057105 1.7948E-05 0.03755",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "mono_joint",
+          "parent": {
+            "link": "arm_link4"
+          },
+          "child": {
+            "link": "mono_link"
+          },
+          "origin": {
+            "xyz": "-0.0481 -0.05145 -0.0022",
+            "rpy": "1.5708 0 0"
+          }
+        }
+      ]
+    },
+    {
+      "path": "grasp/x3plus/yahboomcar.urdf",
+      "links": 21,
+      "joints": 20,
+      "missing_meshes": [],
+      "sha256": "0a43968783b178d2f270572dc2e01c684722864af1bf8a0c52f05a66fe9d2be2",
+      "fixed_joints": [
+        {
+          "name": "base_joint",
+          "parent": {
+            "link": "base_footprint"
+          },
+          "child": {
+            "link": "base_link"
+          },
+          "origin": {
+            "xyz": "0.0 0.0 0.0815",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "base_imu",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "imu_link"
+          },
+          "origin": {
+            "xyz": "-0.06 0.01 0.01",
+            "rpy": "0 3.1415 1.5707"
+          }
+        },
+        {
+          "name": "laser_joint",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "laser_link"
+          },
+          "origin": {
+            "xyz": "0.0435 5.25826986680105E-05 0.11",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "eyes_joint",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "eyes"
+          },
+          "origin": {
+            "xyz": "0.057105 1.7948E-05 0.03755",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "mono_joint",
+          "parent": {
+            "link": "arm_link4"
+          },
+          "child": {
+            "link": "mono_link"
+          },
+          "origin": {
+            "xyz": "-0.0481 -0.05145 -0.0022",
+            "rpy": "1.5708 0 0"
+          }
+        }
+      ]
+    },
+    {
+      "path": "training/x3plus/yahboomcar.urdf",
+      "links": 21,
+      "joints": 20,
+      "missing_meshes": [],
+      "sha256": "0a43968783b178d2f270572dc2e01c684722864af1bf8a0c52f05a66fe9d2be2",
+      "fixed_joints": [
+        {
+          "name": "base_joint",
+          "parent": {
+            "link": "base_footprint"
+          },
+          "child": {
+            "link": "base_link"
+          },
+          "origin": {
+            "xyz": "0.0 0.0 0.0815",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "base_imu",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "imu_link"
+          },
+          "origin": {
+            "xyz": "-0.06 0.01 0.01",
+            "rpy": "0 3.1415 1.5707"
+          }
+        },
+        {
+          "name": "laser_joint",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "laser_link"
+          },
+          "origin": {
+            "xyz": "0.0435 5.25826986680105E-05 0.11",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "eyes_joint",
+          "parent": {
+            "link": "base_link"
+          },
+          "child": {
+            "link": "eyes"
+          },
+          "origin": {
+            "xyz": "0.057105 1.7948E-05 0.03755",
+            "rpy": "0 0 0"
+          }
+        },
+        {
+          "name": "mono_joint",
+          "parent": {
+            "link": "arm_link4"
+          },
+          "child": {
+            "link": "mono_link"
+          },
+          "origin": {
+            "xyz": "-0.0481 -0.05145 -0.0022",
+            "rpy": "1.5708 0 0"
+          }
+        }
+      ]
+    }
+  ],
+  "model_hash_validation": [
+    {
+      "version": "v21",
+      "artifact": "model",
+      "path": "grasp\\v21\\models\\candidate_v21_seed816_ckpt550000.zip",
+      "matches_manifest": true,
+      "sha256": "3a7137712669725b2b97cbe68cfceb76c09a52b6f9cc1df73f682ae0277843ab"
+    },
+    {
+      "version": "v21",
+      "artifact": "vecnormalize",
+      "path": "grasp\\v21\\models\\candidate_v21_seed816_ckpt550000_vec.pkl",
+      "matches_manifest": true,
+      "sha256": "f986d8463577d20cec3c157a932665f2a1c61edd23a4d6aa23095cecb925bca0"
+    },
+    {
+      "version": "v23",
+      "artifact": "model",
+      "path": "grasp\\v23\\models\\candidate_v23_seed23401_ckpt250000.zip",
+      "matches_manifest": true,
+      "sha256": "e8142ab1ae40714f0b823da0fe67685689df6b3a7d5b215d5bc842a0ae927a13"
+    },
+    {
+      "version": "v23",
+      "artifact": "vecnormalize",
+      "path": "grasp\\v23\\models\\candidate_v23_seed23401_ckpt250000_vec.pkl",
+      "matches_manifest": true,
+      "sha256": "2e8ea8b3f396293c70f9f69365c5f0ded13a593d6548199538921cf768792cc6"
+    }
+  ]
+}

@@ -239,6 +239,51 @@ python3 integration/grasp_home_homography.py \
 runtime 的 6 點 gate；需要重新補量。擬合 RMSE 與保留點 x/y 誤差都須 ≤1 cm，且 runtime
 只接受 calibration convex hull 內的偵測，不做外推。
 
+### E1 grasp-home homography（v23，分支 `v23-grasp-test`）
+
+**每個 grasp home 各要一份校正檔，不能共用。** 相機裝在 `arm_link4`，姿勢一動相機就動：
+
+| | C3（v21） | E1（v23） |
+|---|---|---|
+| 手臂 API | (90, 67.08, 9.79, 9.79, 90, 30) | (90, **74.2**, **8.6**, **8.6**, 90, 30) |
+| 相機高（training frame） | 0.2183 m | 0.2340 m |
+| 光軸 | (−0.0583, 0, −0.9983)，離鉛垂 3.34°**偏後** | (+0.0244, 0, −0.9997)，離鉛垂 1.40°**偏前** |
+| 校正檔 | `integration/grasp_home_homography.json` | `integration/grasp_home_homography_e1.json` |
+| registry pose | `v21_c3_grasp_home` | `v23_e1_grasp_home` |
+
+⚠ **兩個檔案互換不會報錯。** 都是合法 JSON、都過同一道 ≥6 點／<2 cm 閘、內容也都不記錄
+自己是在哪個姿勢量的。唯一把它們分開的是**檔名**，所以 v23 的 launcher 預設指向
+`_e1` 那支，而且不會去讀 v21 那支。
+
+量測時手臂要有東西按在 E1 不動 —— 就是 launcher 本身：
+
+```bash
+source ~/grasp_venv/bin/activate
+cd grasp/v23
+python3 jetson_one_command_grasp.py --calibrate --calibration-samples 20 --show
+```
+
+物體擺放要落在 v23 的 spawn band 內：**x 0.205–0.280 m、y −0.070–+0.065 m**
+（比 v21 窄，但 E1 的 FOV 比 C3 大 44% —— 相機看得到 band 以外的地面，
+那裡策略沒訓練過，`_check_target_envelope` 會擋，不要把它放寬去配合 FOV）。
+
+至少 6 組不共線、覆蓋四周與中央，另留 2 組當保留點。Ctrl+C 後：
+
+```bash
+python3 integration/grasp_home_homography.py \
+  --points-json grasp_home_points_e1.json \
+  --output integration/grasp_home_homography_e1.json --max-rmse-cm 1
+```
+
+驗收 `python3 jetson_one_command_grasp.py --check`（不碰硬體，用 bridge 同一道閘）。
+
+**為什麼 E1 不能退回三角測距。** `arm_cam_geometry` 的地面距離模型要除以光線與地面
+夾角的正切，相機越接近鉛垂，回推的橫向偏移越趨近 0、深度對 θ 誤差越敏感。C3 的 3.34°
+已經在這個區間邊緣（該模組自己的註解寫 offsets「collapse to ~0」），E1 的 1.40° 更深，
+而且光軸還跨過了鉛垂線（x 分量由負轉正）。`arm_cam_geometry.V23_E1_GRASP_HOME` 那組
+θ/H/cam_x/cam_y 存在的用途是**替偵測蓋上姿勢戳記**（grasp 端拿去跟編碼器核對），
+不是拿來映射像素。
+
 ---
 
 ## Phase 4 — 定點視覺夾取端到端（不含導航）

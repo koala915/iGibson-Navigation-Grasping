@@ -1,0 +1,817 @@
+{
+  "schema": "x3plus-grasp-selection-candidates/v24-e1-r1",
+  "created_at": "2026-09-07T13:24:13+08:00",
+  "protocol": {
+    "source_path": "training\\protocols\\v24_e1_corner_recovery_seed23404_r3_preregistration.json",
+    "sha256": "eb6835aec0b46db1b88267ec079b10ca4814d4e3bf78f82e05e7744f643e3010",
+    "bytes": 3430
+  },
+  "training_runs": [
+    {
+      "seed": 23404,
+      "metadata": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\training_metadata.json",
+        "sha256": "5ecad10049a7075cb653f1d3e7ce074b1c950d43f8907f06f4be323c67917b84",
+        "bytes": 21796
+      }
+    }
+  ],
+  "screen_ranking": [
+    20,
+    3,
+    10,
+    1,
+    5,
+    40
+  ],
+  "shortlist": [
+    20,
+    3,
+    10,
+    1
+  ],
+  "eligible": [
+    10
+  ],
+  "selected_update": 10,
+  "candidates": [
+    {
+      "training_seed": 23404,
+      "bc_update": 1,
+      "model": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u1.zip",
+        "sha256": "ee22110a6ffd958ba34830957ba3c758e702b2f6f2edc130ee5dcd0d1087b7cd",
+        "bytes": 125582
+      },
+      "vecnormalize": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u1_vec.pkl",
+        "sha256": "6ebb5a64ef967a1fcfca522fe330f71e0eef3f95b452c78a8248b4edb74ecd26",
+        "bytes": 2391
+      },
+      "screen": {
+        "evidence": {
+          "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\screens_u1_seed6242\\evaluation.json",
+          "sha256": "aec2d8864502240fce9d1d3612ca0d9b8cb424e285e3702462ea14460fcec33d",
+          "bytes": 97248
+        },
+        "seed": 6242,
+        "episodes_total": 69,
+        "bottle_cap_rate": 1.0,
+        "mixed_rate": 1.0,
+        "grid": {
+          "0.2050_-0.0700": 1.0,
+          "0.2050_-0.0025": 1.0,
+          "0.2050_+0.0650": 1.0,
+          "0.2425_-0.0700": 1.0,
+          "0.2425_-0.0025": 1.0,
+          "0.2425_+0.0650": 0.8,
+          "0.2800_-0.0700": 1.0,
+          "0.2800_-0.0025": 1.0,
+          "0.2800_+0.0650": 0.8
+        },
+        "grid_min_rate": 0.8,
+        "overall_rate": 0.9710144927536232,
+        "floor": {
+          "episodes_touching_floor": 0,
+          "floor_violation_episodes": 0,
+          "max_penetration": 0.0,
+          "guard_intervention_episodes": 0,
+          "guard_interventions_total": 0,
+          "min_clearance": 0.004213493823368792
+        },
+        "case_plan_valid": {
+          "random_spawn_requested_in_bounds": true,
+          "grid_spawn_exact": true,
+          "home_jitter_command_exact": true,
+          "exact_composition_and_unique_case_seeds": true
+        },
+        "verdict": {
+          "protocol_valid": true,
+          "bottle_cap_ge_90": true,
+          "mixed_ge_90": true,
+          "grid_all_ge_80": true,
+          "grid_min_rate": 0.8,
+          "floor_penetration_zero": true,
+          "integrity_unchanged": true,
+          "all_acceptance_gates": true
+        }
+      },
+      "shortlisted": true,
+      "full_dev": [
+        {
+          "evidence": {
+            "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u1_seed6242\\evaluation.json",
+            "sha256": "49c67cf5c42c4e570015605075ac817d58b3d194cb689ba469ecbf099a02290f",
+            "bytes": 189694
+          },
+          "seed": 6242,
+          "episodes_total": 138,
+          "bottle_cap_rate": 1.0,
+          "mixed_rate": 1.0,
+          "grid": {
+            "0.2050_-0.0700": 0.9,
+            "0.2050_-0.0025": 1.0,
+            "0.2050_+0.0650": 1.0,
+            "0.2425_-0.0700": 1.0,
+            "0.2425_-0.0025": 1.0,
+            "0.2425_+0.0650": 1.0,
+            "0.2800_-0.0700": 1.0,
+            "0.2800_-0.0025": 1.0,
+            "0.2800_+0.0650": 0.8
+          },
+          "grid_min_rate": 0.8,
+          "overall_rate": 0.9782608695652174,
+          "floor": {
+            "episodes_touching_floor": 1,
+            "floor_violation_episodes": 1,
+            "max_penetration": 0.00012900539850936588,
+            "guard_intervention_episodes": 1,
+            "guard_interventions_total": 2,
+            "min_clearance": -0.00012900539850936588
+          },
+          "case_plan_valid": {
+            "random_spawn_requested_in_bounds": true,
+            "grid_spawn_exact": true,
+            "home_jitter_command_exact": true,
+            "exact_composition_and_unique_case_seeds": true
+          },
+          "verdict": {
+            "protocol_valid": true,
+            "bottle_cap_ge_90": true,
+            "mixed_ge_90": true,
+            "grid_all_ge_80": true,
+            "grid_min_rate": 0.8,
+            "floor_penetration_zero": false,
+            "integrity_unchanged": true,
+            "all_acceptance_gates": false
+          }
+        },
+        {
+          "evidence": {
+            "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u1_seed6343\\evaluation.json",
+            "sha256": "922c4626fb66c4cbad331df1d210e9f06b9de8afac313d61649d06ff49236b6b",
+            "bytes": 189647
+          },
+          "seed": 6343,
+          "episodes_total": 138,
+          "bottle_cap_rate": 1.0,
+          "mixed_rate": 1.0,
+          "grid": {
+            "0.2050_-0.0700": 1.0,
+            "0.2050_-0.0025": 1.0,
+            "0.2050_+0.0650": 1.0,
+            "0.2425_-0.0700": 1.0,
+            "0.2425_-0.0025": 1.0,
+            "0.2425_+0.0650": 1.0,
+            "0.2800_-0.0700": 1.0,
+            "0.2800_-0.0025": 1.0,
+            "0.2800_+0.0650": 0.8
+          },
+          "grid_min_rate": 0.8,
+          "overall_rate": 0.9855072463768116,
+          "floor": {
+            "episodes_touching_floor": 0,
+            "floor_violation_episodes": 0,
+            "max_penetration": 0.0,
+            "guard_intervention_episodes": 0,
+            "guard_interventions_total": 0,
+            "min_clearance": 0.004420114702931244
+          },
+          "case_plan_valid": {
+            "random_spawn_requested_in_bounds": true,
+            "grid_spawn_exact": true,
+            "home_jitter_command_exact": true,
+            "exact_composition_and_unique_case_seeds": true
+          },
+          "verdict": {
+            "protocol_valid": true,
+            "bottle_cap_ge_90": true,
+            "mixed_ge_90": true,
+            "grid_all_ge_80": true,
+            "grid_min_rate": 0.8,
+            "floor_penetration_zero": true,
+            "integrity_unchanged": true,
+            "all_acceptance_gates": true
+          }
+        }
+      ],
+      "eligible": false
+    },
+    {
+      "training_seed": 23404,
+      "bc_update": 3,
+      "model": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u3.zip",
+        "sha256": "07d9589199e3133b239d9245e9cd70e322f453af44c6cd1076bc617a2b1376aa",
+        "bytes": 125582
+      },
+      "vecnormalize": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u3_vec.pkl",
+        "sha256": "6ebb5a64ef967a1fcfca522fe330f71e0eef3f95b452c78a8248b4edb74ecd26",
+        "bytes": 2391
+      },
+      "screen": {
+        "evidence": {
+          "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\screens_u3_seed6242\\evaluation.json",
+          "sha256": "490145a166e45f243ee638c74b21e04a6af8a55be8155336c47e25d502ea3a42",
+          "bytes": 97256
+        },
+        "seed": 6242,
+        "episodes_total": 69,
+        "bottle_cap_rate": 1.0,
+        "mixed_rate": 1.0,
+        "grid": {
+          "0.2050_-0.0700": 1.0,
+          "0.2050_-0.0025": 1.0,
+          "0.2050_+0.0650": 1.0,
+          "0.2425_-0.0700": 1.0,
+          "0.2425_-0.0025": 1.0,
+          "0.2425_+0.0650": 1.0,
+          "0.2800_-0.0700": 1.0,
+          "0.2800_-0.0025": 1.0,
+          "0.2800_+0.0650": 0.8
+        },
+        "grid_min_rate": 0.8,
+        "overall_rate": 0.9855072463768116,
+        "floor": {
+          "episodes_touching_floor": 0,
+          "floor_violation_episodes": 0,
+          "max_penetration": 0.0,
+          "guard_intervention_episodes": 0,
+          "guard_interventions_total": 0,
+          "min_clearance": 0.004748881539750099
+        },
+        "case_plan_valid": {
+          "random_spawn_requested_in_bounds": true,
+          "grid_spawn_exact": true,
+          "home_jitter_command_exact": true,
+          "exact_composition_and_unique_case_seeds": true
+        },
+        "verdict": {
+          "protocol_valid": true,
+          "bottle_cap_ge_90": true,
+          "mixed_ge_90": true,
+          "grid_all_ge_80": true,
+          "grid_min_rate": 0.8,
+          "floor_penetration_zero": true,
+          "integrity_unchanged": true,
+          "all_acceptance_gates": true
+        }
+      },
+      "shortlisted": true,
+      "full_dev": [
+        {
+          "evidence": {
+            "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u3_seed6242\\evaluation.json",
+            "sha256": "235bcbc4445cbcbeb2b777c255e19e7908f41a74131adf48b90d959e833910f2",
+            "bytes": 189640
+          },
+          "seed": 6242,
+          "episodes_total": 138,
+          "bottle_cap_rate": 1.0,
+          "mixed_rate": 1.0,
+          "grid": {
+            "0.2050_-0.0700": 1.0,
+            "0.2050_-0.0025": 1.0,
+            "0.2050_+0.0650": 1.0,
+            "0.2425_-0.0700": 1.0,
+            "0.2425_-0.0025": 1.0,
+            "0.2425_+0.0650": 0.9,
+            "0.2800_-0.0700": 1.0,
+            "0.2800_-0.0025": 1.0,
+            "0.2800_+0.0650": 0.7
+          },
+          "grid_min_rate": 0.7,
+          "overall_rate": 0.9710144927536232,
+          "floor": {
+            "episodes_touching_floor": 0,
+            "floor_violation_episodes": 0,
+            "max_penetration": 0.0,
+            "guard_intervention_episodes": 0,
+            "guard_interventions_total": 0,
+            "min_clearance": 0.004748881539750099
+          },
+          "case_plan_valid": {
+            "random_spawn_requested_in_bounds": true,
+            "grid_spawn_exact": true,
+            "home_jitter_command_exact": true,
+            "exact_composition_and_unique_case_seeds": true
+          },
+          "verdict": {
+            "protocol_valid": true,
+            "bottle_cap_ge_90": true,
+            "mixed_ge_90": true,
+            "grid_all_ge_80": false,
+            "grid_min_rate": 0.7,
+            "floor_penetration_zero": true,
+            "integrity_unchanged": true,
+            "all_acceptance_gates": false
+          }
+        },
+        {
+          "evidence": {
+            "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u3_seed6343\\evaluation.json",
+            "sha256": "f5c66fbf412acb975ad0bff783969fb32022814ca003200487d7edfab1a1c2fc",
+            "bytes": 189658
+          },
+          "seed": 6343,
+          "episodes_total": 138,
+          "bottle_cap_rate": 1.0,
+          "mixed_rate": 0.9722222222222222,
+          "grid": {
+            "0.2050_-0.0700": 1.0,
+            "0.2050_-0.0025": 1.0,
+            "0.2050_+0.0650": 1.0,
+            "0.2425_-0.0700": 1.0,
+            "0.2425_-0.0025": 1.0,
+            "0.2425_+0.0650": 0.9,
+            "0.2800_-0.0700": 1.0,
+            "0.2800_-0.0025": 1.0,
+            "0.2800_+0.0650": 0.9
+          },
+          "grid_min_rate": 0.9,
+          "overall_rate": 0.9782608695652174,
+          "floor": {
+            "episodes_touching_floor": 0,
+            "floor_violation_episodes": 0,
+            "max_penetration": 0.0,
+            "guard_intervention_episodes": 0,
+            "guard_interventions_total": 0,
+            "min_clearance": 0.004825087669098338
+          },
+          "case_plan_valid": {
+            "random_spawn_requested_in_bounds": true,
+            "grid_spawn_exact": true,
+            "home_jitter_command_exact": true,
+            "exact_composition_and_unique_case_seeds": true
+          },
+          "verdict": {
+            "protocol_valid": true,
+            "bottle_cap_ge_90": true,
+            "mixed_ge_90": true,
+            "grid_all_ge_80": true,
+            "grid_min_rate": 0.9,
+            "floor_penetration_zero": true,
+            "integrity_unchanged": true,
+            "all_acceptance_gates": true
+          }
+        }
+      ],
+      "eligible": false
+    },
+    {
+      "training_seed": 23404,
+      "bc_update": 5,
+      "model": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u5.zip",
+        "sha256": "b023d2c7cf2f9411b52a958be73a3fcde742c11189014ba682d7234f933e8541",
+        "bytes": 125582
+      },
+      "vecnormalize": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u5_vec.pkl",
+        "sha256": "6ebb5a64ef967a1fcfca522fe330f71e0eef3f95b452c78a8248b4edb74ecd26",
+        "bytes": 2391
+      },
+      "screen": {
+        "evidence": {
+          "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\screens_u5_seed6242\\evaluation.json",
+          "sha256": "5946ee176936d5ef9d28a8552295d1cf267618ae7ca484ba628d6524cbd6d53c",
+          "bytes": 97239
+        },
+        "seed": 6242,
+        "episodes_total": 69,
+        "bottle_cap_rate": 1.0,
+        "mixed_rate": 1.0,
+        "grid": {
+          "0.2050_-0.0700": 1.0,
+          "0.2050_-0.0025": 1.0,
+          "0.2050_+0.0650": 1.0,
+          "0.2425_-0.0700": 1.0,
+          "0.2425_-0.0025": 1.0,
+          "0.2425_+0.0650": 0.8,
+          "0.2800_-0.0700": 1.0,
+          "0.2800_-0.0025": 1.0,
+          "0.2800_+0.0650": 0.8
+        },
+        "grid_min_rate": 0.8,
+        "overall_rate": 0.9710144927536232,
+        "floor": {
+          "episodes_touching_floor": 0,
+          "floor_violation_episodes": 0,
+          "max_penetration": 0.0,
+          "guard_intervention_episodes": 0,
+          "guard_interventions_total": 0,
+          "min_clearance": 0.005089853798612858
+        },
+        "case_plan_valid": {
+          "random_spawn_requested_in_bounds": true,
+          "grid_spawn_exact": true,
+          "home_jitter_command_exact": true,
+          "exact_composition_and_unique_case_seeds": true
+        },
+        "verdict": {
+          "protocol_valid": true,
+          "bottle_cap_ge_90": true,
+          "mixed_ge_90": true,
+          "grid_all_ge_80": true,
+          "grid_min_rate": 0.8,
+          "floor_penetration_zero": true,
+          "integrity_unchanged": true,
+          "all_acceptance_gates": true
+        }
+      },
+      "shortlisted": false,
+      "full_dev": [],
+      "eligible": false
+    },
+    {
+      "training_seed": 23404,
+      "bc_update": 10,
+      "model": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u10.zip",
+        "sha256": "0ed9989154ed280971fd4499c8927c198539f37915f6d9191f9cd08eaf100d81",
+        "bytes": 125582
+      },
+      "vecnormalize": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u10_vec.pkl",
+        "sha256": "6ebb5a64ef967a1fcfca522fe330f71e0eef3f95b452c78a8248b4edb74ecd26",
+        "bytes": 2391
+      },
+      "screen": {
+        "evidence": {
+          "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\screens_u10_seed6242\\evaluation.json",
+          "sha256": "d5455982be57bc802f0dfd08a791246779d8cb13a1f30a21412c5abb2dfda48c",
+          "bytes": 97217
+        },
+        "seed": 6242,
+        "episodes_total": 69,
+        "bottle_cap_rate": 1.0,
+        "mixed_rate": 1.0,
+        "grid": {
+          "0.2050_-0.0700": 1.0,
+          "0.2050_-0.0025": 1.0,
+          "0.2050_+0.0650": 1.0,
+          "0.2425_-0.0700": 1.0,
+          "0.2425_-0.0025": 1.0,
+          "0.2425_+0.0650": 1.0,
+          "0.2800_-0.0700": 1.0,
+          "0.2800_-0.0025": 1.0,
+          "0.2800_+0.0650": 0.8
+        },
+        "grid_min_rate": 0.8,
+        "overall_rate": 0.9855072463768116,
+        "floor": {
+          "episodes_touching_floor": 0,
+          "floor_violation_episodes": 0,
+          "max_penetration": 0.0,
+          "guard_intervention_episodes": 0,
+          "guard_interventions_total": 0,
+          "min_clearance": 0.004842430284052658
+        },
+        "case_plan_valid": {
+          "random_spawn_requested_in_bounds": true,
+          "grid_spawn_exact": true,
+          "home_jitter_command_exact": true,
+          "exact_composition_and_unique_case_seeds": true
+        },
+        "verdict": {
+          "protocol_valid": true,
+          "bottle_cap_ge_90": true,
+          "mixed_ge_90": true,
+          "grid_all_ge_80": true,
+          "grid_min_rate": 0.8,
+          "floor_penetration_zero": true,
+          "integrity_unchanged": true,
+          "all_acceptance_gates": true
+        }
+      },
+      "shortlisted": true,
+      "full_dev": [
+        {
+          "evidence": {
+            "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u10_seed6242\\evaluation.json",
+            "sha256": "5cb8f3e80640e40d64da1f19e978cff927aa1c5bad99956013e9038b4c4c551c",
+            "bytes": 189643
+          },
+          "seed": 6242,
+          "episodes_total": 138,
+          "bottle_cap_rate": 1.0,
+          "mixed_rate": 1.0,
+          "grid": {
+            "0.2050_-0.0700": 1.0,
+            "0.2050_-0.0025": 1.0,
+            "0.2050_+0.0650": 1.0,
+            "0.2425_-0.0700": 1.0,
+            "0.2425_-0.0025": 1.0,
+            "0.2425_+0.0650": 0.9,
+            "0.2800_-0.0700": 1.0,
+            "0.2800_-0.0025": 1.0,
+            "0.2800_+0.0650": 0.9
+          },
+          "grid_min_rate": 0.9,
+          "overall_rate": 0.9855072463768116,
+          "floor": {
+            "episodes_touching_floor": 0,
+            "floor_violation_episodes": 0,
+            "max_penetration": 0.0,
+            "guard_intervention_episodes": 0,
+            "guard_interventions_total": 0,
+            "min_clearance": 0.004407812042028416
+          },
+          "case_plan_valid": {
+            "random_spawn_requested_in_bounds": true,
+            "grid_spawn_exact": true,
+            "home_jitter_command_exact": true,
+            "exact_composition_and_unique_case_seeds": true
+          },
+          "verdict": {
+            "protocol_valid": true,
+            "bottle_cap_ge_90": true,
+            "mixed_ge_90": true,
+            "grid_all_ge_80": true,
+            "grid_min_rate": 0.9,
+            "floor_penetration_zero": true,
+            "integrity_unchanged": true,
+            "all_acceptance_gates": true
+          }
+        },
+        {
+          "evidence": {
+            "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u10_seed6343\\evaluation.json",
+            "sha256": "89b8023f9294f8f4016cf2cb067c8cc9da9163c6cb353c53cfc3bef4bef11a19",
+            "bytes": 189657
+          },
+          "seed": 6343,
+          "episodes_total": 138,
+          "bottle_cap_rate": 1.0,
+          "mixed_rate": 1.0,
+          "grid": {
+            "0.2050_-0.0700": 1.0,
+            "0.2050_-0.0025": 1.0,
+            "0.2050_+0.0650": 1.0,
+            "0.2425_-0.0700": 1.0,
+            "0.2425_-0.0025": 1.0,
+            "0.2425_+0.0650": 0.8,
+            "0.2800_-0.0700": 1.0,
+            "0.2800_-0.0025": 1.0,
+            "0.2800_+0.0650": 0.9
+          },
+          "grid_min_rate": 0.8,
+          "overall_rate": 0.9782608695652174,
+          "floor": {
+            "episodes_touching_floor": 0,
+            "floor_violation_episodes": 0,
+            "max_penetration": 0.0,
+            "guard_intervention_episodes": 0,
+            "guard_interventions_total": 0,
+            "min_clearance": 0.0047196578753926355
+          },
+          "case_plan_valid": {
+            "random_spawn_requested_in_bounds": true,
+            "grid_spawn_exact": true,
+            "home_jitter_command_exact": true,
+            "exact_composition_and_unique_case_seeds": true
+          },
+          "verdict": {
+            "protocol_valid": true,
+            "bottle_cap_ge_90": true,
+            "mixed_ge_90": true,
+            "grid_all_ge_80": true,
+            "grid_min_rate": 0.8,
+            "floor_penetration_zero": true,
+            "integrity_unchanged": true,
+            "all_acceptance_gates": true
+          }
+        }
+      ],
+      "eligible": true
+    },
+    {
+      "training_seed": 23404,
+      "bc_update": 20,
+      "model": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u20.zip",
+        "sha256": "6001e43007950a05ab691fbecf665058a9666fe68127ab9530cfcd2e5d19d096",
+        "bytes": 125582
+      },
+      "vecnormalize": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u20_vec.pkl",
+        "sha256": "6ebb5a64ef967a1fcfca522fe330f71e0eef3f95b452c78a8248b4edb74ecd26",
+        "bytes": 2391
+      },
+      "screen": {
+        "evidence": {
+          "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\screens_u20_seed6242\\evaluation.json",
+          "sha256": "f3d0266b758fd45d265526f8891d625c76fe34b06c6bb5644b8e7120cc9b5faf",
+          "bytes": 97266
+        },
+        "seed": 6242,
+        "episodes_total": 69,
+        "bottle_cap_rate": 1.0,
+        "mixed_rate": 1.0,
+        "grid": {
+          "0.2050_-0.0700": 1.0,
+          "0.2050_-0.0025": 1.0,
+          "0.2050_+0.0650": 1.0,
+          "0.2425_-0.0700": 1.0,
+          "0.2425_-0.0025": 1.0,
+          "0.2425_+0.0650": 1.0,
+          "0.2800_-0.0700": 1.0,
+          "0.2800_-0.0025": 1.0,
+          "0.2800_+0.0650": 1.0
+        },
+        "grid_min_rate": 1.0,
+        "overall_rate": 1.0,
+        "floor": {
+          "episodes_touching_floor": 0,
+          "floor_violation_episodes": 0,
+          "max_penetration": 0.0,
+          "guard_intervention_episodes": 0,
+          "guard_interventions_total": 0,
+          "min_clearance": 0.004884005118425863
+        },
+        "case_plan_valid": {
+          "random_spawn_requested_in_bounds": true,
+          "grid_spawn_exact": true,
+          "home_jitter_command_exact": true,
+          "exact_composition_and_unique_case_seeds": true
+        },
+        "verdict": {
+          "protocol_valid": true,
+          "bottle_cap_ge_90": true,
+          "mixed_ge_90": true,
+          "grid_all_ge_80": true,
+          "grid_min_rate": 1.0,
+          "floor_penetration_zero": true,
+          "integrity_unchanged": true,
+          "all_acceptance_gates": true
+        }
+      },
+      "shortlisted": true,
+      "full_dev": [
+        {
+          "evidence": {
+            "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u20_seed6242\\evaluation.json",
+            "sha256": "f90e364c950568a153f4b9a12cee2698c7bfa3983aeb5928204e7a71d9fccad2",
+            "bytes": 189682
+          },
+          "seed": 6242,
+          "episodes_total": 138,
+          "bottle_cap_rate": 1.0,
+          "mixed_rate": 1.0,
+          "grid": {
+            "0.2050_-0.0700": 1.0,
+            "0.2050_-0.0025": 1.0,
+            "0.2050_+0.0650": 1.0,
+            "0.2425_-0.0700": 1.0,
+            "0.2425_-0.0025": 1.0,
+            "0.2425_+0.0650": 1.0,
+            "0.2800_-0.0700": 1.0,
+            "0.2800_-0.0025": 1.0,
+            "0.2800_+0.0650": 0.7
+          },
+          "grid_min_rate": 0.7,
+          "overall_rate": 0.9782608695652174,
+          "floor": {
+            "episodes_touching_floor": 0,
+            "floor_violation_episodes": 0,
+            "max_penetration": 0.0,
+            "guard_intervention_episodes": 0,
+            "guard_interventions_total": 0,
+            "min_clearance": 0.004810352863925546
+          },
+          "case_plan_valid": {
+            "random_spawn_requested_in_bounds": true,
+            "grid_spawn_exact": true,
+            "home_jitter_command_exact": true,
+            "exact_composition_and_unique_case_seeds": true
+          },
+          "verdict": {
+            "protocol_valid": true,
+            "bottle_cap_ge_90": true,
+            "mixed_ge_90": true,
+            "grid_all_ge_80": false,
+            "grid_min_rate": 0.7,
+            "floor_penetration_zero": true,
+            "integrity_unchanged": true,
+            "all_acceptance_gates": false
+          }
+        },
+        {
+          "evidence": {
+            "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u20_seed6343\\evaluation.json",
+            "sha256": "79695f1fa06eb9bd7f66b0bcd04743c13806569164288c2f2498372c5733d8eb",
+            "bytes": 189689
+          },
+          "seed": 6343,
+          "episodes_total": 138,
+          "bottle_cap_rate": 1.0,
+          "mixed_rate": 1.0,
+          "grid": {
+            "0.2050_-0.0700": 1.0,
+            "0.2050_-0.0025": 1.0,
+            "0.2050_+0.0650": 1.0,
+            "0.2425_-0.0700": 1.0,
+            "0.2425_-0.0025": 1.0,
+            "0.2425_+0.0650": 1.0,
+            "0.2800_-0.0700": 1.0,
+            "0.2800_-0.0025": 1.0,
+            "0.2800_+0.0650": 0.8
+          },
+          "grid_min_rate": 0.8,
+          "overall_rate": 0.9855072463768116,
+          "floor": {
+            "episodes_touching_floor": 0,
+            "floor_violation_episodes": 0,
+            "max_penetration": 0.0,
+            "guard_intervention_episodes": 0,
+            "guard_interventions_total": 0,
+            "min_clearance": 0.004679059659524667
+          },
+          "case_plan_valid": {
+            "random_spawn_requested_in_bounds": true,
+            "grid_spawn_exact": true,
+            "home_jitter_command_exact": true,
+            "exact_composition_and_unique_case_seeds": true
+          },
+          "verdict": {
+            "protocol_valid": true,
+            "bottle_cap_ge_90": true,
+            "mixed_ge_90": true,
+            "grid_all_ge_80": true,
+            "grid_min_rate": 0.8,
+            "floor_penetration_zero": true,
+            "integrity_unchanged": true,
+            "all_acceptance_gates": true
+          }
+        }
+      ],
+      "eligible": false
+    },
+    {
+      "training_seed": 23404,
+      "bc_update": 40,
+      "model": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u40.zip",
+        "sha256": "f4c362c3b48a36cb19d20e42e0137aa8f1a532b4403a4e02dd4d147fa45f129b",
+        "bytes": 125582
+      },
+      "vecnormalize": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u40_vec.pkl",
+        "sha256": "6ebb5a64ef967a1fcfca522fe330f71e0eef3f95b452c78a8248b4edb74ecd26",
+        "bytes": 2391
+      },
+      "screen": {
+        "evidence": {
+          "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\screens_u40_seed6242\\evaluation.json",
+          "sha256": "b4e363c97ec508fbf9a469aece7cf9f92806ba375aa44c0b66f174f1d8c18705",
+          "bytes": 97209
+        },
+        "seed": 6242,
+        "episodes_total": 69,
+        "bottle_cap_rate": 1.0,
+        "mixed_rate": 1.0,
+        "grid": {
+          "0.2050_-0.0700": 1.0,
+          "0.2050_-0.0025": 1.0,
+          "0.2050_+0.0650": 0.8,
+          "0.2425_-0.0700": 1.0,
+          "0.2425_-0.0025": 1.0,
+          "0.2425_+0.0650": 1.0,
+          "0.2800_-0.0700": 1.0,
+          "0.2800_-0.0025": 1.0,
+          "0.2800_+0.0650": 0.6
+        },
+        "grid_min_rate": 0.6,
+        "overall_rate": 0.9565217391304348,
+        "floor": {
+          "episodes_touching_floor": 0,
+          "floor_violation_episodes": 0,
+          "max_penetration": 0.0,
+          "guard_intervention_episodes": 0,
+          "guard_interventions_total": 0,
+          "min_clearance": 0.0037038039283278854
+        },
+        "case_plan_valid": {
+          "random_spawn_requested_in_bounds": true,
+          "grid_spawn_exact": true,
+          "home_jitter_command_exact": true,
+          "exact_composition_and_unique_case_seeds": true
+        },
+        "verdict": {
+          "protocol_valid": true,
+          "bottle_cap_ge_90": true,
+          "mixed_ge_90": true,
+          "grid_all_ge_80": false,
+          "grid_min_rate": 0.6,
+          "floor_penetration_zero": true,
+          "integrity_unchanged": true,
+          "all_acceptance_gates": false
+        }
+      },
+      "shortlisted": false,
+      "full_dev": [],
+      "eligible": false
+    }
+  ]
+}

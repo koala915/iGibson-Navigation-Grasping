@@ -1,0 +1,7 @@
+{
+  "mission_constructor": "success; missing optional height is NOT a constructor bug",
+  "controller_close": {
+    "fk_closed": true,
+    "servo_closed": false
+  }
+}

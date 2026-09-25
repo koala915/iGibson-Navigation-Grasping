@@ -1,0 +1,13 @@
+[ros-io] quaternion helpers OK
+[ros-io] stamp helpers OK
+[ros-io] message construction OK
+[ros-io] /amcl_pose parsing OK
+[ros-io] AMCL freshness + covariance gating OK
+[ros-io] /request_nomotion_update failed: service /request_nomotion_update unavailable. AMCL cannot refresh while the robot is stationary; the mission will pause when it next needs a map fix.
+[ros-io] nomotion keepalive OK
+[ros-io] rosapi introspection OK
+[ros-io] publish + invalid-state suppression OK
+[ros-io] close OK
+[ros-io] WARNING: --ros-backend none — no odometry is published, so AMCL cannot localise and map-frame patrol is unavailable.
+[ros-io] null backend + argument validation OK
+[ros-io] SELFTEST PASSED

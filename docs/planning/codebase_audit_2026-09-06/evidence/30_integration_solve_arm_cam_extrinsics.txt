@@ -1,0 +1,8 @@
+solve_arm_cam_extrinsics self-test
+  recovered theta=89.3000 (truth 89.3) err 0.00000 deg
+  recovered cam_x=0.26000 (truth 0.26) err 0.0000 mm
+  recovered cam_y=-0.00500 (truth -0.005) err 0.0000 mm
+  recovered sign_y=+1 (truth +1)
+  mirrored data recovers sign_y=-1 (expected -1)
+
+PASS

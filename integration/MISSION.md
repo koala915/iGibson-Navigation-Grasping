@@ -3,6 +3,11 @@
 `mission_pipeline.py` 把導航（Navigation 交接包的 Route A/B/C）和夾取（v21）接成單一
 任務。單一 Python 3.8 程序擁有 `/dev/myserial`，ROS Melodic 只負責感測與定位。
 
+> **目前狀態（2026-09-06）：只允許 dry-run。** final align/latch 尚未接入 C3
+> grasp-home 的量測 homography，`--real` 會在載入 YOLO、相機、LiDAR 或序列埠前
+> fail-closed。下方實機步驟保留為完成 homography 整合後的驗證順序，現在不可視為
+> 可執行的正式啟動程序。
+
 ```
 本程序（唯一 /dev/myserial owner）          ROS Melodic（不得開底盤序列埠）
   GraspController → 伺服機（v21）             robot_state_publisher
@@ -17,7 +22,7 @@
 | 檔案 | 職責 | 離線自測 |
 |------|------|---------|
 | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`；到點/繞行/中斷續巡/禁區 | `--selftest`、`--validate` |
-| `feedback_odom.py` | `get_motion_data()` → odom pose（Route A 校正值 0.65 / 0.501） | `--selftest` |
+| `feedback_odom.py` | `get_motion_data()` → odom pose（2026-09-22 尺量 linear 0.98；angular 0.501 待重測） | `--selftest` |
 | `ros_io.py` | rosbridge 發 `/odom_setmotor`+TF、收 `/amcl_pose`；`--target-source offboard` 時另收 `/trash_target/detection` | `--selftest`、`--probe` |
 | `trash_target.py` | 離機 SAM2 目標 → `(found, dist, offset)`。**負號翻轉**與時效判定 | `tests/test_trash_target.py`（18） |
 | `mission_fsm.py` | 21 狀態任務機（純邏輯，含 `--no-deliver` 的終止持物狀態） | `--selftest`、`--diagram` |
@@ -129,8 +134,14 @@ roslaunch amcl.launch
 roslaunch rosbridge_server rosbridge_websocket.launch   # 需含 rosapi
 ```
 
-RViz 用 **2D Pose Estimate 設緊初始化**（std 0.15 m / yaw 7°）。寬初始化實測在重複走廊
-跳 1.573 m，不會收斂。
+> ⚠️ **這一步還不要設 2D Pose Estimate。** `odom → base_footprint` 的唯一發布者是本
+> pipeline（`OdomPublisher`，20 Hz），而 `FeedbackOdom` 每次程序啟動都從 (0, 0, 0)
+> 重新積分。主程式一開，odom 原點就跳回車子當下的位置，AMCL 手上的 `map→odom`
+> 立刻過期 —— 先設好的定位會在啟動主程式的那一刻失效，`variance` 從收斂值彈到
+> 0.3～60 m²，self-check 卡在
+> `FAIL: AMCL not usable (AMCL position variance … > 0.0625 m^2)`，連 Enter 都沒得按。
+> **順序是「先跑主程式（步驟 4），再設 2D Pose Estimate（步驟 5）」**，
+> 見 `SETMOTOR_ODOM_INTEGRATION.md` §4.3 與 §10.2。
 
 > **AMCL 只在「有動」的時候更新並發佈 `/amcl_pose`。** 夾取一次會讓底盤靜止 2 分鐘以上，
 > 出來就進 DELIVER，而 DELIVER 把過期的 fix 當成阻斷性故障 —— 每夾成功一次就會停在
@@ -158,14 +169,31 @@ python3 integration/nav_rl.py --probe --lidar-backend ros --ros-host 127.0.0.1
 ```
 
 ```bash
-# 4. 正式跑（--real 會先等你按 Enter 才開始巡航）
+# 4. 目前只跑 dry-run；--real 會在開啟裝置前拒絕
 source ~/grasp_venv/bin/activate
-python3 integration/mission_pipeline.py --real --show \
-  --route <route.yaml> \
-  --i-confirm-serial-owner \
-  --lidar-orientation-evidence ~/.route_b_runtime/scan_orientation_verified \
-  --i-confirm-arm-cam-pose
+python3 integration/mission_pipeline.py --dry-run --show \
+  --route <route.yaml>
 ```
+
+完成 homography 整合並解除 runtime 封鎖後，實機流程才會先印
+`FAIL: AMCL not usable`；那是預期的 —— 現在才輪到定位。**不要關掉它**，
+它已經在發新的 `odom → base_footprint` 了，關掉再開就是把 odom 又歸零一次。
+
+**5. 主程式維持運行，回 RViz 設定位**
+
+RViz 用 **2D Pose Estimate 設緊初始化**（std 0.15 m / yaw 7°）：點在車子真實位置、
+箭頭朝真實車頭、放開後確認 `/scan` 貼合牆線、粒子雲收斂。寬初始化實測在重複走廊
+跳 1.573 m，不會收斂。
+
+```bash
+rosservice call /request_nomotion_update     # 靜止時逼 AMCL 重跑一次 filter
+rostopic echo -n 1 /amcl_pose                # covariance[0] 與 [7] 都要 < 0.0625
+```
+
+門檻 0.0625 m²（= 0.25 m std）定義在 `ros_io.DEFAULT_MAX_POS_VAR`，另有 20° 的 yaw
+門檻。**不要為了開跑去調低門檻**：超標數十倍是定位真的丟了，不是誤判。self-check 每
+個 tick 都會重跑，所以定位一收斂它自己就會轉成
+`AMCL ok at (...)` → `Self-check passed`，這時才按 Enter。
 
 分段驗證見下方測試計畫。`--detection-streak 999` 讓它永遠不離開路線（只驗巡航）；
 `--no-deliver` 讓它夾到就停（不送桶）。

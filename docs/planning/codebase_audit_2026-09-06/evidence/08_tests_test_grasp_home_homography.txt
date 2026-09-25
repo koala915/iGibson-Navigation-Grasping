@@ -1,0 +1,10 @@
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.150s
+
+OK
+[homography] points: 6
+[homography] RMSE:   0.000 cm
+[homography] mean:   0.000 cm
+[homography] max:    0.000 cm
+[homography] saved:  C:\Users\user\AppData\Local\Temp\tmp0a_g2d42\result.json

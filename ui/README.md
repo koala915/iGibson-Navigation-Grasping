@@ -20,7 +20,8 @@ bash ui/install_desktop_shortcut.sh
 3. 手機掃描後直接進入 UI，不需要查詢或輸入 IP。
 
 桌面啟動器使用 Tkinter，不會在 Jetson 開啟 Chromium。捷徑預設以
-`--allow-real` 啟動伺服器，但手機端仍必須勾選安全確認才可驅動實體硬體。
+`--allow-real` 啟動伺服器，但這目前只開啟第一道閘；A/B/C 缺少操作台可提交的
+模式專用校正證據，實機請求仍會被拒絕。
 
 ---
 
@@ -33,7 +34,7 @@ python3 ui/server.py --simulate
 # Jetson 上，唯讀監看（不會驅動硬體）
 python3 ui/server.py
 
-# Jetson 上，允許驅動硬體
+# Jetson 上，開啟第一道實機閘（A/B/C 目前仍 fail-closed）
 python3 ui/server.py --allow-real
 ```
 
@@ -149,13 +150,14 @@ Jetson Nano 跑這個專案時 RAM 已經在九成上下。在控制迴路裡把
 
 ## 安全設計
 
-**兩道獨立的閘，缺一不可。** 要驅動硬體，必須同時滿足：
+`--allow-real` 與介面確認是兩道必要閘：
 
 1. 伺服器是以 `--allow-real` 啟動的 —— 有人站在機器人旁邊、在機器人上打的指令
 2. 該次請求帶著操作者的確認 —— 在「任務設定」勾選
 
-單獨一個都不夠。放在包包裡的手機沒辦法自己開始實機任務；以 `--allow-real`
-啟動的伺服器在沒人勾選之前也不會動。
+單獨一個都不夠。除此之外，各模式仍需 serial owner、LiDAR 方向、相機／homography
+等可驗證證據。操作台目前沒有這些欄位，所以 server 會拒絕所有 A/B/C 實機請求；
+dry-run 與 `--simulate` 可正常使用。
 
 **停止鈕是軟停止。** 它送的是 `SIGINT`，跟 Ctrl+C 一樣，走任務程序自己的關機
 路徑 —— 那條路徑才會把輪子歸零、釋放伺服匯流排。不用 `SIGKILL`，因為直接砍掉

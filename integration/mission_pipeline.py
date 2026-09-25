@@ -25,9 +25,10 @@ Pieces, all separately testable:
 Run:
     python3 integration/mission_pipeline.py --selftest        # no hw, no torch
     python3 integration/mission_pipeline.py --dry-run --route <route.yaml>
-    python3 integration/mission_pipeline.py --real --route <route.yaml> \\
-        --i-confirm-serial-owner --lidar-orientation-evidence <verified.json> \\
-        --i-confirm-arm-cam-pose
+
+Real integrated motion is intentionally refused before any device is opened.
+The final alignment/latch path still uses predicted C3 trigonometric geometry;
+it must consume a measured grasp-home homography before --real can be restored.
 
 HARDWARE PREREQUISITES
     * NOTHING else may hold /dev/myserial: no rosmaster_main.py, no
@@ -42,6 +43,7 @@ HARDWARE PREREQUISITES
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import math
 import os
 import sys
@@ -130,14 +132,17 @@ class OdomPublisher(threading.Thread):
         self.reader = reader
         self.rio = rio
         self.period = 1.0 / float(rate_hz)
-        self._stop = threading.Event()
+        # ``threading.Thread.join()`` calls its private ``_stop()`` method.
+        # Reusing that name for an Event makes every normal shutdown end in
+        # TypeError after the odometry thread exits.
+        self._stop_event = threading.Event()
         self._lock = threading.Lock()
         self._state = None
         self.ticks = 0
         self.publish_failures = 0
 
     def run(self) -> None:
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             t0 = time.time()
             try:
                 state = self.reader.poll(now=t0)
@@ -152,14 +157,32 @@ class OdomPublisher(threading.Thread):
                     print(f"[mission][odom] publish failed ({self.publish_failures}x): {exc}")
             slept = self.period - (time.time() - t0)
             if slept > 0:
-                self._stop.wait(slept)
+                self._stop_event.wait(slept)
 
-    def state(self):
+    def state(self, now: Optional[float] = None):
         with self._lock:
-            return self._state
+            state = self._state
+        if state is None:
+            return None
+        # A publisher thread can die after storing a fresh snapshot. Consumers
+        # must age the snapshot at read time rather than trusting the boolean it
+        # carried when it was produced.
+        now = time.time() if now is None else float(now)
+        age = now - float(state.stamp)
+        fresh = bool(state.valid and state.stamp > 0.0
+                     and 0.0 <= age <= self.reader.odom.cfg.feedback_timeout_s)
+        if fresh == state.fresh and (fresh or not state.stationary):
+            return state
+        reason = state.reason
+        if state.valid and not fresh:
+            reason = (f"odometry publisher snapshot stale ({age:.2f}s)"
+                      if age >= 0.0 else "odometry publisher clock moved backwards")
+        return dataclasses.replace(state, fresh=fresh,
+                                   stationary=bool(state.stationary and fresh),
+                                   reason=reason)
 
     def stop(self) -> None:
-        self._stop.set()
+        self._stop_event.set()
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -952,9 +975,12 @@ class MissionRunner:
             self.nav.stop()
             obj_pos = self._latched[0] if self._latched else None
             try:
-                self._grasp_verified = bool(
-                    self._grasp_controller_confirmed and obj_pos is not None
-                    and self.nav.verify_grasp(obj_pos))
+                verification = (self.nav.verify_grasp(obj_pos)
+                                if self._grasp_controller_confirmed
+                                and obj_pos is not None else False)
+                self._grasp_verified = verification is True
+                if verification is None:
+                    print("[mission] grasp verification UNKNOWN — no valid visual evidence")
             except Exception as exc:
                 print(f"[mission] verify failed ({exc}) — treating as a failed grasp")
                 self._grasp_verified = False
@@ -1012,8 +1038,8 @@ class MissionRunner:
         The self-check has passed, which means the wheels are live and the very
         next state drives. Starting that the instant the process launches is a
         surprise nobody wants standing next to the robot. Falls through if there
-        is no terminal (cron, nohup, a pipe), because then nobody is there to
-        press anything anyway.
+        is no terminal (cron, nohup, a pipe), the mission stays stopped and
+        enters FAULT; loss of stdin is not operator consent.
         """
         print("\n" + "=" * 60)
         print("  Self-check passed. The robot will start PATROLLING.")
@@ -1028,7 +1054,10 @@ class MissionRunner:
         try:
             input()
         except (EOFError, OSError):
-            print("[mission] no terminal attached — starting without confirmation")
+            self.fault = "operator start confirmation unavailable (stdin closed)"
+            print("[mission] no terminal attached — refusing to start")
+            self.started = False
+            return
         self.started = True
 
     # ── blacklist: objects we already failed on ──
@@ -1219,10 +1248,21 @@ class MissionRunner:
         # before the stream ends.
         status = getattr(self, "status", None)
         if status is not None:
-            status.close()
+            try:
+                status.close()
+            except Exception as exc:
+                print(f"[mission][WARN] status cleanup failed: {exc}")
         if self.odom_pub is not None:
-            self.odom_pub.stop()
-            self.odom_pub.join(timeout=2.0)
+            try:
+                self.odom_pub.stop()
+            except Exception as exc:
+                print(f"[mission][WARN] odom stop failed: {exc}")
+            try:
+                self.odom_pub.join(timeout=2.0)
+                if self.odom_pub.is_alive():
+                    print("[mission][WARN] odom publisher did not stop within 2.0s")
+            except Exception as exc:
+                print(f"[mission][WARN] odom cleanup failed: {exc}")
         for name, fn in (("cameras", self.nav.release), ("lidar", self.lidar.close),
                          ("ros", self.rio.close), ("grasp", self.controller.close)):
             try:
@@ -1291,6 +1331,8 @@ def resolve_grasp_model(verify_hashes: bool = True) -> Tuple[str, str]:
 
 def build_and_run(args) -> int:
     if args.real:
+        if args.skip_model_hash:
+            raise SystemExit("[mission] --real never permits --skip-model-hash")
         missing = [f for f, v in (
             ("--i-confirm-serial-owner", args.i_confirm_serial_owner),
             ("--lidar-orientation-evidence", args.lidar_orientation_evidence),
@@ -1304,6 +1346,36 @@ def build_and_run(args) -> int:
                 " --lidar-orientation-evidence <verified.json>"
                 "\n  arm cam pose:      the C3 extrinsics must be MEASURED, not predicted"
             )
+        # Validate the exact v21 model pair and incremental contract before
+        # loading navigation, YOLO, cameras or opening the serial port. The
+        # standalone launcher has always done this; the integrated entry used
+        # to bypass it by constructing GraspController directly.
+        g = vgp._load_grasp_module()
+        gmodel, gvec = (args.grasp_model, args.grasp_vecnorm)
+        if not (gmodel and gvec):
+            gmodel, gvec = resolve_grasp_model(verify_hashes=True)
+        release_cfg = g.DeployConfig(serial_port=args.port)
+        release_cfg.model_path, release_cfg.vecnorm_path = gmodel, gvec
+        if not g._release_gate_ok(release_cfg, args.unlock_candidate_real):
+            raise SystemExit("[mission] grasp model release gate refused --real")
+        # The standalone vision pipelines already enforce this boundary. This
+        # integrated entry used their Navigator class directly and therefore
+        # bypassed the orchestrator gate, despite still using the old
+        # near-vertical trigonometric C3 mapping. Keep the wheels and arm locked
+        # out until a measured grasp-home homography is actually wired into the
+        # final align/latch path.
+        raise SystemExit(
+            "[mission] --real integrated grasp is disabled: final alignment/latch "
+            "does not yet consume a measured grasp-home homography. Use dry-run "
+            "for mission integration or a versioned standalone grasp launcher "
+            "for supervised hardware work."
+        )
+
+    else:
+        g = vgp._load_grasp_module()
+        gmodel, gvec = (args.grasp_model, args.grasp_vecnorm)
+        if not (gmodel and gvec):
+            gmodel, gvec = resolve_grasp_model(verify_hashes=not args.skip_model_hash)
 
     route = mgp.load_route(args.route, annotations_path=args.annotations,
                            arrival_radius_m=args.arrival_radius,
@@ -1329,16 +1401,12 @@ def build_and_run(args) -> int:
             raise SystemExit(f"[mission] --real refuses orientation evidence: {why}")
     policy = nr.NavPolicy(ncfg)
 
-    g = vgp._load_grasp_module()
     from ultralytics import YOLO
     model_path = Path(__file__).resolve().parent.parent / "detection" / "models" / "best.pt"
     print(f"[mission] loading YOLO: {model_path}")
     model = YOLO(str(model_path))
 
     gcfg = g.DeployConfig(serial_port=args.port)
-    gmodel, gvec = (args.grasp_model, args.grasp_vecnorm)
-    if not (gmodel and gvec):
-        gmodel, gvec = resolve_grasp_model(verify_hashes=not args.skip_model_hash)
     gcfg.model_path, gcfg.vecnorm_path = gmodel, gvec
     gcfg.release_enable = not args.no_deliver
     gcfg.bin_rim_height = args.bin_rim_height
@@ -1906,6 +1974,10 @@ def parse_args(argv=None):
                         "matching half of --grasp-model")
     p.add_argument("--skip-model-hash", action="store_true",
                    help="skip the manifest sha256 check (slow disks only)")
+    p.add_argument("--unlock-candidate-real", action="store_true",
+                   help="allow the v21 candidate release status for a supervised "
+                        "real experiment; integrity and incremental contract checks "
+                        "remain mandatory")
 
     # Release: grasp/v21's _scripted_release. No bin pose and no aiming -- it
     # reaches forward from wherever the arm is, stops as soon as FK says the pad

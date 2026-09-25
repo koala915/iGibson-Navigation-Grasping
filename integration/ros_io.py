@@ -47,6 +47,7 @@ AMCL_TOPIC = "/amcl_pose"
 TRASH_TOPIC = "/trash_target/detection"
 ODOM_FRAME = "odom"
 BASE_FRAME = "base_footprint"
+MAP_FRAME = "map"
 
 # AMCL's tight re-initialisation converged to < 0.038 m / < 1.1 deg. A pose
 # whose own covariance is far worse than that is a lost localisation, not a
@@ -148,13 +149,26 @@ def parse_amcl_pose(message: Mapping[str, Any]) -> Tuple[MapPose, float, float]:
     local arrival time (the mission loop uses arrival time for safety ageing,
     exactly like the /scan source does).
     """
+    header = message.get("header")
+    if not isinstance(header, Mapping):
+        raise ValueError("AMCL pose has no header")
+    frame = str(header.get("frame_id") or "")
+    if frame != MAP_FRAME:
+        raise ValueError(f"AMCL pose frame must be {MAP_FRAME!r}, got {frame!r}")
+
     pose_block = message["pose"]
     pose = pose_block["pose"]
     pos = pose["position"]
     ori = pose["orientation"]
     x, y = float(pos["x"]), float(pos["y"])
-    yaw = quaternion_to_yaw(float(ori["x"]), float(ori["y"]),
-                            float(ori["z"]), float(ori["w"]))
+    qx, qy, qz, qw = (float(ori["x"]), float(ori["y"]),
+                      float(ori["z"]), float(ori["w"]))
+    if not all(math.isfinite(v) for v in (qx, qy, qz, qw)):
+        raise ValueError("AMCL orientation contains non-finite values")
+    qnorm = math.sqrt(qx*qx + qy*qy + qz*qz + qw*qw)
+    if qnorm < 1e-9 or abs(qnorm - 1.0) > 0.01:
+        raise ValueError(f"AMCL quaternion is not normalized (norm={qnorm:.6f})")
+    yaw = quaternion_to_yaw(qx / qnorm, qy / qnorm, qz / qnorm, qw / qnorm)
     if not all(math.isfinite(v) for v in (x, y, yaw)):
         raise ValueError("AMCL pose contains non-finite values")
 
@@ -164,10 +178,12 @@ def parse_amcl_pose(message: Mapping[str, Any]) -> Tuple[MapPose, float, float]:
         # position variance and the yaw variance.
         pos_var = max(float(cov[0]), float(cov[7]))
         yaw_var = float(cov[35])
+        if not all(math.isfinite(v) and v >= 0.0 for v in (pos_var, yaw_var)):
+            raise ValueError("AMCL covariance must be finite and non-negative")
     else:
         pos_var = yaw_var = float("nan")
 
-    stamp = stamp_seconds((message.get("header") or {}).get("stamp") or {})
+    stamp = stamp_seconds(header.get("stamp") or {})
     return MapPose(x, y, yaw, stamp if stamp is not None else 0.0), pos_var, yaw_var
 
 

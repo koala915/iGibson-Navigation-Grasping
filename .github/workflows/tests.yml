@@ -9,7 +9,7 @@ on:
   push:
     branches: [main, 'merge-**']
   pull_request:
-    branches: [main]
+    branches: [main, v23-grasp-test]
   workflow_dispatch:
 
 jobs:
@@ -38,7 +38,7 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements-ci.txt
 
-      - name: Grasp deployment controller (119 checks)
+      - name: Grasp deployment controller (135 checks)
         run: python grasp/v21/test_deploy_controller.py
 
       - name: Servo reads over the half-duplex bus (37 checks)
@@ -46,6 +46,9 @@ jobs:
 
       - name: Preventive floor guard (641 checks)
         run: python grasp/v21/test_deploy_floor_guard.py
+
+      - name: V24 candidate artifact and release identity
+        run: python grasp/v24/test_candidate_package.py
 
       - name: Safety guards
         run: python tests/test_safety_guards.py
@@ -70,6 +73,9 @@ jobs:
 
       - name: Operator console
         run: python ui/test_server.py
+
+      - name: Dynamic ROS IP and serial-owner helpers
+        run: bash deploy/systemd/test_helpers.sh
 
       # The three pure-logic selftests. They need neither hardware nor torch,
       # and they are the fastest thing that will tell you the FSM wiring broke.

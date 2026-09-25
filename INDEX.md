@@ -135,10 +135,10 @@ python3 integration/verify_x3plus_deploy.py
 # TCP bridge one detection
 python3 integration/vision_grasp_bridge.py --host 127.0.0.1 --once --show
 
-# Pre-flight before any --real run: 119/37/641/29, dry-run offset, safety gate
+# Pre-flight before any --real run: 138/37/641/29, dry-run offset, safety gate
 ./grasp/v21/jetson_verify.sh
 
-# Same, for the unmerged v23/E1 stack: 148/37/641/50 + three-pose 89
+# Same, for the unmerged v23/E1 stack: 163/37/641/62 + three-pose 89
 ./grasp/v23/jetson_verify.sh
 
 # Static v24 pair/manifest/locked-launcher checks; does not load the model
@@ -197,7 +197,10 @@ rg -n "mono_link|mono_joint|arm_joint|base_link" grasp/x3plus/yahboomcar.urdf
 - If distance scale changes with range, recalibrate camera `H/theta/FX/FY`.
 - `grasp/x3plus_deploy_bridge.py` was deleted 2026-08-01 (never imported; its own
   docstring said so). Recover from git history if ever needed.
-- `/odom_setmotor` and `odom→base_footprint` are planned but not implemented in this repo yet.
+- The mission mainline implements feedback odometry: `integration/feedback_odom.py`
+  integrates Rosmaster `get_motion_data()`, while `integration/ros_io.py` publishes
+  `/odom_setmotor` and the `odom→base_footprint` TF.  The external ROS/TF bringup and
+  single-owner deployment still have to be verified on the robot before a real run.
 - The real LiDAR is YDLIDAR TG30. `/dev/rplidar` is only a udev alias; use the ROS `/scan`
   backend and `roslibpy`, not `rplidar-roboticia`.
 - Never run a separate motor server and the unified grasp/navigation pipeline if both open `/dev/myserial`.

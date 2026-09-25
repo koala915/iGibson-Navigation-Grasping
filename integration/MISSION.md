@@ -22,7 +22,7 @@
 | 檔案 | 職責 | 離線自測 |
 |------|------|---------|
 | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`；到點/繞行/中斷續巡/禁區 | `--selftest`、`--validate` |
-| `feedback_odom.py` | `get_motion_data()` → odom pose（Route A 校正值 0.65 / 0.501） | `--selftest` |
+| `feedback_odom.py` | `get_motion_data()` → odom pose（2026-09-22 尺量 linear 0.98；angular 0.501 待重測） | `--selftest` |
 | `ros_io.py` | rosbridge 發 `/odom_setmotor`+TF、收 `/amcl_pose`；`--target-source offboard` 時另收 `/trash_target/detection` | `--selftest`、`--probe` |
 | `trash_target.py` | 離機 SAM2 目標 → `(found, dist, offset)`。**負號翻轉**與時效判定 | `tests/test_trash_target.py`（18） |
 | `mission_fsm.py` | 21 狀態任務機（純邏輯，含 `--no-deliver` 的終止持物狀態） | `--selftest`、`--diagram` |

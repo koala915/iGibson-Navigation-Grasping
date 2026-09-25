@@ -6,10 +6,11 @@ AMCL. This is the missing publisher: the Python 3.8 process that already owns
 /dev/myserial (GraspController.servo.device) reads the board's own velocity
 feedback and integrates it.
 
-Ported from Route A's MotionFeedbackOdom. The calibration constants below are
-Route A's third and final generation, measured on this robot -- do not mix them
-with the two earlier generations (see CALIBRATION_HISTORY in the Route A
-handoff), and do not reuse the abandoned command-based odometry: this integrates
+Ported from Route A's MotionFeedbackOdom. The angular constants below remain
+Route A's third and final generation.  The linear constant was re-measured on
+this robot on 2026-09-22 with motor effort 30: scale 0.65 reported 14.6 cm for
+about 22 cm of ruler travel, while scale 0.98 reported 20.9 cm for about
+21--22 cm.  Do not reuse the abandoned command-based odometry: this integrates
 what the board REPORTS, not what we asked for.
 
 Route A's measured residuals with these constants:
@@ -43,8 +44,10 @@ from typing import Optional, Tuple
 
 @dataclasses.dataclass
 class FeedbackOdomConfig:
-    # ── Route A generation-3 calibration (route_a_parameters.yaml) ──
-    linear_scale: float = 0.65
+    # Linear scale re-measured on 2026-09-22 at the normal motor effort 30.
+    # Angular scales are Route A generation 3 (route_a_parameters.yaml) and
+    # still require a fresh turn calibration in the current deployment.
+    linear_scale: float = 0.98
     angular_left_scale: float = 0.501
     angular_right_scale: float = 0.501
 
@@ -335,7 +338,7 @@ def run_selftest() -> None:
         t += 0.05
         o.update(1.0, 0.0, 0.0, 0.05, stamp=t)      # board says 1.0 m/s
     st = o.state(now=t)
-    approx(st.x, 0.65 * 1.0 * 0.5, 1e-9)            # 0.65 scale x 0.5 s
+    approx(st.x, cfg.linear_scale * 1.0 * 0.5, 1e-9)
     approx(st.y, 0.0, 1e-12)
     approx(st.yaw, 0.0, 1e-12)
     assert st.valid and st.fresh and not st.stationary
@@ -355,10 +358,10 @@ def run_selftest() -> None:
     print("[odom] angular scales (both directions) OK")
 
     # ── arc integration: quarter circle must land on the circle, not the chord ──
-    # v=0.65 m/s effective, w=0.501 rad/s effective => R = v/w
+    # Effective v/w use the configured linear/angular calibration scales.
     o = MotionFeedbackOdom(cfg); t = 400.0
     v_raw, w_raw = 1.0, 1.0
-    v, w = 0.65, 0.501
+    v, w = cfg.linear_scale, cfg.angular_left_scale
     R = v / w
     quarter = (math.pi / 2.0) / w
     steps = 2000

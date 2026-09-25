@@ -39,10 +39,10 @@
 
 3. **改完要跑回歸測試，而且不需要硬體。**
    ```bash
-   python3 grasp/v21/test_deploy_controller.py    # 須 135 全過
+   python3 grasp/v21/test_deploy_controller.py    # 須 138 全過
    python3 grasp/v21/test_servo_read.py           # 須  37 全過
    python3 grasp/v21/test_deploy_floor_guard.py   # 須 641 全過
-   python3 ui/test_server.py                      # 須  47 全過
+   python3 ui/test_server.py                      # 須  48 全過
    python3 integration/mission_fsm.py --selftest
    ```
    CI（`.github/workflows/tests.yml`）會跑完整清單。

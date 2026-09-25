@@ -9,7 +9,7 @@ on:
   push:
     branches: [main, 'merge-**']
   pull_request:
-    branches: [main]
+    branches: [main, v23-grasp-test]
   workflow_dispatch:
 
 jobs:
@@ -73,6 +73,9 @@ jobs:
 
       - name: Operator console
         run: python ui/test_server.py
+
+      - name: Dynamic ROS IP and serial-owner helpers
+        run: bash deploy/systemd/test_helpers.sh
 
       # The three pure-logic selftests. They need neither hardware nor torch,
       # and they are the fastest thing that will tell you the FSM wiring broke.

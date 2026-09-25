@@ -118,7 +118,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `mission_pipeline.py` | ★**完整任務**：巡航→辨識→接近→夾取→送垃圾桶→續巡。單一 Py3.8 程序擁有 `/dev/myserial`，ROS 只跑感測/定位。見 `MISSION.md` |
 | `mission_fsm.py` | 21 狀態任務機（純邏輯，`--selftest`/`--diagram`）。強制「輪子與手臂不同時動」「換目標來源必重置 nav」 |
 | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`。含 `--validate` 與弧長重取樣（Route C 原檔最小間距只有 0.049 m） |
-| `feedback_odom.py` | `get_motion_data()` → odom pose，移植 Route A 校正值（linear 0.65 / angular 0.501） |
+| `feedback_odom.py` | `get_motion_data()` → odom pose；2026-09-22 直線尺量更新為 linear 0.98，angular 0.501 仍沿用 Route A、待重測 |
 | `ros_io.py` | rosbridge：發 `/odom_setmotor` + `odom→base_footprint` TF、收 `/amcl_pose`（含 covariance 發散門檻）與 `/trash_target/detection`（僅 `--target-source offboard` 時訂閱） |
 | `trash_target.py` | 離機 SAM2 目標的轉接層。**發布端 y 左為正、pipeline offset 右為正，這裡負號翻轉** —— 兩邊都是同範圍的 float，接錯不會報錯只會轉錯邊。逾時／無效／後方目標一律 fail closed |
 | `vision_grasp_pipeline.py` | ★模式A 自走全流程：雙相機導航(set_car_motion)→handoff→PPO 夾取(obj_provider)→驗證/重試(≤3)。含 `--selftest` |

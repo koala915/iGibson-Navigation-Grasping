@@ -1,0 +1,30 @@
+[Unit]
+Description=X3Plus resident grasp service (v23)
+Documentation=file:/home/jetson/Documents/deploy_jetson2/grasp/v23/grasp_service.py
+# The Rosmaster board is a USB serial device, so the symlink only exists once
+# udev has settled. Starting before that means dying on open(/dev/myserial).
+Wants=dev-myserial.device
+# Never add multi-user.target here. The [Install] section below makes
+# multi-user.target want this unit, and a target is ordered after what it
+# wants, so After=multi-user.target closes a cycle. systemd breaks it by
+# deleting a start job -- on 2026-09-25 that was grasp-vision's, so every
+# boot came up with the grasp service but no vision behind it.
+After=dev-myserial.device
+# systemd 237 keeps the rate limit on the unit, not the service.
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=jetson
+Group=jetson
+WorkingDirectory=/home/jetson/Documents/deploy_jetson2/grasp/v23
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/jetson/grasp_venv/bin/python3 -u /home/jetson/Documents/deploy_jetson2/grasp/v23/grasp_service.py --floor-finger-error-mm 15 --jaw-track-fraction 0.5 --tcp-forward-error-mm 20
+# The arm holds position while powered, so a crash is not an emergency. Wait
+# before retrying rather than reopening the servo bus once a second.
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target

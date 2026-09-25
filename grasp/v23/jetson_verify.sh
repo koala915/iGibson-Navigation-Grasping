@@ -183,7 +183,7 @@ tail -3 /tmp/v23_guard.log
 echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "Gate 判準："
-echo "  · 160 / 37 / 641 / 62 / 89 一字不差"
+echo "  · 163 / 37 / 641 / 62 / 89 一字不差"
 echo "  · wrist_z_offset 必須 0.0564（純幾何，跨平台不該變；也不隨姿態變——hover 高度錨在地板不是手臂，所以 C3→E1 這個值不動）"
 echo "  · Stage 序列 0→1 → jaw close → ABORT → retreat home，exit 0"
 echo "  · 策略步數容許 ±3 浮點漂移；超過就停下來回報"

@@ -62,8 +62,38 @@
   夾爪也只多閉一兩度，仍符合「停在未全閉」。9/20 修的上界只擋得住夾爪完全張開。
   **任務層後果：路上掉了的垃圾會被記成已投遞。**
 - `_scripted_release()` 的 docstring 已寫明真正的檢查方式：放下前讓夾爪再閉一小段，若能
-  自由閉合就代表是空的。當初為了讓動作精簡刻意沒做；是否補上需要決定（會讓每次放下多
-  約 1 秒，且對真的握著的物體多施一次短暫夾持力）。
+  自由閉合就代表是空的。當初為了讓動作精簡刻意沒做。
+- **決定：不處理。** 操作員實際抽出盒子後判斷夾持力夠大，搬運中掉落的機率低，接受這個
+  風險，不為它增加每次放下約 1 秒與一次額外夾持。若之後實際任務出現掉落，再回頭補。
+
+### 精簡 URDF（deploy）上機：冷啟動減半、記憶體減半
+
+- 在 Jetson 上用它自己的 `yahboomcar.urdf` 重新產生 `yahboomcar_deploy.urdf`，與 repo 版
+  逐位元組相同；`make_deploy_urdf.py --verify` 在 Nano 上 402 姿態差異 0 m。
+- 另外驗證**這次實際的前後差異**（機器原本連外觀模型一起載入，新載法跳過外觀）：300 個
+  隨機姿態、15 個可動關節，連桿座標與夾爪 AABB 差異皆 **0 m**。
+- Nano 上 `loadURDF`：冷 9.37 → **1.68 s**，暖 8.19 → **0.53 s**（開發機的 3.66 → 0.14 s
+  不能直接套用，Nano 慢約 2.5 倍但省下的比例相近）。
+- 把 repo 的載入邏輯（有 deploy 版就優先、`URDF_IGNORE_VISUAL_SHAPES`，刻意不跳過碰撞
+  模型）補到機器上 v21 與 v23 兩支控制器，備份 `*.bak_deployurdf_20260925`。機器上的
+  v23 自測 148／37／50／89／641、dry-run，v21 的 119／641 全過。
+- 結果：服務重啟到 `graspctl` 可用 **23.1 → 11.5 s（暖）**，冷（清檔案快取）20.0 s；
+  **夾取服務 RSS 985 → 486 MB**。省下的比單算 URDF 還多，因為原本連約 88 MB 的外觀模型
+  也一起載入。
+- **尚未做：換上後的實機夾取確認**（幾何已證明相同、自測全過，但照慣例仍要夾一次）。
+
+### repo 版 v23 在 Jetson 上的自測 → 三個 gate 改為 true
+
+- 把 repo `d7f9c0e` 的 `grasp/v23` 與 `integration` 放到 Jetson 暫存目錄，URDF／網格／驅動
+  連到機器現有的（URDF sha256 相符），跑 repo 自己的 `jetson_verify.sh`：163／37／641／
+  62／89、`wrist_z_offset = 0.0564`、dry-run exit 0、安全閘 exit 3 且 sha256／契約相符。
+  跑完即刪除暫存目錄，機器上正在跑的那份沒動。
+- 因此 `jetson_self_tests`、`jetson_dry_run_ok` 改為 true（證據針對 repo 版，不只是機器上
+  的快照）；`object_heights_measured` 依 2026-09-20 的尺量（6.5 cm）改為 true。
+  manifest 仍為 false 的 gate 剩 7 個：LEFT／RIGHT 動作與映射（4）、`e1_fov_ruler_check`、
+  `e1_real_reach_envelope`、`guard_margin_8mm_validated_on_hardware`。
+- manifest 的 gate 只會被印出，放行與否看 `status`（仍是 `candidate`），所以這個改動不影響
+  任何執行行為。
 
 ### 附帶觀察
 

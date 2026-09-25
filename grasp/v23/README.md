@@ -323,7 +323,7 @@ home 訓練出來的。
 - [ ] `e1_fov_ruler_check` — E1 放尺量，確認 x 約 13 cm、y 約 19 cm
 - [x] `e1_gripper_center_height_ruler_check` — 張爪實測 15.2 cm，FK 15.58 cm
 - [x] `e1_minimum_object_height_measured` — 3 cm 可夾、2 cm 空夾
-- [ ] `jetson_dry_run_ok` — 148/37/641/50/89 + `wrist_z_offset = 0.0564`
+- [x] `jetson_dry_run_ok` — 2026-09-25：repo 版在 Jetson 上 163/37/641/62/89 全過、`wrist_z_offset = 0.0564`、dry-run exit 0
 - [x] `first_real_grasp_logged` — 2026-08-30 完整 log 已核對；可辨識範圍內重複 3/3 成功
 
 沒過就留在分支上。v23 現已有 E1 實機 3/3 紀錄，但其他 gate 尚未全過；v21 完全沒被

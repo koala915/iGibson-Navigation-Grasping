@@ -126,6 +126,25 @@
 - 這也是 repo 版控制器第一次上實機：7 次夾取＋放下，除上述兩件與時序無關的事件外全部正常。
 - 限制：每組只有 2–3 個有效樣本。結論是「新時序沒有看到退化、明顯更快」，不是統計上的保證。
 
+### 機器上的 v23 同步成 repo 版
+
+- 逐檔比對（忽略 CRLF／LF）後，真正不同的只有 **v23 的 7 個檔**（控制器、一鍵啟動器、
+  verify 腳本、manifest、README、兩支測試）與 **`integration/vision_grasp_bridge.py`**。
+  E1 校正檔與 homography 解算程式與 repo 完全相同，未更動。
+- 橋接檔的改動是純新增（選用的 `--wait-for-go`），不帶該旗標時行為不變，所以正式視覺服務
+  與 v21 不受影響；repo 版的一鍵啟動器需要它。
+- 只換這 8 個檔，其餘（v21、任務程式、校正檔）一律不動。換前整份備份在
+  `~/sync_backup_20260925.tar.gz`。
+- 驗證：v23 `jetson_verify.sh` 163／37／641／62／89、`wrist_z_offset = 0.0564`、dry-run、
+  安全閘全過；v21 的 29／119 照舊通過。兩支一鍵啟動器 `--check` 的 FATAL（相機被常駐服務
+  佔用、v21 缺 C3 homography）換回舊橋接檔重跑結果相同，與同步無關。
+- 正式服務重啟 11.6 s 就緒，安全設定不變（hold +1°、打滑偵測 0.5、TCP +20 mm、閉合閘
+  10 mm），採用新時序與精簡 URDF，RSS 487 MB。**實機確認：夾取 7.21 s、放下 4.58 s**，
+  與 A/B 的 B 組一致。
+- ⚠ 機器的 `integration/` 裡有 4 支**不在 repo 的檔**：`calibrate_feedback_odom_linear.py`、
+  `calibrate_feedback_odom_yaw.py`、`remote_vision_source.py`、`sugarbox_rl_motor_server.py`。
+  看起來是導航端（WP2）的工作，目前沒有版本控制。
+
 ### 附帶觀察
 
 - 手動扶回手臂後的第一個 `home` 只用 2 次迭代、0.76 s 就走完約 30° 的距離。限速是從

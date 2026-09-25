@@ -200,7 +200,7 @@ pip install -r ~/Documents/deploy_jetson2/detection/requirements_detection.txt
 ```bash
 cd grasp/v21
 
-# 0) 上機前置檢查：135/37/641/29 全過、wrist_z_offset=0.0564、安全閘 exit 3
+# 0) 上機前置檢查：138/37/641/29 全過、wrist_z_offset=0.0564、安全閘 exit 3
 ./jetson_verify.sh
 
 # 1) 空跑測試（不驅動伺服機，確認角度輸出合理）

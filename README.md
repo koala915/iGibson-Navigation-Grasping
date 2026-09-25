@@ -223,7 +223,7 @@ python3 ui/server.py --simulate
 以下測試不需要硬體：
 
 ```bash
-python3 grasp/v21/test_deploy_controller.py    # 135 checks — 部署控制器
+python3 grasp/v21/test_deploy_controller.py    # 138 checks — 部署控制器
 python3 grasp/v21/test_servo_read.py           #  37 checks — 半雙工匯流排讀取
 python3 grasp/v21/test_deploy_floor_guard.py   # 641 checks — 預防式地板防護
 python3 ui/test_server.py                      #  48 tests  — 操作台伺服器

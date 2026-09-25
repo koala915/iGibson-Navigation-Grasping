@@ -1,5 +1,38 @@
 # X3Plus 專題進度記錄
 
+## 2026-09-25 — 開機自動啟動修好並經重開機驗證、PR #3 部署上機
+
+### v23 常駐服務：開機時視覺服務一直沒起來（已修）
+
+- 症狀：`grasp-service` active，`grasp-vision` inactive 且**這次開機零筆日誌**。
+- 原因：2026-09-20 寫的 `grasp-service.service` 同時有 `After=multi-user.target` 與
+  `WantedBy=multi-user.target`；target 會自動排在它 Wants 的單元之後，形成循環。systemd
+  每次開機都以刪掉 `grasp-vision` 的啟動工作來解開（日誌：`Job grasp-vision.service/start
+  deleted to break ordering cycle`）。9/20 是手動啟動，所以沒被發現。
+- 修正：`After=` 只留 `dev-myserial.device`。兩個單元檔首次納入 repo（`deploy/systemd/`）。
+- **重開機驗證通過**：兩個服務開機自行 active，該次開機日誌無 `ordering cycle`，
+  序列埠只有一個持有者。
+
+### PR #3（組員 `112303577ncu`）審閱、合併、部署上機
+
+- 本機跑完整 CI 清單 16 支 + v23 三支 + odom 自測，20 支全過後合併。
+- 機器上原本裝的是較舊版本：drop-in 只有 `Conflicts=`，缺 `Before=` 與啟動前的序列埠檢查；
+  導航單元**寫死 `ROS_IP=192.168.0.201`**（Jetson 當時實際是 10.16.224.252）。
+  已換成 repo 版，舊檔備份在 `~/systemd_backup_20260925/`。
+- 實測：重啟夾取服務時 `check-serial-owner.sh` 印 `serial device is free` 後放行；
+  服務完全就緒後再跑回 `exit=3`（already owned）；ROS_IP 自動偵測得到 `10.16.224.252`。
+- 注意時間差：夾取服務重啟後約 20 秒載入模型期間，序列埠確實還是空的。
+- **尚未實測**：夾取 ↔ 導航的實際模式切換（需要先起 roscore）。
+
+### 機器上的 v23 自測（`jetson_verify.sh`）全過
+
+- 148 / 37 / 641 / 50 / 89、`wrist_z_offset = 0.0564`、安全閘 exit 3、dry-run exit 0。
+- 原本 launcher 與三姿態兩項 FAIL，原因是**測試檔比程式早約 1.5 小時複製上機**
+  （程式是 `3386fb0`/`a7143bc`，測試是 `8e8bc0f` 與一個不在 git 裡的版本）。
+  換成同一個 commit（`a7143bc`）的測試檔後全過，舊檔留作 `*.bak_stale_0830`。
+- ⚠ 這證明的是**機器上那份 8/30 快照**，不是 repo HEAD 的 v23，所以 manifest 的
+  `jetson_self_tests` 沒有改成 true。
+
 ## 2026-09-22 — WP2 底盤／LiDAR 實機點動與線性 odom 校正
 
 ### 導航硬體資料鏈與互斥服務

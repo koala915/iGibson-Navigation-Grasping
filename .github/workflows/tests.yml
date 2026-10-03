@@ -85,5 +85,8 @@ jobs:
       - name: Mission pipeline selftest
         run: python integration/mission_pipeline.py --selftest
 
+      - name: G2 navigation TCP safety client
+        run: python tests/test_g2_nav_client.py
+
       - name: Vision grasp pipeline selftest
         run: python integration/vision_grasp_pipeline.py --selftest

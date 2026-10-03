@@ -16,13 +16,17 @@
 **沒寫 `action` 等於 stop**，其他 action 一律停車並記錄；0.5 秒沒收到指令就停車。
 **讓持有序列埠的程式講同一個協定，接近程式一行都不用改。**
 
-⚠ 7000 上其實有**兩種格式**（2026-09-28 核對程式碼才發現，初版寫錯）。`detection/` 底下的
-舊工具（`arm_center_setmotor.py`、`rear_nav/rear_to_arm_blind_handoff.py`、`calibration/`、
-`debug_tools/`）送的是 `{"action":"forward"/"turn_left"/…,"speed":N}`，對面是
-`x3plus-navigation` 跑的 `ai_motor_server_P0.py`。這支**只存在 Jetson 上、不在 repo**，
-格式的完整定義讀不到。**決定：常駐服務只講速度格式**；舊格式工具照舊在維修模式
-（`x3plus-navigation` + P0）下使用，與常駐服務互斥。等 P0 收進 repo、確認有工具還需要，
-再決定要不要加。
+⚠ `detection/` 底下的舊工具（`arm_center_setmotor.py`、
+`rear_nav/rear_to_arm_blind_handoff.py`、`calibration/`、`debug_tools/`）仍送
+`{"action":"forward"/"turn_left"/…,"speed":N}`。2026-09-28 從 Jetson 收回
+[`integration/ai_motor_server_P0.py`](../../integration/ai_motor_server_P0.py) 後確認：
+**P0 也不支援這種格式**；它接受 `velocity`、`stop`、`wheel`、`estop`、
+`clear_estop`、`status`、`arm_pose`。因此舊工具不能因為 TCP 7000 有服務在聽
+就視為可用；須先改成速度格式並測試。G2 常駐服務維持既定的 `velocity`／`stop`
+協定，P0 留作互斥的維修模式。
+P0 快照的 odom 係數仍是 linear `0.98`、angular `0.501`；G2 目前使用
+2026-09-24 實測的 linear `0.966309414`、angular 約 `0.985`。P0 的舊係數尤其會把
+轉向里程計約算成一半，不能將 P0 與 G2 的 odom 紀錄混為同一組校正結果。
 
 另一類是 repo 內的 `mission_pipeline.py`、`nav_rl_grasp_pipeline.py`（模式 C）、
 `vision_grasp_pipeline.py`（模式 A）：它們在程式內直接 `set_car_motion` 控車，並要求 7000

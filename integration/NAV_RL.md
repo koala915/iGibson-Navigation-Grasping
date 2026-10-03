@@ -31,6 +31,26 @@
 > 只有 forward／turn／curve＋speed 的離散 TCP 命令不足以直接承接此 policy。細節見
 > `SETMOTOR_ODOM_INTEGRATION.md`。
 
+## G2 後的模式 C 決定（2026-09-28）
+
+選擇 **(a)：把模式 C 改成 TCP 7000 的速度格式用戶端**，而不是長期保留第二個
+`/dev/myserial` 持有者。原因如下：
+
+- G2 的目的就是讓導航、接近與夾取共用一個常駐 serial owner，避免每次切換付出約
+  11.6 秒重啟成本；模式 C 若繼續直接 `set_car_motion`，仍會破壞這個目標。
+- 模式 C 已經產生連續的 `vx`（m/s）與 `wz`（rad/s），可直接對應既有
+  `{"action":"velocity","vx":...,"wz":...}` 協定，不需要改 PPO action、6 Hz 週期、
+  2-step delay 或 `velocity_to_motor_values`。
+- TCP 7000 的 0.5 秒 watchdog 與常駐服務內的輪／臂互斥規則，會讓用戶端斷線及夾取
+  期間都 fail closed。
+
+這裡只記錄決定，**本 PR 不實作 actuator 改寫**。在 koala915 完成並驗證 G2 服務之前，
+模式 C 維持現狀，仍須與 `grasp-service`／port-7000 motor service 互斥；切換成 TCP 時也
+必須保留目前幾何煞車在用戶端先把 forward command 歸零，不能只依賴遠端 watchdog。
+
+G2 odom、TF 與 AMCL 的上機驗收步驟見
+[`../docs/operations/G2_ODOM_TF_AMCL_ACCEPTANCE_2026-09-28.md`](../docs/operations/G2_ODOM_TF_AMCL_ACCEPTANCE_2026-09-28.md)。
+
 ## 指令
 
 ```bash
@@ -138,3 +158,9 @@ rospack find rosbridge_server
   故部署 obs[3:5] 直接用整形後的指令值（與夾取端「obs 建自指令端狀態」同哲學）。
 - **煞停用原始點雲**：48 束 obs 下限被 clip 在 0.33m，看不到更近的障礙；
   幾何煞停必須用 LiDAR 原始距離。
+- **實機 footprint 煞停（2026-09-27）**：導航／搬運姿態實測約
+  `0.32 × 0.24 m`，LiDAR 位於底盤中心前方 `0.10 m`、離地 `0.095 m`；
+  motor 30 在送出 stop 後仍滑行約 `0.056 m`。前進煞停因此使用機器人中心前方
+  `0.38 m` 的停止面，以及左右各 `0.22 m` 的固定寬掃掠走廊。走廊外的側牆不會
+  阻擋直行，但前方仍保有約 10 cm 的目標淨空。TG30 原始 `180°` 才是車頭方向，
+  正式 pipeline 預設 `--lidar-yaw-offset-deg 180 --lidar-forward-offset-m 0.10`。

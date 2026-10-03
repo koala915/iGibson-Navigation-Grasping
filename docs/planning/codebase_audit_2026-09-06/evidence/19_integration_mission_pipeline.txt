@@ -1,0 +1,24 @@
+== mission pipeline selftest (no hardware, no torch) ==
+  reached p1 in 27 ticks at (1.76, 0.00)
+  safety brake fired: front=0.15 m -> vx=0 (obs min ray would have read 0.33 m)
+  reset_nav cleared ActionDelay, prev_action and the tracker
+  handoff gate: trained box 0.20-0.28 m AND within 4 cm of the aim point
+  frame conversion: policy x=0.240 | base_footprint x=0.220 | front-axle x=0.140 | y=+0.000 m
+[mission] bin approach target: (3.00, 0.60, yaw=0.0); patrol parked at index 2
+[mission] next waypoint: p3
+[mission] next waypoint: p4
+  DELIVER re-points the goal to the bin, RESUME returns to the next waypoint
+[mission] blacklisted (2.50, 0.00); 1 point(s) suppressed
+[mission] next waypoint: p5
+  giving up clears every target flag and blacklists the spot
+  blacklist suppresses re-detection nearby, releases further away
+  bin override -> resume at the NEXT waypoint OK
+  FSM patrol -> investigate switches goal source with reset_nav
+  tracker survives PATROL->INVESTIGATE, cleared on ->DELIVER
+  (confirmed: a cleared tracker makes INVESTIGATE abandon on tick 1)
+[mission][det] fix is 1.15 m from where the tracker predicted (> 0.35) — restarting the streak
+  detection streak: 3 consistent hits confirm, a jump restarts, a miss resets
+  PAUSED is recoverable and forces a fresh self-check + start confirm
+  arm homes distinct: nav S2=140 deg vs grasp(C3) S2=67.08 deg
+  all 16 FSM actions have a handler
+[mission] SELFTEST PASSED

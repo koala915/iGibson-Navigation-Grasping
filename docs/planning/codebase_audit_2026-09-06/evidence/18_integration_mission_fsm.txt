@@ -1,0 +1,15 @@
+[fsm] full mission happy path OK (patrol -> grasp -> bin -> patrol)
+[fsm] wheels/arm mutual exclusion OK
+[fsm] 3-attempt retry then blacklist OK
+[fsm] stale-sensor pause + no auto-resume OK
+[fsm] AMCL scoped to map states only OK
+[fsm] ESTOP latches everywhere OK
+[fsm] FAULT latches OK
+[fsm] stationary gate fails closed OK
+[fsm] target-lost and approach-timeout recovery OK
+[fsm] detection streak gate OK
+[fsm] goal-source changes reset ActionDelay/tracker OK
+[fsm] deliver_enabled=False path OK
+[fsm] paused-while-carrying resumes all 4 carrying states, others land in IDLE OK
+[fsm] config validation OK
+[fsm] SELFTEST PASSED

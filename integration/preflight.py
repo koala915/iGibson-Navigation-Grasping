@@ -121,8 +121,27 @@ SUITES = [
     ("tests/test_mission_end_to_end.py", []),
     ("tests/test_stream_cam_capture.py", []),
     ("tests/test_vision_grasp_bridge_pose.py", []),
+    # The offboard SAM2 adapter. This one pins the left/right sign flip, which
+    # is the failure --target-source offboard cannot detect at runtime: both
+    # conventions are plain floats in the same range, so a mirrored target just
+    # steers the robot away from the trash, confidently.
+    ("tests/test_trash_target.py", []),
     ("grasp/v21/test_deploy_controller.py", []),
+    # jetson_verify.sh gates on 119 / 37 / 641; without this the offline half
+    # only covers 119 and 641, and the half-duplex bus read goes unchecked
+    # until someone is already standing next to the robot.
+    ("grasp/v21/test_servo_read.py", []),
     ("grasp/v21/test_deploy_floor_guard.py", []),
+    # The launcher-to-bridge wiring, for both stacks. Neither of these failures
+    # is detectable at runtime from one side: the flags parse, the processes
+    # start, and the mismatch appears after the arm has already moved. v23 adds
+    # the pose stamp, the policy band and the weight pair to the same category.
+    ("grasp/v21/test_one_command_launcher.py", []),
+    ("grasp/v23/test_one_command_launcher.py", []),
+    # grasp/v23's 119 / 37 / 641 are deliberately NOT here. They are the same
+    # suites against the same code, and running the 641 twice roughly doubles
+    # the offline pass for no new coverage. ./grasp/v23/jetson_verify.sh runs
+    # them, and that is the gate before a v23 hardware run anyway.
 ]
 
 
@@ -149,6 +168,18 @@ def _run(script, args, timeout=300):
         return 1, str(exc)
 
 
+def _last_line(out: str, code: int) -> str:
+    """The most useful line of a failed run, or the exit code if it said nothing.
+
+    A suite that dies without printing -- a segfault in a native library at
+    import time is the one we actually hit on the Jetson -- leaves this empty.
+    Indexing [-1] into that crashed preflight itself with a traceback, which
+    looks like preflight is broken rather than like the suite failed.
+    """
+    lines = [l.strip() for l in out.splitlines() if l.strip()]
+    return lines[-1][:160] if lines else f"exit code {code}, no output"
+
+
 def check_offline(args, r=None) -> int:
     r = r if r is not None else Report()
     if not r.quiet:
@@ -160,7 +191,7 @@ def check_offline(args, r=None) -> int:
             continue
         code, out = _run(script, extra)
         r.add(OK if code == 0 else BAD, script,
-              "" if code == 0 else out.strip().splitlines()[-1][:160])
+              "" if code == 0 else _last_line(out, code))
 
     # ── the grasp model pair must match its manifest ──
     try:
@@ -190,9 +221,14 @@ def check_offline(args, r=None) -> int:
         code, out = _run("integration/map_goal_provider.py",
                          ["--validate", "--route", route,
                           "--resample-m", str(args.resample_m)])
-        line = next((l for l in out.splitlines() if "re-sampled" in l), "")
-        r.add(OK if code == 0 else BAD, "route.yaml loads and validates",
-              line.strip()[:160])
+        if code == 0:
+            detail = next((l.strip() for l in out.splitlines()
+                           if "re-sampled" in l), "")[:160]
+        else:
+            # On failure "re-sampled" is exactly the line that is missing, so
+            # searching for it reports a bare FAIL with no reason attached.
+            detail = _last_line(out, code)
+        r.add(OK if code == 0 else BAD, "route.yaml loads and validates", detail)
     else:
         r.add(WARN, "route.yaml", f"not found at {route!r}; pass --route")
 
@@ -218,17 +254,26 @@ def check_onboard(args, r=None) -> int:
         print("\n== ONBOARD: run this on the Jetson, with ROS up ==\n")
 
     # ── serial ownership ──
-    try:
-        p = subprocess.run(["fuser", "-v", "/dev/myserial"], capture_output=True,
-                           text=True, timeout=10)
-        holders = [l for l in (p.stdout + p.stderr).splitlines() if "/dev" not in l]
-        n = len([h for h in holders if h.strip() and "USER" not in h])
-        r.add(OK if n <= 1 else BAD, "serial /dev/myserial has at most one owner",
-              (p.stdout + p.stderr).strip()[:200])
-    except FileNotFoundError:
-        r.add(WARN, "serial owner check", "fuser not available on this machine")
-    except Exception as exc:
-        r.add(WARN, "serial owner check", str(exc)[:120])
+    # Existence first. fuser reports a missing device as "Specified filename
+    # /dev/myserial does not exist." on stderr, and that line contains "/dev",
+    # so the filter below drops it, leaves zero holders, and reports PASS -- an
+    # unplugged chassis would read as a clean serial port.
+    if not Path("/dev/myserial").exists():
+        r.add(BAD, "serial /dev/myserial exists",
+              "no /dev/myserial: chassis unplugged, powered off, or the udev "
+              "rule did not fire")
+    else:
+        try:
+            p = subprocess.run(["fuser", "-v", "/dev/myserial"], capture_output=True,
+                               text=True, timeout=10)
+            holders = [l for l in (p.stdout + p.stderr).splitlines() if "/dev" not in l]
+            n = len([h for h in holders if h.strip() and "USER" not in h])
+            r.add(OK if n <= 1 else BAD, "serial /dev/myserial has at most one owner",
+                  (p.stdout + p.stderr).strip()[:200])
+        except FileNotFoundError:
+            r.add(WARN, "serial owner check", "fuser not available on this machine")
+        except Exception as exc:
+            r.add(WARN, "serial owner check", str(exc)[:120])
 
     # ── competing drivers ──
     try:

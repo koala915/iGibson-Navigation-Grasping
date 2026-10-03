@@ -1,0 +1,131 @@
+pybullet build time: Jul 10 2026 12:08:18
+test_c3_cam_x_is_not_zero (__main__.ArmCamGeometryTests.test_c3_cam_x_is_not_zero) ... ok
+test_ground_distance_is_signed_not_filtered (__main__.ArmCamGeometryTests.test_ground_distance_is_signed_not_filtered) ... ok
+test_horizon_rays_raise_instead_of_answering (__main__.ArmCamGeometryTests.test_horizon_rays_raise_instead_of_answering) ... ok
+test_lateral_and_width_use_optical_depth_not_ground_distance (__main__.ArmCamGeometryTests.test_lateral_and_width_use_optical_depth_not_ground_distance) ... ok
+test_predicted_extrinsics_cannot_reach_the_arm_unacknowledged (__main__.ArmCamGeometryTests.test_predicted_extrinsics_cannot_reach_the_arm_unacknowledged) ... ok
+test_registered_extrinsics_live_in_the_policy_fk_frame (__main__.ArmCamGeometryTests.test_registered_extrinsics_live_in_the_policy_fk_frame)
+cam_x/cam_y must match the DEPLOYMENT FK, not the raw URDF. ... b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkok
+test_theta_is_measured_towards_base_x (__main__.ArmCamGeometryTests.test_theta_is_measured_towards_base_x) ... ok
+test_a_declared_height_switches_on_the_centroid_estimator (__main__.BridgePayloadTests.test_a_declared_height_switches_on_the_centroid_estimator) ... ok
+test_contradictory_z_and_height_are_refused (__main__.BridgePayloadTests.test_contradictory_z_and_height_are_refused) ... ok
+test_declared_height_sets_the_centroid_z (__main__.BridgePayloadTests.test_declared_height_sets_the_centroid_z) ... ok
+test_mode_a_and_mode_b_locate_an_object_the_same_way (__main__.BridgePayloadTests.test_mode_a_and_mode_b_locate_an_object_the_same_way)
+The two paths must not disagree about where an object is. ... ok
+test_oversized_objects_are_dropped_with_a_reason (__main__.BridgePayloadTests.test_oversized_objects_are_dropped_with_a_reason) ... ok
+test_payload_is_stamped_with_the_pose_the_grasp_side_verifies (__main__.BridgePayloadTests.test_payload_is_stamped_with_the_pose_the_grasp_side_verifies) ... ok
+test_reported_width_is_corrected_for_the_object_height (__main__.BridgePayloadTests.test_reported_width_is_corrected_for_the_object_height) ... ok
+test_the_usable_placement_window_shrinks_with_object_height (__main__.BridgePayloadTests.test_the_usable_placement_window_shrinks_with_object_height) ... ok
+test_a_frame_that_is_not_the_calibrated_size_is_refused (__main__.CalibrationCaptureTests.test_a_frame_that_is_not_the_calibrated_size_is_refused) ... ok
+test_coordinate_parsing_rejects_nonsense (__main__.CalibrationCaptureTests.test_coordinate_parsing_rejects_nonsense) ... ok
+test_coverage_report_catches_a_fit_that_cannot_constrain_the_solve (__main__.CalibrationCaptureTests.test_coverage_report_catches_a_fit_that_cannot_constrain_the_solve) ... ok
+test_holdout_split_keeps_the_last_placements_out_of_the_fit (__main__.CalibrationCaptureTests.test_holdout_split_keeps_the_last_placements_out_of_the_fit) ... ok
+test_placements_past_the_lateral_field_of_view_are_flagged (__main__.CalibrationCaptureTests.test_placements_past_the_lateral_field_of_view_are_flagged) ... ok
+test_the_c3_ground_footprint_is_asymmetric_about_the_optical_axis (__main__.CalibrationCaptureTests.test_the_c3_ground_footprint_is_asymmetric_about_the_optical_axis) ... ok
+test_too_few_placements_warn_even_though_the_residuals_look_fine (__main__.CalibrationCaptureTests.test_too_few_placements_warn_even_though_the_residuals_look_fine) ... ok
+test_pipelines_load_the_v21_grasp_stack (__main__.GraspStackIdentityTests.test_pipelines_load_the_v21_grasp_stack) ... ok
+test_v21_contract_is_incremental (__main__.GraspStackIdentityTests.test_v21_contract_is_incremental) ... ok
+test_controller_exposes_what_the_pipelines_call (__main__.PipelineGraspApiTests.test_controller_exposes_what_the_pipelines_call) ... ok
+test_move_home_and_run_return_bools (__main__.PipelineGraspApiTests.test_move_home_and_run_return_bools) ... ok
+test_parse_deg6_csv_round_trips_and_rejects_wrong_arity (__main__.PipelineGraspApiTests.test_parse_deg6_csv_round_trips_and_rejects_wrong_arity) ... ok
+test_removed_v17_fields_are_really_gone (__main__.PipelineGraspApiTests.test_removed_v17_fields_are_really_gone) ... ok
+test_dry_run_warns_where_real_refuses (__main__.ReachEnvelopeTests.test_dry_run_warns_where_real_refuses) ... ok
+test_targets_inside_the_evaluated_region_are_accepted (__main__.ReachEnvelopeTests.test_targets_inside_the_evaluated_region_are_accepted) ... ok
+test_targets_outside_the_evaluated_region_are_refused (__main__.ReachEnvelopeTests.test_targets_outside_the_evaluated_region_are_refused) ... ok
+test_the_bridge_drops_out_of_reach_detections_at_source (__main__.ReachEnvelopeTests.test_the_bridge_drops_out_of_reach_detections_at_source) ... ok
+test_the_documented_range_only_warns (__main__.ReachEnvelopeTests.test_the_documented_range_only_warns) ... ok
+test_the_visible_band_is_checked_against_the_envelope_it_overhangs (__main__.ReachEnvelopeTests.test_the_visible_band_is_checked_against_the_envelope_it_overhangs) ... ok
+test_amcl_covariance_ok_but_local_receipt_stale_is_rejected (__main__.SafetyGuardTests.test_amcl_covariance_ok_but_local_receipt_stale_is_rejected) ... ok
+test_arm_cam_constants_are_tied_to_the_pose_they_were_measured_at (__main__.SafetyGuardTests.test_arm_cam_constants_are_tied_to_the_pose_they_were_measured_at) ... ok
+test_camera_capture_failure_is_reported_to_main_thread (__main__.SafetyGuardTests.test_camera_capture_failure_is_reported_to_main_thread) ... ok
+test_camera_identity_groups_video_indices (__main__.SafetyGuardTests.test_camera_identity_groups_video_indices) ... ok
+test_camera_to_base_mapping_is_explicit_and_validated (__main__.SafetyGuardTests.test_camera_to_base_mapping_is_explicit_and_validated) ... ok
+test_class_height_parsing_rejects_nonsense_and_has_no_fallback (__main__.SafetyGuardTests.test_class_height_parsing_rejects_nonsense_and_has_no_fallback) ... ok
+test_declared_class_height_reaches_the_latch (__main__.SafetyGuardTests.test_declared_class_height_reaches_the_latch) ... ok
+test_detection_payload_rejects_non_finite_and_bad_height (__main__.SafetyGuardTests.test_detection_payload_rejects_non_finite_and_bad_height) ... ok
+test_emergency_stop_holds_instead_of_moving_home (__main__.SafetyGuardTests.test_emergency_stop_holds_instead_of_moving_home) ... ok
+test_goal_tracker_fix_age_honours_explicit_zero_time (__main__.SafetyGuardTests.test_goal_tracker_fix_age_honours_explicit_zero_time) ... ok
+test_hardware_smoke_modules_are_import_safe (__main__.SafetyGuardTests.test_hardware_smoke_modules_are_import_safe) ... ok
+test_incremental_contract_refuses_to_decode_without_a_current_pose (__main__.SafetyGuardTests.test_incremental_contract_refuses_to_decode_without_a_current_pose) ... ok
+test_jetson_host_environment_override (__main__.SafetyGuardTests.test_jetson_host_environment_override) ... ok
+test_joint_mapper_rejects_nan_policy_action (__main__.SafetyGuardTests.test_joint_mapper_rejects_nan_policy_action) ... ok
+test_legacy_motor_calibration_blocks_nonstop_without_real_flag (__main__.SafetyGuardTests.test_legacy_motor_calibration_blocks_nonstop_without_real_flag) ... ok
+test_legacy_rplidar_backend_requires_an_explicit_port (__main__.SafetyGuardTests.test_legacy_rplidar_backend_requires_an_explicit_port) ... ok
+test_negative_action_delay_is_rejected (__main__.SafetyGuardTests.test_negative_action_delay_is_rejected) ... ok
+test_orientation_evidence_requires_result_and_matches_live_frame_and_offset (__main__.SafetyGuardTests.test_orientation_evidence_requires_result_and_matches_live_frame_and_offset) ... ok
+test_real_integrated_grasp_refuses_legacy_nav_home_latch (__main__.SafetyGuardTests.test_real_integrated_grasp_refuses_legacy_nav_home_latch) ... ok
+test_real_pipeline_refuses_unconfirmed_camera_frame (__main__.SafetyGuardTests.test_real_pipeline_refuses_unconfirmed_camera_frame) ... ok
+test_real_socket_latch_refuses_default_position (__main__.SafetyGuardTests.test_real_socket_latch_refuses_default_position) ... ok
+test_ros_laserscan_conversion_filters_invalid_ranges (__main__.SafetyGuardTests.test_ros_laserscan_conversion_filters_invalid_ranges) ... ok
+test_ros_scan_left_right_mapping_is_not_mirrored (__main__.SafetyGuardTests.test_ros_scan_left_right_mapping_is_not_mirrored) ... ok
+test_ros_scan_source_updates_freshness_even_when_all_ranges_are_inf (__main__.SafetyGuardTests.test_ros_scan_source_updates_freshness_even_when_all_ranges_are_inf) ... ok
+test_ros_scan_source_uses_latest_only_subscription_and_closes (__main__.SafetyGuardTests.test_ros_scan_source_uses_latest_only_subscription_and_closes) ... ok
+test_scan_coverage_is_not_inverted_by_a_mirrored_lidar (__main__.SafetyGuardTests.test_scan_coverage_is_not_inverted_by_a_mirrored_lidar)
+A symmetric window is unchanged by mirroring; coverage must agree. ... ok
+test_scan_coverage_wraps_for_a_full_scan_and_is_not_orientation_proof (__main__.SafetyGuardTests.test_scan_coverage_wraps_for_a_full_scan_and_is_not_orientation_proof) ... ok
+test_servo_state_is_not_advanced_when_uart_write_raises (__main__.SafetyGuardTests.test_servo_state_is_not_advanced_when_uart_write_raises) ... ok
+test_servo_write_without_a_board_is_refused_not_faked (__main__.SafetyGuardTests.test_servo_write_without_a_board_is_refused_not_faked) ... ok
+
+----------------------------------------------------------------------
+Ran 63 tests in 3.593s
+
+OK
+[WARNING] Rosmaster_Lib not found. Servo output will be printed only (dry-run). --real will refuse to start.
+[arm-cam] WARN: arm-camera extrinsics for 'v21_c3_grasp_home' are not measured.
+    v21_c3_grasp_home: arm=[90.0, 67.08, 9.79, 9.79, 90.0, 30.0] theta=89.740deg H=0.2148m cam_x=+0.2762 cam_y=-0.0056 sign_y=+1  [theta/H PREDICTED, cam_x/cam_y PREDICTED]
+    source: deployment FK (policy frame) + nav-home mounting error (theta -3.600 deg, camera 0.1172 m lower than at nav home); NOT measured at this pose
+    These came from URDF FK plus the mounting error solved at the nav
+    home, not from the hardware. Run docs/calibration/CALIBRATION_PLAN.md Phase 1/2 at
+    this pose (intrinsics and distortion carry over unchanged; only
+    theta/H/cam_x/cam_y need redoing) and pass the results with
+    --cam-theta/--cam-h/--cam-x/--cam-y.
+[arm-cam] WARN: arm-camera extrinsics for 'v21_c3_grasp_home' are not measured.
+    v21_c3_grasp_home: arm=[90.0, 67.08, 9.79, 9.79, 90.0, 30.0] theta=89.740deg H=0.2148m cam_x=+0.2762 cam_y=-0.0056 sign_y=+1  [theta/H PREDICTED, cam_x/cam_y PREDICTED]
+    source: deployment FK (policy frame) + nav-home mounting error (theta -3.600 deg, camera 0.1172 m lower than at nav home); NOT measured at this pose
+    These came from URDF FK plus the mounting error solved at the nav
+    home, not from the hardware. Run docs/calibration/CALIBRATION_PLAN.md Phase 1/2 at
+    this pose (intrinsics and distortion carry over unchanged; only
+    theta/H/cam_x/cam_y need redoing) and pass the results with
+    --cam-theta/--cam-h/--cam-x/--cam-y.
+[FK] PyBullet DIRECT ready. tcp=gripper_center(14,17) arm=[8, 9, 10, 11, 12] grip_linkage=[13, 14, 15, 16, 17, 18]
+[bridge] sugarbox: --class-height 0.065 m implies centroid z=0.0325 m (symmetric, resting on the floor)
+[arm-cam] WARN: arm-camera extrinsics for 'v21_c3_grasp_home' are not measured.
+    v21_c3_grasp_home: arm=[90.0, 67.08, 9.79, 9.79, 90.0, 30.0] theta=89.740deg H=0.2148m cam_x=+0.2762 cam_y=-0.0056 sign_y=+1  [theta/H PREDICTED, cam_x/cam_y PREDICTED]
+    source: deployment FK (policy frame) + nav-home mounting error (theta -3.600 deg, camera 0.1172 m lower than at nav home); NOT measured at this pose
+    These came from URDF FK plus the mounting error solved at the nav
+    home, not from the hardware. Run docs/calibration/CALIBRATION_PLAN.md Phase 1/2 at
+    this pose (intrinsics and distortion carry over unchanged; only
+    theta/H/cam_x/cam_y need redoing) and pass the results with
+    --cam-theta/--cam-h/--cam-x/--cam-y.
+[arm-cam] WARN: arm-camera extrinsics for 'v21_c3_grasp_home' are not measured.
+    v21_c3_grasp_home: arm=[90.0, 67.08, 9.79, 9.79, 90.0, 30.0] theta=89.740deg H=0.2148m cam_x=+0.2762 cam_y=-0.0056 sign_y=+1  [theta/H PREDICTED, cam_x/cam_y PREDICTED]
+    source: deployment FK (policy frame) + nav-home mounting error (theta -3.600 deg, camera 0.1172 m lower than at nav home); NOT measured at this pose
+    These came from URDF FK plus the mounting error solved at the nav
+    home, not from the hardware. Run docs/calibration/CALIBRATION_PLAN.md Phase 1/2 at
+    this pose (intrinsics and distortion carry over unchanged; only
+    theta/H/cam_x/cam_y need redoing) and pass the results with
+    --cam-theta/--cam-h/--cam-x/--cam-y.
+[pipeline] WARN: arm-camera geometry does not belong to this detection pose.
+    detection pose (cfg.home_deg) : [90.0, 140.0, 0.0, 0.0, 90.0, 30.0]
+    active extrinsics            : v21_c3_grasp_home: arm=[90.0, 67.08, 9.79, 9.79, 90.0, 30.0] theta=89.740deg H=0.2148m cam_x=+0.2762 cam_y=-0.0056 sign_y=+1  [theta/H PREDICTED, cam_x/cam_y PREDICTED]
+    That pose IS registered as 'v17_nav_home'; select it instead of
+    'v21_c3_grasp_home'.
+    The camera rides on arm_link4, so theta/H/cam_x/cam_y are mounting
+    geometry valid at ONE pose only, and nothing downstream can catch a
+    mismatch: the model returns a confident number at any pose and the arm
+    then grasps precisely in the wrong place.
+    Fix: re-measure at the pose you actually detect from (docs/calibration/CALIBRATION_PLAN.md
+    Phase 1/2 + 3 — intrinsics and distortion carry over unchanged), or drive
+    the arm to a calibrated pose for detection via --nav-home-deg and set
+    --grasp-home-deg to the trained C3 pose.
+[nav] latched grasp target class=None pos=[0.34, -0.04, 0.02] width=0.022m height=None (grasp side estimates)
+[nav] latched grasp target class=sugarbox pos=[0.25, 0.0, 0.0325] width=0.022m height=0.065m
+[nav] latched grasp target class=something-else pos=[0.25, 0.0, 0.02] width=0.022m height=None (grasp side estimates)
+[SAFETY] Emergency stop — freezing at the current commanded pose.
+[DRY] S1=100.0° S2=120.0° S3=20.0° S4=30.0° S5=80.0° S6=60.0° t=200ms
+[ERROR] Servo write failed: simulated UART failure
+[ERROR] Servo write refused: no Rosmaster device (driver missing or init failed). The arm has NOT moved.

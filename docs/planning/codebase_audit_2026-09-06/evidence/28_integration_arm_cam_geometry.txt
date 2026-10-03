@@ -1,0 +1,23 @@
+arm_cam_geometry self-test
+  ok   nav-home principal ray reproduces H/tan(theta)
+  ok   depth > ground distance, ratio == cos(total)
+  ok   old d-based lateral would have been ~20% low at the nav home
+  ok   C3 principal ray lands within a centimetre of the camera's own foot
+  ok   C3 principal ray still gives a healthy projection depth
+  ok   C3 obj_x is dominated by cam_x, not by the ground distance
+  ok   C3 rows below the principal point give NEGATIVE ground distance
+  ok   ...and that is still a usable target in front of the base
+  ok   C3 lateral offset survives a near-vertical camera
+  ok   C3 metric width is not zero either
+  ok   a horizontal camera is rejected, not silently answered
+  ok   stamp round-trips
+  ok   stamp agrees with the same pose
+  ok   stamp disagrees with the nav home
+  ok   a different jaw angle is not a disagreement
+  ok   no stamp reads as None, not as agreement
+  ok   a malformed stamp raises instead of reading as absent
+  ok   C3 extrinsics are flagged as not measured
+  ok   an override clears the flag it supplies
+  ok   ...and leaves the other flag alone
+
+PASS: 0 failure(s)

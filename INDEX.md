@@ -7,6 +7,7 @@ Quick map for finding the right code without scanning the whole project.
 | Task | File | What to inspect first |
 |---|---|---|
 | **PPO grasp deployment** | `grasp/v21/x3plus_real_grasp.py` | `DeployConfig`, `FloorGuard`, `GraspController.run()` |
+| v24 E1 replacement candidate | `grasp/v24/run_candidate.py` | locked artifact tuple; delegates to hardened v23 controller |
 | Full mission (patrol → grasp → bin) | `integration/mission_pipeline.py` | `MissionRunner`, the tick loop, `_await_operator()` |
 | Mission state machine | `integration/mission_fsm.py` | `State`, `Action`, `step()` — 21 states, `--diagram` |
 | Operator console | `ui/server.py` | request routing, SSE stream, the two `--allow-real` gates |
@@ -107,6 +108,7 @@ Current calibration status: `vision_grasp_bridge.py`、`vision_grasp_pipeline.py
 |---|---|
 | `grasp/v21/models/candidate_v21_seed816_ckpt550000.zip` + `_vec.pkl` | **Current** grasp policy + VecNormalize. Contract `obs_28_incremental` |
 | `grasp/v21/manifest.json` | Single source of truth: weight sha256, contract, hardware gates |
+| `grasp/v24/models/*` + `grasp/v24/manifest.json` | E1 replacement candidate (230/235 delivered formal rows); new hash hardware gates still false |
 | `grasp/trained_6d_models_v17/*.zip` `.pkl` | v17 fallback policy. Absolute contract — never feed these to v21 |
 | `integration/nav_best_model/ppo_nav_281440_steps.zip` + `ppo_nav_vecnormalize_281440_steps.pkl` | Current nav baseline/default |
 | `integration/nav_best_model/doorway_ft_final.zip` + `doorway_ft_final_vecnormalize.pkl` | Candidate nav pair; on-robot A/B required before default switch |
@@ -133,8 +135,25 @@ python3 integration/verify_x3plus_deploy.py
 # TCP bridge one detection
 python3 integration/vision_grasp_bridge.py --host 127.0.0.1 --once --show
 
-# Pre-flight before any --real run: 119/37/641, dry-run offset, safety gate
+# Pre-flight before any --real run: 138/37/641/29, dry-run offset, safety gate
 ./grasp/v21/jetson_verify.sh
+
+# Same, for the unmerged v23/E1 stack: 163/37/641/62 + three-pose 89
+./grasp/v23/jetson_verify.sh
+
+# Static v24 pair/manifest/locked-launcher checks; does not load the model
+python3 grasp/v24/test_candidate_package.py
+
+# Measure the E1 pixel->base homography. The C3 one is wrong at E1 by
+# construction, and swapping them raises no error -- only the filename differs.
+python3 grasp/v23/jetson_one_command_grasp.py --calibrate
+
+# LEFT/E1/RIGHT S1-only search: one E1 homography plus rigid yaw about arm_joint1.
+# LEFT/RIGHT motion and >=2 held-out ruler points per side must be validated before
+# --three-pose-scan passes preflight; scanner returns to E1 before PPO starts.
+python3 grasp/v23/jetson_one_command_grasp.py --scan-calibrate-pose LEFT
+python3 grasp/v23/jetson_one_command_grasp.py --scan-calibrate-pose RIGHT
+python3 grasp/v23/jetson_one_command_grasp.py --three-pose-scan --allow-top-clipped
 
 # Grasp with a calibrated external XYZ sender (v21). --width-grip and
 # --latch-obj do not exist here: the jaw closes on contact rather than on a
@@ -178,7 +197,10 @@ rg -n "mono_link|mono_joint|arm_joint|base_link" grasp/x3plus/yahboomcar.urdf
 - If distance scale changes with range, recalibrate camera `H/theta/FX/FY`.
 - `grasp/x3plus_deploy_bridge.py` was deleted 2026-08-01 (never imported; its own
   docstring said so). Recover from git history if ever needed.
-- `/odom_setmotor` and `odom→base_footprint` are planned but not implemented in this repo yet.
+- The mission mainline implements feedback odometry: `integration/feedback_odom.py`
+  integrates Rosmaster `get_motion_data()`, while `integration/ros_io.py` publishes
+  `/odom_setmotor` and the `odom→base_footprint` TF.  The external ROS/TF bringup and
+  single-owner deployment still have to be verified on the robot before a real run.
 - The real LiDAR is YDLIDAR TG30. `/dev/rplidar` is only a udev alias; use the ROS `/scan`
   backend and `roslibpy`, not `rplidar-roboticia`.
 - Never run a separate motor server and the unified grasp/navigation pipeline if both open `/dev/myserial`.

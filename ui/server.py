@@ -5,7 +5,7 @@ Run this on the Jetson.  Point a phone at http://<jetson>:8080 and the whole
 mission is operable without a terminal: configure it, start it, watch it, stop it.
 
     python3 ui/server.py                     # watch only; cannot drive
-    python3 ui/server.py --allow-real        # ...and may drive the hardware
+    python3 ui/server.py --allow-real        # enable the first real-mode gate
     python3 ui/server.py --simulate          # no robot needed; for development
 
 Three deliberate choices, each of which the obvious alternative gets wrong:
@@ -23,11 +23,10 @@ its telemetry, and signals it.  A web server that also opened the serial port
 would be a second owner, and the failure mode of two owners on a half-duplex
 servo bus is an arm that moves when nobody asked it to.
 
-*Two independent gates before anything drives.*  --allow-real must be passed
-here, on the robot, by someone standing next to it; and the start request must
-carry the operator's acknowledgement.  Neither alone is enough.  A phone left
-unlocked in a bag cannot start a real run on its own, and a server started with
---allow-real still will not move until a human ticks the box.
+*Real mode fails closed.*  --allow-real and the operator acknowledgement are
+necessary first gates.  The current console cannot supply the mode-specific
+serial, LiDAR and camera-calibration evidence, so A/B/C real requests are still
+refused.  Dry-run and simulation remain available.
 """
 
 from __future__ import annotations
@@ -286,18 +285,30 @@ class MissionProcess:
         return {"ok": True, "pid": self.proc.pid}
 
     def _pump(self) -> None:
-        """Relay the child's output so the console can show what it printed."""
+        """Drain the child's stdout, keeping only a short tail.
+
+        Draining is not optional: a pipe nobody reads fills up and blocks the
+        mission mid-drive.  Broadcasting it is optional, and it is not done --
+        no screen shows it, so every line would be an SSE frame to every phone
+        for nothing.  The tail stays for diagnosing a mission that died, which
+        is readable at /api/state.
+        """
         proc = self.proc
         assert proc is not None and proc.stdout is not None
-        for line in proc.stdout:
-            line = line.rstrip("\n")
-            self.log.append(line)
-            del self.log[:-MAX_LOG_LINES]
-            self.hub.publish("log", {"line": line, "t": time.time()})
-        self.exit_code = proc.wait()
+        try:
+            for line in proc.stdout:
+                line = line.rstrip("\n")
+                self.log.append(line)
+                del self.log[:-MAX_LOG_LINES]
+            self.exit_code = proc.wait()
+        finally:
+            for stream in (proc.stdout, proc.stdin):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except OSError:
+                        pass
         self.hub.publish("process", self.snapshot())
-        self.hub.publish("log", {"line": f"[console] 任務程序結束，代碼 {self.exit_code}",
-                                 "t": time.time()})
 
     def confirm(self) -> Dict:
         """Answer the mission's input() -- start, or clear a pause."""
@@ -391,7 +402,7 @@ class Console:
             "process": self.mission.snapshot(),
             "allow_real": bool(self.args.allow_real),
             "simulate": bool(self.args.simulate),
-            "log": self.mission.log[-60:],
+            "log": self.mission.log[-40:],
             "server_time": time.time(),
         }
 
@@ -447,6 +458,20 @@ class Console:
             return {"error": "驅動硬體前必須先在「任務設定」勾選安全確認。"}
         if real and self.args.simulate:
             return {"error": "模擬模式不能驅動硬體。"}
+        if real:
+            # The three children do not share a real-mode contract. Mode A
+            # requires serial-owner and measured LiDAR/camera evidence, mode B
+            # is only the vision sender and needs a separately managed receiver
+            # plus a homography, and mode C deliberately refuses integrated
+            # real grasp. A single web checkbox cannot truthfully provide any
+            # of those facts, so fail here instead of launching an argv that
+            # either argparse rejects or that weakens a child safety gate.
+            reasons = {
+                "A": "方式 A 的實機啟動需要 serial owner、LiDAR 方向與手臂相機校正證據；目前操作台尚未提供這些欄位。",
+                "B": "方式 B 只有視覺傳送端；實機模式還需要指定 homography 與獨立的夾取接收端。",
+                "C": "方式 C 的整合實機夾取目前由 runtime 安全閘停用。",
+            }
+            return {"error": reasons[mode]}
 
         script = ROOT / "integration" / MODES[mode]
         if not script.exists():
@@ -471,9 +496,11 @@ class Console:
 
         # All three modes report; they just have different amounts to say.
         argv += ["--status-udp", f"127.0.0.1:{self.args.status_port}"]
-        argv.append("--real" if real else "--dry-run")
-        if real:
-            argv.append("--unlock-candidate-real")
+        # A and B expose --dry-run. C is dry by omission and does not accept
+        # that flag. Real requests have already been refused above until their
+        # mode-specific evidence can be represented by this console.
+        if mode in ("A", "B"):
+            argv.append("--dry-run")
         return {"argv": argv}
 
     def start_mission(self, cfg: Dict) -> Dict:
@@ -544,6 +571,13 @@ def simulate(console: "Console") -> None:
 
     i = 0
     while True:
+        # A stopped mission stops reporting. On real hardware that happens
+        # because the process is gone; here it has to be honoured explicitly,
+        # or pressing stop during a demo leaves the console cheerfully
+        # narrating a robot that was just halted.
+        if console.mission.estop_latched:
+            time.sleep(SIM_PERIOD_S)
+            continue
         state, action, reason, extra = SIM_SCRIPT[i % len(SIM_SCRIPT)]
         prev = console.status.get("state")
         frame = {
@@ -757,8 +791,9 @@ def main(argv=None) -> int:
     ap.add_argument("--status-port", type=int, default=DEFAULT_STATUS_PORT,
                     help="UDP port the mission publishes telemetry to")
     ap.add_argument("--allow-real", action="store_true",
-                    help="permit starting a mission with --real. Pass this only "
-                         "on the robot, with someone standing next to it.")
+                    help="enable the console's first real-mode gate; current A/B/C "
+                         "real requests still fail closed until their evidence "
+                         "fields are implemented")
     ap.add_argument("--simulate", action="store_true",
                     help="scripted mission, no robot; for developing the UI")
     ap.add_argument("--verbose", action="store_true")
@@ -788,8 +823,8 @@ def main(argv=None) -> int:
     print("  本機   http://127.0.0.1:%d" % args.port)
     print("  手機   http://%s:%d" % (ip, args.port))
     print("  遙測   UDP %d" % args.status_port)
-    print("  硬體   %s" % ("允許驅動（--allow-real）" if args.allow_real
-                           else "唯讀，不驅動硬體"))
+    print("  硬體   %s" % ("第一道閘已開；A/B/C 仍因缺少模式證據而鎖定"
+                           if args.allow_real else "唯讀，不驅動硬體"))
     if args.simulate:
         print("  模式   模擬（沒有連接機器人）")
     print("  QR     python3 ui/make_qr.py --port %d" % args.port)

@@ -1,5 +1,10 @@
 # 上機測試計畫 — 巡航到丟垃圾
 
+> **執行狀態（2026-09-06）：暫停在離線整合。** `mission_pipeline.py --real`
+> 現在會在任何裝置開啟前拒絕，因為 final align/latch 尚未使用量測過的 grasp-home
+> homography。本文的 T0–T6 是解除該封鎖後的分段實機驗證順序，不是目前可直接執行
+> 的 bringup 指令。
+
 離線能驗的都綠了（124 個測試 + preflight 20 項，跑 `integration/preflight.py --offline` 一次確認）。
 這份是**只能在實車上驗**的部分，按依賴順序排。
 每一關沒過就不要往下跑：後面的失敗會被前面的問題污染，浪費的是現場時間。

@@ -328,3 +328,16 @@ footer.proto{padding:16px 0 30px; font-size:.75rem; color:var(--ink-3); line-hei
   /* 停止鈕排在最前面，任何情況下都在第一眼看得到的位置 */
   .estop{order:-1; margin-left:auto}
 }
+
+/* ── 窄螢幕的長字串與標題 ─────────────────────────────
+   路線來源是一個完整檔案路徑，在 390px 的手機上會被切掉一半。
+   卡片標題列擠不下時要換行，而不是把詞斷在中間。 */
+.note{overflow-wrap:anywhere}
+.card > header{flex-wrap:wrap; row-gap:4px}
+.card > header h2{word-break:keep-all}
+
+/* ── hidden 必須真的隱藏 ───────────────────────────────
+   有幾個面板同時帶著 hidden 屬性和行內 display，行內樣式會贏過瀏覽器對
+   [hidden] 的預設 display:none —— 結果就是「連線中…」和錯誤訊息在沒有連線也
+   沒有錯誤的時候一直掛在畫面上。JS 讀 .hidden 讀到的是屬性，所以測不出來。 */
+[hidden]{display:none !important}

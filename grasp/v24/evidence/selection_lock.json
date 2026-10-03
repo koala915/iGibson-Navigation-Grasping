@@ -1,0 +1,157 @@
+{
+  "schema": "x3plus-grasp-selection-lock/v24-e1-r1",
+  "locked_at": "2026-09-07T13:24:13+08:00",
+  "run_id": "v24_e1_corner_recovery_seed23404_r3",
+  "training_seeds": [
+    23404
+  ],
+  "screen_protocol": {
+    "episodes": 6,
+    "grid_episodes": 5,
+    "max_steps": 600
+  },
+  "full_dev_protocol": {
+    "episodes": 12,
+    "grid_episodes": 10,
+    "max_steps": 600
+  },
+  "selection_rule": [
+    "discard any screen with floor penetration",
+    "shortlist top four by grid_min, min(cap,mixed), overall, earlier update",
+    "require both full dev seeds to pass cap>=90%, mixed>=90%, every grid>=80%, floor=0",
+    "rank eligible by worst grid, worst min(cap,mixed), pooled overall, earlier update"
+  ],
+  "formal_seed_reserved": 90410,
+  "formal_seed_used_for_selection": false,
+  "registry": {
+    "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\candidate_registry.json",
+    "sha256": "c729364317b9fd2b7b0eff4605bf10ca8560549df8119f4f7712dcb983aa108e",
+    "bytes": 28294
+  },
+  "training_runs": [
+    {
+      "seed": 23404,
+      "metadata": {
+        "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\training_metadata.json",
+        "sha256": "5ecad10049a7075cb653f1d3e7ce074b1c950d43f8907f06f4be323c67917b84",
+        "bytes": 21796
+      }
+    }
+  ],
+  "selected": {
+    "bc_update": 10,
+    "model": {
+      "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u10.zip",
+      "sha256": "0ed9989154ed280971fd4499c8927c198539f37915f6d9191f9cd08eaf100d81",
+      "bytes": 125582
+    },
+    "vecnormalize": {
+      "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\bc_u10_vec.pkl",
+      "sha256": "6ebb5a64ef967a1fcfca522fe330f71e0eef3f95b452c78a8248b4edb74ecd26",
+      "bytes": 2391
+    },
+    "training_metadata": {
+      "source_path": "training\\codex_runs\\v24_e1_corner_recovery_seed23404_r3\\training_metadata.json",
+      "sha256": "5ecad10049a7075cb653f1d3e7ce074b1c950d43f8907f06f4be323c67917b84",
+      "bytes": 21796
+    },
+    "full_dev": [
+      {
+        "evidence": {
+          "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u10_seed6242\\evaluation.json",
+          "sha256": "5cb8f3e80640e40d64da1f19e978cff927aa1c5bad99956013e9038b4c4c551c",
+          "bytes": 189643
+        },
+        "seed": 6242,
+        "episodes_total": 138,
+        "bottle_cap_rate": 1.0,
+        "mixed_rate": 1.0,
+        "grid": {
+          "0.2050_-0.0700": 1.0,
+          "0.2050_-0.0025": 1.0,
+          "0.2050_+0.0650": 1.0,
+          "0.2425_-0.0700": 1.0,
+          "0.2425_-0.0025": 1.0,
+          "0.2425_+0.0650": 0.9,
+          "0.2800_-0.0700": 1.0,
+          "0.2800_-0.0025": 1.0,
+          "0.2800_+0.0650": 0.9
+        },
+        "grid_min_rate": 0.9,
+        "overall_rate": 0.9855072463768116,
+        "floor": {
+          "episodes_touching_floor": 0,
+          "floor_violation_episodes": 0,
+          "max_penetration": 0.0,
+          "guard_intervention_episodes": 0,
+          "guard_interventions_total": 0,
+          "min_clearance": 0.004407812042028416
+        },
+        "case_plan_valid": {
+          "random_spawn_requested_in_bounds": true,
+          "grid_spawn_exact": true,
+          "home_jitter_command_exact": true,
+          "exact_composition_and_unique_case_seeds": true
+        },
+        "verdict": {
+          "protocol_valid": true,
+          "bottle_cap_ge_90": true,
+          "mixed_ge_90": true,
+          "grid_all_ge_80": true,
+          "grid_min_rate": 0.9,
+          "floor_penetration_zero": true,
+          "integrity_unchanged": true,
+          "all_acceptance_gates": true
+        }
+      },
+      {
+        "evidence": {
+          "source_path": "training\\eval_results\\v24_e1_corner_recovery_seed23404_r3_selection\\full_u10_seed6343\\evaluation.json",
+          "sha256": "89b8023f9294f8f4016cf2cb067c8cc9da9163c6cb353c53cfc3bef4bef11a19",
+          "bytes": 189657
+        },
+        "seed": 6343,
+        "episodes_total": 138,
+        "bottle_cap_rate": 1.0,
+        "mixed_rate": 1.0,
+        "grid": {
+          "0.2050_-0.0700": 1.0,
+          "0.2050_-0.0025": 1.0,
+          "0.2050_+0.0650": 1.0,
+          "0.2425_-0.0700": 1.0,
+          "0.2425_-0.0025": 1.0,
+          "0.2425_+0.0650": 0.8,
+          "0.2800_-0.0700": 1.0,
+          "0.2800_-0.0025": 1.0,
+          "0.2800_+0.0650": 0.9
+        },
+        "grid_min_rate": 0.8,
+        "overall_rate": 0.9782608695652174,
+        "floor": {
+          "episodes_touching_floor": 0,
+          "floor_violation_episodes": 0,
+          "max_penetration": 0.0,
+          "guard_intervention_episodes": 0,
+          "guard_interventions_total": 0,
+          "min_clearance": 0.0047196578753926355
+        },
+        "case_plan_valid": {
+          "random_spawn_requested_in_bounds": true,
+          "grid_spawn_exact": true,
+          "home_jitter_command_exact": true,
+          "exact_composition_and_unique_case_seeds": true
+        },
+        "verdict": {
+          "protocol_valid": true,
+          "bottle_cap_ge_90": true,
+          "mixed_ge_90": true,
+          "grid_all_ge_80": true,
+          "grid_min_rate": 0.8,
+          "floor_penetration_zero": true,
+          "integrity_unchanged": true,
+          "all_acceptance_gates": true
+        }
+      }
+    ]
+  }
+}

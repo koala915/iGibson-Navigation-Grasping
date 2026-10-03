@@ -1,0 +1,108 @@
+{
+  "package": "C:\\Users\\user\\Downloads\\v24_e1_replacement_seed23404_r3_COMPLETE\\v24_e1_replacement_seed23404_r3",
+  "checksum_entries": 55,
+  "checksum_failures": [],
+  "unlisted_files": [
+    "SHA256SUMS.txt"
+  ],
+  "evidence_bindings": {
+    "model": true,
+    "vecnormalize": true,
+    "protocol": true,
+    "training_metadata": true,
+    "selection_lock": true,
+    "eval_v23_e1_grasp.py": true,
+    "eval_v19_grasp.py": true,
+    "robot_grasp_env.py": true,
+    "x3plus_ground_grasp_env.py": true,
+    "deploy_contract.py": true,
+    "x3plus/yahboomcar.urdf": true,
+    "formal_claim": true,
+    "registry": true,
+    "claim_lock": true,
+    "selected_model": true,
+    "claim_model": true,
+    "selected_vecnormalize": true,
+    "claim_vecnormalize": true
+  },
+  "training_source_hashes": {
+    "training/deploy_contract.py": true,
+    "training/robot_grasp_env.py": true,
+    "training/run_6d_distill.py": true,
+    "training/train_distillation_dagger.py": true,
+    "training/x3plus_ground_grasp_env.py": true,
+    "training/x3plus/yahboomcar.urdf": true,
+    "training/finetune_6d_imitation.py": true,
+    "training/eval_v19_grasp.py": true,
+    "training/eval_v23_e1_grasp.py": true
+  },
+  "source_parity_lf_normalized": {
+    "grasp/v23/deploy_contract.py": true,
+    "grasp/x3plus/yahboomcar.urdf": true
+  },
+  "model_zip_metadata": {
+    "observation_shape": [
+      28
+    ],
+    "action_shape": [
+      6
+    ],
+    "system_info": "- OS: Windows-10-10.0.26200-SP0 10.0.26200\n- Python: 3.8.10\n- Stable-Baselines3: 2.2.1\n- PyTorch: 2.4.1+cpu\n- GPU Enabled: False\n- Numpy: 1.23.5\n- Cloudpickle: 3.1.2\n- Gymnasium: 0.29.1\n- OpenAI Gym: 0.26.2\n"
+  },
+  "recount": {
+    "bottle_cap": {
+      "episodes": 25,
+      "successes": 25
+    },
+    "mixed_heights": {
+      "episodes": 75,
+      "successes": 75
+    },
+    "0.2050_-0.0700": {
+      "episodes": 15,
+      "successes": 13
+    },
+    "0.2050_-0.0025": {
+      "episodes": 15,
+      "successes": 15
+    },
+    "0.2050_+0.0650": {
+      "episodes": 15,
+      "successes": 15
+    },
+    "0.2425_-0.0700": {
+      "episodes": 15,
+      "successes": 15
+    },
+    "0.2425_-0.0025": {
+      "episodes": 15,
+      "successes": 15
+    },
+    "0.2425_+0.0650": {
+      "episodes": 15,
+      "successes": 14
+    },
+    "0.2800_-0.0700": {
+      "episodes": 15,
+      "successes": 15
+    },
+    "0.2800_-0.0025": {
+      "episodes": 15,
+      "successes": 15
+    },
+    "0.2800_+0.0650": {
+      "episodes": 15,
+      "successes": 13
+    }
+  },
+  "total": 235,
+  "successes": 230,
+  "unique_case_seeds": 235,
+  "floor_penetration_episodes": 0,
+  "floor_guard_interventions": 0,
+  "min_recorded_gripper_z_m": 0.0008429372979896488,
+  "episodes_recorded_below_8mm": 97,
+  "preregistration_after_reported_training_start_seconds": 37.928667,
+  "formal_integrity_start_equals_end": true,
+  "scope": "Static metadata and evidence recount only; no model inference, simulator replay or hardware validation."
+}

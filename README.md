@@ -103,6 +103,48 @@ graph TD
 離機來源逾時（預設 1 秒，以**本地到達時間**計算而非發布端時鐘）即回報「沒偵測到」，
 機器人繼續巡航而不是朝著過期座標前進。
 
+`offboard` 現在可選擇啟用完整近距離流程：SAM2 接地點持續更新目標，bbox 中心完成
+兩個新鮮影格的置中確認，再以 odometry 量測前進 0.15 m；整段都通過同一個 raw LiDAR
+安全層。這些新行為預設關閉，先在空跑與低速實機測試後再開啟：
+
+```bash
+# Windows 開發機：先安裝對應 CUDA 的 PyTorch，再安裝 offboard 相依
+pip install -r detection/requirements_offboard.txt
+
+# HTTP 相機；低延遲 UDP/H264 可改為 --camera-backend udp
+python detection/rear_cam_sam2_publisher.py --jetson-host <JETSON_IP>
+
+# Jetson：沿用既有模型契約，開啟 offboard 末段接近與增強 LiDAR 防護
+python3 integration/mission_pipeline.py --real --target-source offboard \
+  --offboard-final-approach --enhanced-nav-safety \
+  --route <route.yaml> --i-confirm-serial-owner \
+  --lidar-orientation-evidence <scan_orientation_verified> \
+  --i-confirm-arm-cam-pose
+```
+
+`--hard-stop-recovery` 會在硬停後倒退 6 cm，因後方沒有獨立障礙感測，刻意保持為第二層
+選配。`--ppo-angular-max-delta` 也是實驗參數，`0` 表示完全不改 PPO 動作。
+
+### 組員取得後相機校正與 Sugarbox 獨立流程
+
+`detection/rear_ground_homography.json` 已隨 repo 提供，不必再從原作者的桌面複製。
+這是 2026-08-06、640×480 的實機校正，包含矩陣、座標約定與 9 組量測點；相機安裝位置
+或影像尺寸變更後，請用 `detection/calibration/calibrate_rear_ground_homography.py` 重新校正。
+
+YOLO 權重 `detection/models/best.pt` 與 PPO/VecNormalize 配對
+`integration/nav_best_model/doorway_ft_final.zip`、`doorway_ft_final_vecnormalize.pkl` 已在 repo。
+SAM2 權重約 162 MB，另行下載；在 repo 根目錄完成 offboard 相依安裝後執行：
+
+```bash
+python -c "from ultralytics.utils.downloads import attempt_download_asset; attempt_download_asset('detection/sam2.1_b.pt')"
+```
+
+`integration/sugarbox_rl_approach_final2.py` 預設使用上述 repo 路徑，執行模式為 `DRY_RUN`。
+若使用自己的檔案，可設定 `SUGARBOX_YOLO_MODEL`、`SUGARBOX_SAM2_MODEL`、
+`SUGARBOX_HOMOGRAPHY`、`SUGARBOX_RL_MODEL` 與 `SUGARBOX_VECNORMALIZE` 環境變數。
+對應的 Jetson 馬達橋接程式是 `integration/sugarbox_rl_motor_server.py`；
+此獨立流程與完整 mission pipeline 分開執行，序列埠仍須由單一程序持有。
+
 四種執行模式共用同一套夾取核心與狀態名稱：
 
 | 模式 | 用途 | 入口 |
@@ -226,9 +268,12 @@ python3 grasp/v21/test_servo_read.py           #  37 checks — 半雙工匯流�
 python3 grasp/v21/test_deploy_floor_guard.py   # 641 checks — 預防式地板防護
 python3 ui/test_server.py                      #  47 tests  — 操作台伺服器
 python3 tests/test_safety_guards.py            #  63 tests  — 安全閘
-python3 tests/test_mission_end_to_end.py       #  23 tests  — 任務層端到端
+python3 tests/test_mission_end_to_end.py       #  24 tests  — 任務層端到端
 python3 tests/test_model_package.py            #   9 tests  — 模型打包驗證
-python3 tests/test_trash_target.py             #  18 tests  — 離機目標轉接（符號慣例）
+python3 tests/test_trash_target.py             #  21 tests  — 離機目標轉接（符號／延遲）
+python3 tests/test_target_approach.py           #   6 tests  — 末段置中與里程前進
+python3 tests/test_nav_safety.py                #   6 tests  — raw LiDAR 安全層
+python3 tests/test_rear_ground_homography.py    #   2 tests  — 後相機地面 homography
 ```
 
 另有四支純邏輯自測（不需相機、硬體或 torch）：

@@ -1,0 +1,137 @@
+{
+  "type": "rear_camera_ground_homography",
+  "version": 2,
+  "created_at": "2026-08-06T13:52:19",
+  "camera_url": "http://10.178.28.252:8080/stream?topic=/back_cam/image_raw",
+  "frame_width": 640,
+  "frame_height": 480,
+  "coordinate_convention": {
+    "pixel_input": "bottom_point_u_v",
+    "ground_output": "x_forward_y_left",
+    "origin": "rear_camera_ground_projection",
+    "x_axis": "forward_positive_meters",
+    "y_axis": "left_positive_right_negative_meters"
+  },
+  "rear_cam_to_front_m": 0.2,
+  "H_pixel_to_ground": [
+    [
+      0.0022988602659301492,
+      -0.00023240056367470756,
+      -4.081791939552673
+    ],
+    [
+      0.007008042074712541,
+      -0.00017746390603640299,
+      -2.21343810945384
+    ],
+    [
+      0.0035075478924430836,
+      -0.017090044477217965,
+      1.0
+    ]
+  ],
+  "homography": [
+    [
+      0.0022988602659301492,
+      -0.00023240056367470756,
+      -4.081791939552673
+    ],
+    [
+      0.007008042074712541,
+      -0.00017746390603640299,
+      -2.21343810945384
+    ],
+    [
+      0.0035075478924430836,
+      -0.017090044477217965,
+      1.0
+    ]
+  ],
+  "sample_count": 9,
+  "inlier_count": 7,
+  "mean_reprojection_error_m": 0.03857945248263637,
+  "max_reprojection_error_m": 0.20138062339158322,
+  "samples": [
+    {
+      "id": 1,
+      "u": 325.0,
+      "v": 459.0,
+      "x": 0.6,
+      "y": 0.0,
+      "reprojection_error_m": 0.004464551856382822,
+      "inlier": true
+    },
+    {
+      "id": 2,
+      "u": 324.0,
+      "v": 411.0,
+      "x": 0.7,
+      "y": 0.0,
+      "reprojection_error_m": 0.003955615704840868,
+      "inlier": true
+    },
+    {
+      "id": 3,
+      "u": 323.0,
+      "v": 375.0,
+      "x": 0.6,
+      "y": 0.0,
+      "reprojection_error_m": 0.20138062339158322,
+      "inlier": false
+    },
+    {
+      "id": 4,
+      "u": 321.0,
+      "v": 345.0,
+      "x": 0.9,
+      "y": 0.0,
+      "reprojection_error_m": 0.010557760226926914,
+      "inlier": true
+    },
+    {
+      "id": 5,
+      "u": 423.0,
+      "v": 461.0,
+      "x": 0.6,
+      "y": -0.125,
+      "reprojection_error_m": 0.0038986910536403497,
+      "inlier": true
+    },
+    {
+      "id": 6,
+      "u": 403.0,
+      "v": 388.0,
+      "x": 0.762,
+      "y": -0.125,
+      "reprojection_error_m": 0.00832855166914445,
+      "inlier": true
+    },
+    {
+      "id": 7,
+      "u": 389.0,
+      "v": 344.0,
+      "x": 0.94,
+      "y": -0.125,
+      "reprojection_error_m": 0.010876876650225319,
+      "inlier": true
+    },
+    {
+      "id": 8,
+      "u": 234.0,
+      "v": 414.0,
+      "x": 0.7,
+      "y": 0.13,
+      "reprojection_error_m": 0.009981696241638482,
+      "inlier": true
+    },
+    {
+      "id": 9,
+      "u": 253.0,
+      "v": 321.0,
+      "x": 0.9,
+      "y": 0.13,
+      "reprojection_error_m": 0.0937707055493449,
+      "inlier": false
+    }
+  ]
+}

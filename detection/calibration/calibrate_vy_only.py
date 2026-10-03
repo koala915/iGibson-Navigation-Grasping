@@ -14,7 +14,7 @@ MOTION_ALLOWED = "--real" in sys.argv[1:]
 # 1. Jetson motor server 設定
 # ============================================================
 
-JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "172.31.28.252")
+JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "yahboom.local")
 MOTOR_PORT = 7000
 
 

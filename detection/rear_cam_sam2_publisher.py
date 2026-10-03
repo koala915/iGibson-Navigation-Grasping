@@ -5,7 +5,7 @@
 與 ``detection/arm_cam.py`` 是兩條不同的路線：
 
     arm_cam.py                本檔
-    手臂相機（arm_link4）      後相機（/back_cam/image_raw）
+    手臂相機（arm_link4）      後相機（HTTP 或 RTP/H.264 UDP）
     bbox 底邊中點              SAM2 遮罩最低點
     僅在 home 姿勢成立         底盤座標，與手臂姿態無關
     TCP 5555 送夾取端          rosbridge 發 /trash_target/detection
@@ -14,13 +14,20 @@
 遮罩的最低點才是真正的接地點。代價是多跑一次 SAM2，所以這支放在
 開發機上跑，不佔 Jetson 的 RAM。
 
-執行前需要自備兩個檔案（都不在 repo 內）：
+執行前確認以下檔案：
 
     detection/sam2.1_b.pt                SAM2 權重，Ultralytics 格式
-    detection/rear_ground_homography.json  後相機像素 → 地面座標
+    detection/rear_ground_homography.json  已隨 repo 提供的實機後相機地面校正
+
+校正資料量測於 2026-08-06，畫面為 640×480；更換相機安裝位置或影像尺寸後，
+請以 calibration/calibrate_rear_ground_homography.py 重新校正。
 
     ⚠ .gitignore 會擋掉 *.pt。放進來的 sam2 權重不會進版控，
       這是刻意的（權重不進 repo），但 git status 不會提醒你。
+
+先安裝符合顯示卡 CUDA 的 PyTorch，再執行
+``pip install -r detection/requirements_offboard.txt``。UDP 模式另需 GStreamer，
+並以 ``--gst-exe`` 或 ``GSTREAMER_LAUNCH_EXE`` 指定 gst-launch-1.0。
 
 輸出 topic ``/trash_target/detection``（std_msgs/String，內容是 JSON），
 座標系為 ``base_footprint``、``x_forward_y_left``。連續 5 幀在門檻內才
@@ -29,10 +36,11 @@
 
 from __future__ import annotations
 
-
+import argparse
 import json
 import math
 import os
+import subprocess
 import threading
 import time
 from collections import deque
@@ -60,7 +68,7 @@ JETSON_IP = os.environ.get(
     "X3PLUS_JETSON_HOST",
     os.environ.get(
         "JETSON_IP",
-        "172.31.28.252",
+        "yahboom.local",
     ),
 )
 
@@ -126,6 +134,8 @@ TARGET_CLASS_NAMES = {
 SAM_MASK_THRESHOLD = 0.5
 MIN_MASK_AREA_PX = 50
 MAX_MASK_AREA_RATIO = 0.45
+MAX_SAM_BOTTOM_TO_BBOX_BOTTOM_PX = 30
+CALIBRATION_MARGIN_PX = 10.0
 
 
 MIN_OBJECT_DISTANCE_M = 0.15
@@ -433,6 +443,84 @@ class LatestFrameReader:
             self.capture.release()
 
 
+class GStreamerUdpFrameReader:
+    """Low-latency RTP/H.264 reader using gst-launch stdout on Windows."""
+
+    def __init__(self, gst_exe: str, udp_port: int, width: int, height: int) -> None:
+        self.width = int(width)
+        self.height = int(height)
+        self.frame_bytes = self.width * self.height * 3
+        if not Path(gst_exe).is_file():
+            raise FileNotFoundError(
+                f"GStreamer executable not found: {gst_exe}. "
+                "Pass --gst-exe or set GSTREAMER_LAUNCH_EXE.")
+        args = [
+            gst_exe, "-q", "udpsrc", f"port={int(udp_port)}",
+            "caps=application/x-rtp,media=video,encoding-name=H264,payload=96",
+            "!", "rtph264depay", "!", "h264parse", "!", "avdec_h264",
+            "!", "videoconvert", "!",
+            f"video/x-raw,format=BGR,width={self.width},height={self.height}",
+            "!", "queue", "max-size-buffers=1", "max-size-bytes=0",
+            "max-size-time=0", "leaky=downstream", "!", "fdsink",
+            "fd=1", "sync=false",
+        ]
+        print(f"[CAMERA] GStreamer RTP/H.264 UDP port={udp_port}")
+        self.process = subprocess.Popen(args, stdout=subprocess.PIPE,
+                                        stderr=None, bufsize=0)
+        if self.process.stdout is None:
+            raise RuntimeError("failed to create GStreamer stdout pipe")
+        self.lock = threading.Lock()
+        self.latest_frame: Optional[np.ndarray] = None
+        self.latest_time = 0.0
+        self.running = True
+        self.thread = threading.Thread(target=self._loop, daemon=True)
+        self.thread.start()
+
+    def _read_exact(self, size: int) -> Optional[bytes]:
+        data = bytearray()
+        while self.running and len(data) < size:
+            chunk = self.process.stdout.read(size - len(data))
+            if not chunk:
+                return None
+            data.extend(chunk)
+        return bytes(data) if len(data) == size else None
+
+    def _loop(self) -> None:
+        while self.running:
+            raw = self._read_exact(self.frame_bytes)
+            if raw is None:
+                if self.running:
+                    time.sleep(0.01)
+                continue
+            frame = np.frombuffer(raw, dtype=np.uint8).reshape(
+                self.height, self.width, 3)
+            with self.lock:
+                self.latest_frame = frame
+                self.latest_time = time.monotonic()
+
+    def read(self) -> Tuple[Optional[np.ndarray], float]:
+        with self.lock:
+            if self.latest_frame is None:
+                return None, 0.0
+            return self.latest_frame, self.latest_time
+
+    def close(self) -> None:
+        self.running = False
+        try:
+            self.process.stdout.close()
+        except Exception:
+            pass
+        try:
+            self.process.terminate()
+            self.process.wait(timeout=1.0)
+        except Exception:
+            try:
+                self.process.kill()
+            except Exception:
+                pass
+        self.thread.join(timeout=0.5)
+
+
 
 
 # ============================================================
@@ -448,6 +536,7 @@ class GroundProjector:
         self.json_path = json_path
         self.homography: Optional[np.ndarray] = None
         self.rear_cam_to_front_m = 0.20
+        self.calibration_hull: Optional[np.ndarray] = None
 
 
         if not json_path.is_file():
@@ -501,10 +590,33 @@ class GroundProjector:
 
         self.homography = homography
 
+        samples = data.get("samples") or []
+        pixels = []
+        for sample in samples:
+            if not isinstance(sample, dict) or sample.get("inlier") is False:
+                continue
+            try:
+                u, v = float(sample["u"]), float(sample["v"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if math.isfinite(u) and math.isfinite(v):
+                pixels.append([u, v])
+        if len(pixels) >= 3:
+            points = np.asarray(pixels, dtype=np.float32).reshape(-1, 1, 2)
+            self.calibration_hull = cv2.convexHull(points)
+
 
         print("[GROUND] Homography loaded")
         print(f"[GROUND] File: {json_path}")
         print(f"[GROUND] rear_cam_to_front_m={self.rear_cam_to_front_m:.3f}")
+
+    def inside_calibration_hull(self, pixel_u: float, pixel_v: float,
+                                margin_px: float = CALIBRATION_MARGIN_PX) -> bool:
+        if self.calibration_hull is None:
+            return False
+        signed_distance = cv2.pointPolygonTest(
+            self.calibration_hull, (float(pixel_u), float(pixel_v)), True)
+        return bool(signed_distance >= -float(margin_px))
 
 
     def pixel_to_robot_xy(
@@ -646,7 +758,18 @@ class TrashTargetPublisher:
 
 
 class SugarboxVisionPublisher:
-    def __init__(self) -> None:
+    def __init__(self, *, jetson_host: str = JETSON_IP,
+                 ros_port: int = ROSBRIDGE_PORT,
+                 camera_url: str = REAR_CAMERA_URL,
+                 camera_backend: str = "http",
+                 gst_exe: Optional[str] = None,
+                 udp_port: int = 5600,
+                 yolo_model: Path = YOLO_MODEL_PATH,
+                 sam_model: Path = SAM2_MODEL_PATH,
+                 homography: Path = HOMOGRAPHY_JSON_PATH) -> None:
+        self.yolo_model_path = Path(yolo_model)
+        self.sam_model_path = Path(sam_model)
+        self.homography_path = Path(homography)
         self._verify_files()
 
 
@@ -654,10 +777,10 @@ class SugarboxVisionPublisher:
 
 
         print(f"[MODEL] Device={self.device}")
-        print(f"[MODEL] Loading YOLO: {YOLO_MODEL_PATH}")
+        print(f"[MODEL] Loading YOLO: {self.yolo_model_path}")
 
 
-        self.yolo = YOLO(str(YOLO_MODEL_PATH))
+        self.yolo = YOLO(str(self.yolo_model_path))
 
 
         print(f"[MODEL] YOLO classes={self.yolo.names}")
@@ -666,23 +789,28 @@ class SugarboxVisionPublisher:
         self.target_class_ids = self._resolve_target_class_ids()
 
 
-        print(f"[MODEL] Loading SAM2: {SAM2_MODEL_PATH}")
-        self.sam = SAM(str(SAM2_MODEL_PATH))
+        print(f"[MODEL] Loading SAM2: {self.sam_model_path}")
+        self.sam = SAM(str(self.sam_model_path))
 
 
-        self.projector = GroundProjector(HOMOGRAPHY_JSON_PATH)
+        self.projector = GroundProjector(self.homography_path)
 
 
-        self.frame_reader = LatestFrameReader(
-            REAR_CAMERA_URL,
-            FRAME_WIDTH,
-            FRAME_HEIGHT,
-        )
+        if camera_backend == "udp":
+            executable = gst_exe or os.environ.get(
+                "GSTREAMER_LAUNCH_EXE", r"D:\msvc_x86_64\bin\gst-launch-1.0.exe")
+            self.frame_reader = GStreamerUdpFrameReader(
+                executable, udp_port, FRAME_WIDTH, FRAME_HEIGHT)
+        else:
+            self.frame_reader = LatestFrameReader(
+                camera_url, FRAME_WIDTH, FRAME_HEIGHT)
+        self.camera_description = (f"udp://0.0.0.0:{udp_port}"
+                                   if camera_backend == "udp" else camera_url)
 
 
         self.publisher = TrashTargetPublisher(
-            JETSON_IP,
-            ROSBRIDGE_PORT,
+            jetson_host,
+            ros_port,
         )
 
 
@@ -696,9 +824,9 @@ class SugarboxVisionPublisher:
 
     def _verify_files(self) -> None:
         required_files = [
-            YOLO_MODEL_PATH,
-            SAM2_MODEL_PATH,
-            HOMOGRAPHY_JSON_PATH,
+            self.yolo_model_path,
+            self.sam_model_path,
+            self.homography_path,
         ]
 
 
@@ -1161,8 +1289,7 @@ class SugarboxVisionPublisher:
         print()
         print("=" * 65)
         print("Windows YOLO + SAM2 publisher started")
-        print(f"Jetson IP: {JETSON_IP}")
-        print(f"Camera: {REAR_CAMERA_URL}")
+        print(f"Camera: {self.camera_description}")
         print(f"Topic: {PUBLISH_TOPIC}")
         print("Press Q to quit")
         print("Press R to reset stability history")
@@ -1290,11 +1417,19 @@ class SugarboxVisionPublisher:
                                     object_y = float(projection["object_y_base"])
                                     distance = float(projection["distance_m"])
 
+                                    bottom_consistent = bool(
+                                        abs(float(bottom_point[1]) - float(y2))
+                                        <= MAX_SAM_BOTTOM_TO_BBOX_BOTTOM_PX)
+                                    on_floor = self.projector.inside_calibration_hull(
+                                        bottom_point[0], bottom_point[1])
+
 
                                     geometry_valid = bool(
                                         object_x > 0.05
                                         and MIN_OBJECT_DISTANCE_M <= distance <= MAX_OBJECT_DISTANCE_M
                                         and abs(object_y) <= MAX_LATERAL_DISTANCE_M
+                                        and bottom_consistent
+                                        and on_floor
                                     )
 
 
@@ -1340,12 +1475,17 @@ class SugarboxVisionPublisher:
                                         "x_camera_ground_m": projection["x_camera_ground_m"],
                                         "rear_cam_to_front_m": self.projector.rear_cam_to_front_m,
                                         "bbox_xyxy": [x1, y1, x2, y2],
+                                        "bbox_center_u": 0.5 * (x1 + x2),
+                                        "bbox_bottom_v": y2,
                                         "mask_bottom_u": bottom_point[0],
                                         "mask_bottom_v": bottom_point[1],
                                         "mask_area_px": int(mask.sum()),
                                         "stable_frames": len(self.history),
-                                        "on_floor": None,
-                                        "floor_check_enabled": False,
+                                        "on_floor": on_floor,
+                                        "floor_check_enabled": True,
+                                        "bottom_consistent": bottom_consistent,
+                                        "observation_age_s": max(
+                                            0.0, time.monotonic() - frame_stamp),
                                         "reason": reason,
                                         "timestamp_unix": time.time(),
                                     }
@@ -1438,7 +1578,32 @@ class SugarboxVisionPublisher:
 
 
 def main() -> None:
-    application = SugarboxVisionPublisher()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--jetson-host", default=JETSON_IP)
+    parser.add_argument("--ros-port", type=int, default=ROSBRIDGE_PORT)
+    parser.add_argument("--camera-backend", choices=("http", "udp"),
+                        default="http")
+    parser.add_argument("--camera-url", default=REAR_CAMERA_URL)
+    parser.add_argument("--udp-port", type=int, default=int(
+        os.environ.get("CAMERA_UDP_PORT", "5600")))
+    parser.add_argument("--gst-exe", default=os.environ.get(
+        "GSTREAMER_LAUNCH_EXE"))
+    parser.add_argument("--yolo-model", type=Path, default=YOLO_MODEL_PATH)
+    parser.add_argument("--sam-model", type=Path, default=SAM2_MODEL_PATH)
+    parser.add_argument("--homography", type=Path,
+                        default=HOMOGRAPHY_JSON_PATH)
+    args = parser.parse_args()
+    application = SugarboxVisionPublisher(
+        jetson_host=args.jetson_host,
+        ros_port=args.ros_port,
+        camera_url=args.camera_url,
+        camera_backend=args.camera_backend,
+        gst_exe=args.gst_exe,
+        udp_port=args.udp_port,
+        yolo_model=args.yolo_model,
+        sam_model=args.sam_model,
+        homography=args.homography,
+    )
     application.run()
 
 

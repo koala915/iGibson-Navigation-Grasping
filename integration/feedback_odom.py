@@ -6,13 +6,13 @@ AMCL. This is the missing publisher: the Python 3.8 process that already owns
 /dev/myserial (GraspController.servo.device) reads the board's own velocity
 feedback and integrates it.
 
-Ported from Route A's MotionFeedbackOdom. The calibration constants below are
-Route A's third and final generation, measured on this robot -- do not mix them
-with the two earlier generations (see CALIBRATION_HISTORY in the Route A
-handoff), and do not reuse the abandoned command-based odometry: this integrates
+Ported from Route A's MotionFeedbackOdom. The longitudinal and yaw constants
+were re-measured on this robot on 2026-09-24 using forward/backward integrals
+and two complete turns in each direction. Only the lateral constant still comes
+from Route A. Do not reuse the abandoned command-based odometry: this integrates
 what the board REPORTS, not what we asked for.
 
-Route A's measured residuals with these constants:
+Route A's historical measured residuals before the longitudinal recalibration:
     50 cm square, closed loop   ->  7.83 cm position, 2.92 deg heading
     90 deg left  (effort 30)    ->  +96.06 deg
     90 deg right (effort 30)    ->  -94.68 deg
@@ -43,10 +43,20 @@ from typing import Optional, Tuple
 
 @dataclasses.dataclass
 class FeedbackOdomConfig:
-    # ── Route A generation-3 calibration (route_a_parameters.yaml) ──
-    linear_scale: float = 0.65
-    angular_left_scale: float = 0.501
-    angular_right_scale: float = 0.501
+    # Longitudinal scale measured 2026-09-24 on this robot:
+    #   forward  raw +0.367827 m -> actual +0.355 m (scale 0.965127)
+    #   backward raw -0.359673 m -> actual -0.348 m (scale 0.967546)
+    # Least-squares through-origin fit: 0.9663094139825343.
+    linear_scale: float = 0.966309414
+
+    # Lateral motion was not part of the 2026-09-24 test. Preserve Route A's
+    # value instead of silently applying the new longitudinal result to vy.
+    lateral_scale: float = 0.65
+
+    # Two full turns aligned to a taped floor reference, measured 2026-09-24.
+    # IMU cross-check error was <1.1 deg over 720 deg in both directions.
+    angular_left_scale: float = 0.985704578
+    angular_right_scale: float = 0.985467450
 
     # A read older than this cannot be integrated (route_a_parameters.yaml).
     feedback_timeout_s: float = 0.30
@@ -78,6 +88,7 @@ class FeedbackOdomConfig:
 def validate_config(cfg: FeedbackOdomConfig) -> None:
     positive = {
         "linear_scale": cfg.linear_scale,
+        "lateral_scale": cfg.lateral_scale,
         "angular_left_scale": cfg.angular_left_scale,
         "angular_right_scale": cfg.angular_right_scale,
         "feedback_timeout_s": cfg.feedback_timeout_s,
@@ -165,11 +176,11 @@ class MotionFeedbackOdom:
                 f"control loop stalled ({dt:.3f}s > {cfg.max_dt_s:.3f}s)", stamp)
 
         vx = float(vx_raw) * cfg.linear_scale
-        vy = float(vy_raw) * cfg.linear_scale
+        vy = float(vy_raw) * cfg.lateral_scale
         # Left and right turns have separate scales because the mecanum base is
-        # not symmetric in practice; Route A measured both. They are equal today
-        # (0.501) but the split must survive, so a future re-calibration of one
-        # direction does not silently change the other.
+        # not symmetric in practice. They are nearly equal today, but the split
+        # must survive so a future re-calibration of one direction does not
+        # silently change the other.
         wz_scale = cfg.angular_left_scale if wz_raw >= 0.0 else cfg.angular_right_scale
         wz = float(wz_raw) * wz_scale
 
@@ -335,30 +346,40 @@ def run_selftest() -> None:
         t += 0.05
         o.update(1.0, 0.0, 0.0, 0.05, stamp=t)      # board says 1.0 m/s
     st = o.state(now=t)
-    approx(st.x, 0.65 * 1.0 * 0.5, 1e-9)            # 0.65 scale x 0.5 s
+    approx(st.x, cfg.linear_scale * 1.0 * 0.5, 1e-9)
     approx(st.y, 0.0, 1e-12)
     approx(st.yaw, 0.0, 1e-12)
     assert st.valid and st.fresh and not st.stationary
     print("[odom] linear scale + integration OK")
+
+    # Lateral scale remains independent until a dedicated vy calibration.
+    o = MotionFeedbackOdom(cfg); t = 150.0
+    for _ in range(10):
+        t += 0.05
+        o.update(0.0, 1.0, 0.0, 0.05, stamp=t)
+    st = o.state(now=t)
+    approx(st.x, 0.0, 1e-12)
+    approx(st.y, cfg.lateral_scale * 0.5, 1e-9)
+    print("[odom] independent lateral scale OK")
 
     # ── pure rotation: left/right scales, both directions ──
     o = MotionFeedbackOdom(cfg); t = 200.0
     for _ in range(10):
         t += 0.05
         o.update(0.0, 0.0, 1.0, 0.05, stamp=t)
-    approx(o.state(now=t).yaw, 0.501 * 0.5, 1e-9)
+    approx(o.state(now=t).yaw, cfg.angular_left_scale * 0.5, 1e-9)
     o = MotionFeedbackOdom(cfg); t = 300.0
     for _ in range(10):
         t += 0.05
         o.update(0.0, 0.0, -1.0, 0.05, stamp=t)
-    approx(o.state(now=t).yaw, -0.501 * 0.5, 1e-9)
+    approx(o.state(now=t).yaw, -cfg.angular_right_scale * 0.5, 1e-9)
     print("[odom] angular scales (both directions) OK")
 
     # ── arc integration: quarter circle must land on the circle, not the chord ──
-    # v=0.65 m/s effective, w=0.501 rad/s effective => R = v/w
+    # Use the configured longitudinal and yaw scales for the expected radius.
     o = MotionFeedbackOdom(cfg); t = 400.0
     v_raw, w_raw = 1.0, 1.0
-    v, w = 0.65, 0.501
+    v, w = cfg.linear_scale, cfg.angular_left_scale
     R = v / w
     quarter = (math.pi / 2.0) / w
     steps = 2000
@@ -448,7 +469,8 @@ def run_selftest() -> None:
     print("[odom] covariance OK")
 
     # ── config validation ──
-    for bad in (dict(linear_scale=0.0), dict(feedback_timeout_s=-1.0),
+    for bad in (dict(linear_scale=0.0), dict(lateral_scale=0.0),
+                dict(feedback_timeout_s=-1.0),
                 dict(stationary_streak=0), dict(max_dt_s=float("nan"))):
         try:
             validate_config(FeedbackOdomConfig(**bad))

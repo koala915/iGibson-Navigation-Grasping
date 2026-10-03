@@ -11,7 +11,7 @@ from ultralytics import YOLO
 YOLO_MODEL_PATH = r"C:\Users\user\Downloads\trash_identify.v3i.yolov11 (1)\runs\detect\train6\weights\best.pt"
 
 # ========= 2. Jetson 網路設定 =========
-JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "172.31.28.252")
+JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "yahboom.local")
 
 # ARM camera 串流
 TOPIC_ARM = "/arm_cam/image_raw"

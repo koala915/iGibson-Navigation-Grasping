@@ -155,16 +155,21 @@ GoalProvider.reset()
 
 ### 4.2 每個 odom tick（目標 20 Hz）
 
-下載紀錄中的現行候選校正為：
+現行校正為：
 
 ```text
-vx = -vx_raw * 0.65
-vy = -vy_raw * 0.65
-wz_unscaled = -wz_raw
-wz = wz_unscaled * (0.515 if wz_unscaled >= 0 else 0.512)
+vx = vx_raw * 0.9663094
+vy = vy_raw * 0.65
+wz = wz_raw * (0.9857046 if wz_raw >= 0 else 0.9854675)
 ```
 
-這些數值只能當「已曾成功的起始值」，仍須重新做 §8 的實車 gate。每 tick：
+`vx` 是 2026-09-24 在本機以前進 35.5 cm、後退 34.8 cm 的 raw feedback
+積分做 through-origin fit；前後個別 scale 差 0.25%。raw `vx` 方向與 ROS `+x`
+一致。`vy` 未在該次測試重測，仍保留 Route A 的 0.65。左右旋轉同日以地面
+基準線各做兩整圈，scale 分別為 0.9857046 / 0.9854675；IMU 交叉檢查在 720°
+內的誤差皆小於約 1.1°。raw 資料與計算見
+`docs/calibration/ODOM_LINEAR_CALIBRATION_2026-09-24.md` 與
+`docs/calibration/ODOM_YAW_CALIBRATION_2026-09-24.md`。每 tick：
 
 1. 以 monotonic clock 取得 `dt`，拒絕 `dt<=0`；過大的 `dt` 不得直接積分，先標 stale。
 2. 讀 cached `get_motion_data()`；raw 非有限值、超過物理上限或連續不更新時標 invalid。

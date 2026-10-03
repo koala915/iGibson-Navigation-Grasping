@@ -53,6 +53,11 @@ class TrashTarget:
     stamp_unix: float
     reason: str = ""
     source: str = ""
+    bbox_xyxy: Optional[Tuple[float, float, float, float]] = None
+    mask_bottom_u: Optional[float] = None
+    mask_bottom_v: Optional[float] = None
+    on_floor: Optional[bool] = None
+    observation_age_s: float = 0.0
 
     def age_s(self, now_unix: float) -> float:
         return float(now_unix) - self.stamp_unix
@@ -64,6 +69,18 @@ def _finite(value: Any) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
+
+
+def _bbox(value: Any) -> Optional[Tuple[float, float, float, float]]:
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        return None
+    parsed = tuple(_finite(part) for part in value)
+    if any(part is None for part in parsed):
+        return None
+    x1, y1, x2, y2 = parsed
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return float(x1), float(y1), float(x2), float(y2)
 
 
 def parse_trash_target(payload: Any) -> Optional[TrashTarget]:
@@ -129,13 +146,29 @@ def parse_trash_target(payload: Any) -> Optional[TrashTarget]:
     if distance is None:
         distance = math.hypot(x, y)
 
-    return TrashTarget(True, x, y, distance, stamp, reason or "accepted", source)
+    observation_age = _finite(payload.get("observation_age_s"))
+    if observation_age is None or observation_age < 0.0:
+        observation_age = 0.0
+    on_floor_raw = payload.get("on_floor")
+    on_floor = on_floor_raw if isinstance(on_floor_raw, bool) else None
+
+    return TrashTarget(
+        True, x, y, distance, stamp, reason or "accepted", source,
+        bbox_xyxy=_bbox(payload.get("bbox_xyxy")),
+        mask_bottom_u=_finite(payload.get("mask_bottom_u")),
+        mask_bottom_v=_finite(payload.get("mask_bottom_v")),
+        on_floor=on_floor,
+        observation_age_s=observation_age,
+    )
 
 
 def to_rear_detection(target: Optional[TrashTarget],
                       now_unix: float,
                       *,
                       max_age_s: float = DEFAULT_MAX_AGE_S,
+                      compensate_vx: float = 0.0,
+                      compensate_wz: float = 0.0,
+                      max_compensation_s: float = 1.2,
                       ) -> Tuple[bool, float, float]:
     """``(found, dist_front_m, offset_m)`` in ``_detect_rear``'s convention.
 
@@ -164,4 +197,23 @@ def to_rear_detection(target: Optional[TrashTarget],
         # no meaning for that and would drive at a negative distance.
         return NOT_FOUND
 
-    return True, float(target.x_forward_m), -float(target.y_left_m)
+    x = float(target.x_forward_m)
+    y_left = float(target.y_left_m)
+
+    # The publisher timestamps how long the frame spent waiting/in inference.
+    # Propagate that old robot-relative point to now with the latest measured
+    # chassis velocity. This is deliberately bounded: a delayed frame is safer
+    # to reject through the normal freshness gate than to extrapolate far.
+    delay = min(max(0.0, float(target.observation_age_s)) + max(0.0, age),
+                max(0.0, float(max_compensation_s)))
+    vx = _finite(compensate_vx) or 0.0
+    wz = _finite(compensate_wz) or 0.0
+    if delay > 0.0 and (vx != 0.0 or wz != 0.0):
+        x -= vx * delay
+        phi = wz * delay
+        c, s = math.cos(phi), math.sin(phi)
+        x, y_left = c * x + s * y_left, -s * x + c * y_left
+        if x <= 0.0:
+            return NOT_FOUND
+
+    return True, x, -y_left

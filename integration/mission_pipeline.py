@@ -59,7 +59,9 @@ try:  # direct script execution
     import map_goal_provider as mgp
     import mission_fsm as mfsm
     import mission_status
+    import nav_safety as ns
     import ros_io
+    import target_approach as ta
     import trash_target as tt
     from feedback_odom import FeedbackOdomConfig, FeedbackOdomReader
 except ImportError:  # package import
@@ -69,7 +71,9 @@ except ImportError:  # package import
     from . import map_goal_provider as mgp
     from . import mission_fsm as mfsm
     from . import mission_status
+    from . import nav_safety as ns
     from . import ros_io
+    from . import target_approach as ta
     from . import trash_target as tt
     from .feedback_odom import FeedbackOdomConfig, FeedbackOdomReader
 
@@ -105,6 +109,7 @@ GRASP_HOME_DEG = (90.0, 67.08, 9.79, 9.79, 90.0, 30.0)  # C3, the trained pose
 
 ODOM_RATE_HZ = 20.0           # Route A's measured /odom_setmotor rate
 DET_INTERVAL_S = 0.5          # YOLO cadence (Jetson-friendly), as in nav_rl_grasp
+OFFBOARD_DET_INTERVAL_S = 0.20  # publisher cadence; no Jetson inference cost
 LOG_PERIOD_S = 1.0
 AUTO_REPORT_WAIT_S = 3.0      # how long to wait for the board to start reporting
 INVESTIGATE_WZ = 0.5          # rad/s, slow confirm turn
@@ -190,7 +195,12 @@ class MissionNavigator(nrgp.RLNavigator):
     """
 
     def __init__(self, *a, **kw):
+        safety_config = kw.pop("safety_config", None)
         super().__init__(*a, **kw)
+        self.safety = ns.NavigationSafety(safety_config)
+        self.measured_vx = 0.0
+        self.last_safety_reason = "IDLE"
+        self._override_active = False
         self.reset_nav()
 
     def reset_nav(self, clear_tracker: bool = True) -> None:
@@ -212,6 +222,10 @@ class MissionNavigator(nrgp.RLNavigator):
         self.delay = nr.ActionDelay(self.ncfg.motor_delay_steps)
         self.prev_action = np.zeros(2, dtype=np.float32)
         self.last_vx = self.last_wz = 0.0
+        if not hasattr(self, "safety"):
+            self.safety = ns.NavigationSafety()
+        self.safety.reset()
+        self._override_active = False
         if clear_tracker:
             self.tracker = nr.GoalTracker()
 
@@ -224,21 +238,42 @@ class MissionNavigator(nrgp.RLNavigator):
                                self.last_wz, self.prev_action, rays)
         action = self.policy.predict(obs)
         executed = self.delay.push(action)
+        executed = self.safety.limit_action(executed)
         vx, wz, stall = nr.shape_action(executed, obs, cfg)
 
-        # Geometric brake on RAW points: the 48-ray obs is floored at 0.33 m and
-        # is blind below it. The policy alone still collides in 20-27% of sim
-        # episodes, so this is not optional.
-        front = nr.front_min_raw(points, cfg)
-        braked = front < cfg.safety_brake_dist and vx > 0.0
-        if braked:
-            vx = 0.0
+        decision = self.safety.apply(
+            vx, wz, points, cfg, odom_vx=getattr(self, "measured_vx", 0.0),
+            now=time.monotonic())
+        vx, wz = decision.vx, decision.wz
+        front = decision.front.minimum
+        braked = decision.braked
+        self.last_safety_reason = decision.reason
 
         self._drive_raw(vx, wz)
         self.tracker.predict(vx, wz, dt)
         self.prev_action = action
         self.last_vx, self.last_wz = vx, wz
+        self._override_active = False
         return NavTick(vx, wz, braked, stall, float(np.min(rays)), front)
+
+    def override_tick(self, vx: float, wz: float, dt: float, points) -> NavTick:
+        """Run a close-range command through the same final safety gate."""
+        if not self._override_active:
+            self.delay = nr.ActionDelay(self.ncfg.motor_delay_steps)
+            self.prev_action = np.zeros(2, dtype=np.float32)
+            self.safety.angular_limiter.reset()
+            self._override_active = True
+        decision = self.safety.apply(
+            vx, wz, points, self.ncfg,
+            odom_vx=getattr(self, "measured_vx", 0.0),
+            now=time.monotonic())
+        self._drive_raw(decision.vx, decision.wz)
+        self.tracker.predict(decision.vx, decision.wz, dt)
+        self.last_vx, self.last_wz = decision.vx, decision.wz
+        self.last_safety_reason = decision.reason
+        rays = nr.scan_to_rays(points, self.ncfg)
+        return NavTick(decision.vx, decision.wz, decision.braked, False,
+                       float(np.min(rays)), decision.front.minimum)
 
     def creep(self, vx: float, wz: float, dt: float) -> None:
         """Open-loop slow motion for INVESTIGATE. Not policy-driven, so the
@@ -282,6 +317,15 @@ class MissionRunner:
         self._target_source = getattr(args, "target_source", "onboard")
         self._trash_max_age_s = getattr(args, "trash_max_age",
                                         tt.DEFAULT_MAX_AGE_S)
+        self._latest_offboard_target = None
+        self._latest_offboard_found = False
+        approach_enabled = bool(
+            self._target_source == "offboard"
+            and getattr(args, "offboard_final_approach", False))
+        self.target_approach = ta.TargetApproachController(ta.ApproachConfig(
+            enabled=approach_enabled))
+        self._approach_ready = not approach_enabled
+        self._approach_failed = False
         self._last_log = 0.0
         self._t_prev = time.time()
         self._latched: Optional[Tuple[list, Optional[float], Optional[float]]] = None
@@ -555,8 +599,15 @@ class MissionRunner:
         # the right default for a runner that never chose a source.
         if getattr(self, "_target_source", "onboard") == "offboard":
             target = self.rio.latest_trash_target()
+            self._latest_offboard_target = target
             max_age = getattr(self, "_trash_max_age_s", tt.DEFAULT_MAX_AGE_S)
-            return tt.to_rear_detection(target, time.time(), max_age_s=max_age)
+            odom = self.odom_pub.state() if self.odom_pub is not None else None
+            detection = tt.to_rear_detection(
+                target, time.time(), max_age_s=max_age,
+                compensate_vx=float(getattr(odom, "vx", 0.0)),
+                compensate_wz=float(getattr(odom, "wz", 0.0)))
+            self._latest_offboard_found = detection[0]
+            return detection
         return self.nav._detect_rear()
 
     def _run_detection(self, now: float) -> None:
@@ -616,11 +667,17 @@ class MissionRunner:
     def _refresh_close_fix(self, now: float) -> None:
         """Once inside ~0.9 m the arm camera is the better source (as in
         RLNavigator._rl_navigate)."""
-        if now - self._last_det < DET_INTERVAL_S:
+        interval = (OFFBOARD_DET_INTERVAL_S
+                    if getattr(self, "_target_source", "onboard") == "offboard"
+                    else DET_INTERVAL_S)
+        if now - self._last_det < interval:
             return
         self._last_det = now
         try:
-            found, dist_f, off = self.nav._detect_rear()
+            # Keep the selected source for the whole target approach. The old
+            # path silently switched an offboard SAM2 mission back to onboard
+            # bbox geometry as soon as it left PATROL.
+            found, dist_f, off = self._read_detection()
             if found and dist_f > 0:
                 self.nav.tracker.update(dist_f, off)
                 return
@@ -644,6 +701,8 @@ class MissionRunner:
     def _sense(self, now: float) -> mfsm.Sense:
         self._keep_amcl_fresh()
         odom = self.odom_pub.state() if self.odom_pub is not None else None
+        if odom is not None:
+            self.nav.measured_vx = float(getattr(odom, "vx", 0.0))
         pose = self.rio.latest_pose()
         amcl_good, _ = self._amcl_quality()
         if pose is not None and amcl_good:
@@ -681,6 +740,8 @@ class MissionRunner:
             target_visible=self.nav.tracker.has_fix,
             target_dist=self.nav.tracker.dist(),
             target_fix_age=self.nav.tracker.fix_age(now),
+            approach_ready=self._approach_ready,
+            approach_failed=self._approach_failed,
             handoff_ready=self._handoff_ready,
             align_failed=self._align_failed,
             stationary=bool(odom.stationary) if odom is not None else True,
@@ -751,6 +812,30 @@ class MissionRunner:
         if self.lidar.age() > self.nav.ncfg.lidar_stale_timeout_s:
             return "/scan stale"
         return ""
+
+    def _run_target_approach(self, now: float, dt: float) -> bool:
+        """Run the optional rear-camera centering/final-forward sub-flow."""
+        controller = self.target_approach
+        if not controller.cfg.enabled:
+            return False
+        if (controller.phase == controller.IDLE
+                and self.nav.tracker.dist() > self.fsm.cfg.approach_to_align_m):
+            return False
+        odom = self.odom_pub.state() if self.odom_pub is not None else None
+        target = (self._latest_offboard_target
+                  if self._latest_offboard_found else None)
+        command = controller.step(
+            target, float(getattr(odom, "vx", 0.0)), now)
+        self._approach_ready = controller.ready
+        self._approach_failed = controller.failed
+        if command is None:
+            return False
+        if command.done or command.failed:
+            self.nav.stop()
+            return True
+        self.nav.override_tick(command.vx, command.wz, dt,
+                               self.lidar.get_points())
+        return True
 
     # ── acting ──
     def _act(self, tr: mfsm.Transition, now: float, dt: float) -> None:
@@ -840,16 +925,22 @@ class MissionRunner:
             b = self.nav.tracker.bearing()
             wz = max(-INVESTIGATE_WZ, min(INVESTIGATE_WZ, 2.0 * b))
             vx = INVESTIGATE_VX if abs(b) < math.radians(15.0) else 0.0
-            front = nr.front_min_raw(self.lidar.get_points(), self.nav.ncfg)
-            if front < self.nav.ncfg.safety_brake_dist:
-                vx = 0.0
-            self.nav.creep(vx, wz, dt)
+            points = self.lidar.get_points()
+            if hasattr(self.nav, "override_tick"):
+                self.nav.override_tick(vx, wz, dt, points)
+            else:  # lightweight end-to-end fakes
+                front = nr.front_min_raw(points, self.nav.ncfg)
+                if front < self.nav.ncfg.safety_brake_dist:
+                    vx = 0.0
+                self.nav.creep(vx, wz, dt)
             return
 
         if act is A.DRIVE_TARGET:
             self._refresh_close_fix(now)
             if not self.nav.tracker.has_fix:
                 self.nav.stop()
+                return
+            if self._run_target_approach(now, dt):
                 return
             self.nav.nav_tick(self.nav.tracker.dist(), self.nav.tracker.bearing(),
                               dt, self.lidar.get_points())
@@ -1097,6 +1188,14 @@ class MissionRunner:
         self._grasp_finished = self._grasp_controller_confirmed = False
         self._grasp_verified = False
         self._handoff_ready = self._align_failed = False
+        approach = getattr(self, "target_approach", None)
+        if approach is not None:
+            approach.reset()
+        self._approach_ready = not bool(
+            approach is not None and approach.cfg.enabled)
+        self._approach_failed = False
+        self._latest_offboard_target = None
+        self._latest_offboard_found = False
         self._place_finished = False
         self._det_streak = 0
 
@@ -1169,6 +1268,7 @@ class MissionRunner:
                           f"goal={fix.goal_id}:{fix.dist:.2f}m "
                           f"tgt={sense.target_dist:.2f}m "
                           f"streak={sense.detection_streak} "
+                          f"safety={getattr(self.nav, 'last_safety_reason', '-')} "
                           f"{'STOP' if not tr.chassis_allowed else ''}")
 
                 if tr.terminal:
@@ -1322,6 +1422,12 @@ def build_and_run(args) -> int:
     ncfg.lidar_forward_offset_m = args.lidar_forward_offset_m
     if args.control_period: ncfg.control_period_s = args.control_period
     nr.validate_config(ncfg)
+    safety_cfg = ns.SafetyConfig(
+        enabled=args.enhanced_nav_safety,
+        recovery_enabled=args.hard_stop_recovery,
+        angular_max_delta_per_step=args.ppo_angular_max_delta,
+    )
+    safety_cfg.validate()
     if args.real:
         verified, why = nr.validate_orientation_evidence(
             args.lidar_orientation_evidence, ncfg)
@@ -1385,6 +1491,7 @@ def build_and_run(args) -> int:
             arm_url=args.arm_stream or
                 f"http://{args.jetson_ip}:8080/stream?topic=/arm_cam/image_raw",
             class_z_m=class_z_m, class_height_m=class_height_m,
+            safety_config=safety_cfg,
         )
         nav.open_cameras()
         reader = FeedbackOdomReader(controller.servo.device, FeedbackOdomConfig())
@@ -1834,6 +1941,9 @@ def parse_args(argv=None):
                    help="offboard detections older than this are treated as no "
                         "detection (default %(default)s). Aged by local arrival "
                         "time, not the publisher's clock.")
+    p.add_argument("--offboard-final-approach", action="store_true",
+                   help="with --target-source offboard, center from bbox pixels "
+                        "and advance 0.15 m by odometry before arm alignment")
     p.add_argument("--status-udp", default=None, metavar="HOST:PORT",
                    help="publish JSON status datagrams (e.g. "
                         f"{mission_status.DEFAULT_ENDPOINT}). Fire-and-forget: "
@@ -1874,6 +1984,13 @@ def parse_args(argv=None):
     p.add_argument("--detection-streak", type=int, default=3)
     p.add_argument("--control-period", type=float, default=None)
     p.add_argument("--wz-sign", type=float, default=1.0, choices=(-1.0, 1.0))
+    p.add_argument("--enhanced-nav-safety", action="store_true",
+                   help="enable dense raw-LiDAR front/side hysteresis guards")
+    p.add_argument("--hard-stop-recovery", action="store_true",
+                   help="allow one odometry-measured reverse after a hard stop; "
+                        "requires --enhanced-nav-safety")
+    p.add_argument("--ppo-angular-max-delta", type=float, default=0.0,
+                   help="experimental per-step angular action limit; 0 disables")
 
     p.add_argument("--lidar-backend", default="ros", choices=("ros", "rplidar", "none"))
     p.add_argument("--lidar-dir", type=float, default=1.0, choices=(-1.0, 1.0))
@@ -1960,6 +2077,10 @@ def parse_args(argv=None):
         p.error("--amcl-refresh-timeout must be finite and > 0")
     if not math.isfinite(args.lidar_forward_offset_m):
         p.error("--lidar-forward-offset-m must be finite")
+    if args.ppo_angular_max_delta < 0.0:
+        p.error("--ppo-angular-max-delta must be >= 0")
+    if args.hard_stop_recovery and not args.enhanced_nav_safety:
+        p.error("--hard-stop-recovery requires --enhanced-nav-safety")
     if args.detection_streak < 1:
         p.error("--detection-streak must be >= 1")
     if args.max_laps < 0:
@@ -1996,6 +2117,8 @@ def parse_args(argv=None):
                     f"the target arrives over rosbridge on {ros_io.TRASH_TOPIC}")
         if not math.isfinite(args.trash_max_age) or args.trash_max_age <= 0.0:
             p.error("--trash-max-age must be finite and > 0")
+    elif args.offboard_final_approach:
+        p.error("--offboard-final-approach requires --target-source offboard")
     return args
 
 

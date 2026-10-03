@@ -68,6 +68,15 @@ jobs:
       - name: Offboard SAM2 target adapter (sign convention)
         run: python tests/test_trash_target.py
 
+      - name: Offboard final target approach
+        run: python tests/test_target_approach.py
+
+      - name: Navigation raw-LiDAR safety layer
+        run: python tests/test_nav_safety.py
+
+      - name: Rear-camera ground homography
+        run: python tests/test_rear_ground_homography.py
+
       - name: Operator console
         run: python ui/test_server.py
 

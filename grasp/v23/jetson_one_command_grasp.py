@@ -216,6 +216,9 @@ def parse_args_from(argv) -> argparse.Namespace:
                         "tests the S1 rotation at runtime, so a wrong pivot or "
                         "yaw sign would hand the policy a confident wrong "
                         "coordinate.")
+    p.add_argument("--first-valid-view", action="store_true",
+                   help="with --three-pose-scan, end the search after the first "
+                        "valid view; E1 return and confirmation gates remain")
     p.add_argument("--three-pose-scan", action="store_true",
                    help="before loading PPO, search from exactly three calibrated "
                         "arm poses, return to E1, release camera/serial ownership, "
@@ -627,6 +630,8 @@ def build_scan_cmd(args: argparse.Namespace):
         cmd += ["--calibrate-pose", str(args.scan_calibrate_pose)]
     if getattr(args, "accept_single_rotated_view", False):
         cmd.append("--accept-single-rotated-view")
+    if getattr(args, "first_valid_view", False):
+        cmd.append("--first-valid-view")
     if getattr(args, "unlock_unvalidated_scan", False):
         cmd.append("--unlock-unvalidated-scan")
     return cmd
@@ -765,6 +770,9 @@ def run_scanner(args: argparse.Namespace, env, log_path: Path):
 
 def main() -> int:
     args = parse_args()
+    if args.first_valid_view and not args.three_pose_scan:
+        print("[FATAL] --first-valid-view requires --three-pose-scan.")
+        return 2
     if args.calibrate and (args.three_pose_scan or args.scan_calibrate_pose is not None):
         print("[FATAL] --calibrate is the legacy E1-only calibration path; use "
               "--scan-calibrate-pose NAME by itself for a scan pose.")

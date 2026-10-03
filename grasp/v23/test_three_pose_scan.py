@@ -629,6 +629,35 @@ def main():
             ok(False, "{} raised {}: {}".format(
                 pose["name"], type(exc).__name__, exc))
 
+    print("\nfirst-valid-view search scheduling")
+    for valid_name, expected_names in (
+            ("LEFT", ["LEFT"]), ("E1", ["LEFT", "E1"]),
+            ("RIGHT", ["LEFT", "E1", "RIGHT"]),
+            (None, ["LEFT", "E1", "RIGHT"])):
+        visited = []
+
+        def visit(pose):
+            visited.append(pose["name"])
+            return hit(pose["name"], 0.25, 0.02) if pose["name"] == valid_name else None
+
+        found = scan.collect_pose_results(POSES, visit, first_valid_view=True)
+        ok(visited == expected_names,
+           "first valid {} stops further pose visits; rejected views continue".format(valid_name))
+        ok(len(found) == (0 if valid_name is None else 1),
+           "only a validated per-view target can end the search")
+        code, fused, _ = scan.finalize_scan_result(
+            False, False, None, None, found, 0.01, accept_unconfirmed=True)
+        ok(code == 2 and fused is None,
+           "early-stop result still cannot escape a failed E1 return")
+    visited = []
+    found = scan.collect_pose_results(POSES, visit)
+    ok(visited == ["LEFT", "E1", "RIGHT"], "default still visits every pose")
+    fast_args = launcher.parse_args_from(["--three-pose-scan", "--first-valid-view"])
+    fast_cmd = launcher.build_scan_cmd(fast_args)
+    ok("--first-valid-view" in fast_cmd and "--accept-single-rotated-view" not in fast_cmd,
+       "launcher forwards early-stop without silently accepting rotated targets")
+    ok(not scan.parse_args_from([]).first_valid_view,
+       "scanner early-stop is opt-in")
     print()
     if failures:
         print("{} of {} checks FAILED:".format(len(failures), checks))

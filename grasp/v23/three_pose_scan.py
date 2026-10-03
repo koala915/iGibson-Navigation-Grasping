@@ -338,6 +338,25 @@ def fuse_pose_results(results, tolerance_m):
     return fused
 
 
+def collect_pose_results(poses, visit_pose, first_valid_view=False):
+    """Search until a validated per-view result is found, or exhaust the poses.
+
+    visit_pose owns guarded motion and all per-view geometry/sample checks.
+    Invalid detections return None and must not stop the search. E1 return
+    and reference confirmation are enforced separately before target handoff.
+    """
+    results = []
+    for pose in poses:
+        result = visit_pose(pose)
+        if result is not None:
+            results.append(result)
+            if first_valid_view:
+                print("[scan] first valid view ({}); ending search and returning "
+                      "to E1 before target handoff.".format(pose["name"]))
+                break
+    return results
+
+
 def needs_reference_confirmation(results, poses, reference_s1_deg):
     """True when the only successful view is a ROTATED one.
 
@@ -604,6 +623,9 @@ def parse_args_from(argv):
                              "scan refuses, because nothing else tests the S1 "
                              "rotation at runtime.")
     parser.add_argument("--i-am-beside-the-robot", action="store_true")
+    parser.add_argument("--first-valid-view", action="store_true",
+                        help="stop searching at the first valid aggregated target; "
+                             "E1 return and reference confirmation gates remain")
     args = parser.parse_args(argv)
     args.policy_x_lo, args.policy_x_hi = args.policy_x_range
     args.policy_y_lo, args.policy_y_hi = args.policy_y_range
@@ -761,7 +783,7 @@ def main():
             raise ScanConfigError("did not confirm E1 before lateral scan")
         scan_poses = ([pose_by_name[args.calibrate_pose]]
                       if args.calibrate_pose else config["poses"])
-        for pose in scan_poses:
+        def visit_pose(pose):
             print("[scan] moving to {} {}".format(pose["name"], list(pose["arm_deg"])))
             move = mover.move_to(X, pose["arm_deg"], tol_deg=args.pose_tol_deg)
             print("[scan] {} reached={} ({})".format(
@@ -773,10 +795,10 @@ def main():
                 _calibration_loop(args, config, pose, model, cap, vgb,
                                   reference_geometry)
             else:
-                result = _scan_one_pose(
+                return _scan_one_pose(
                     args, config, pose, model, cap, vgb, acg, cv2)
-                if result is not None:
-                    results.append(result)
+        results = collect_pose_results(
+            scan_poses, visit_pose, args.first_valid_view and not args.calibrate_pose)
     except KeyboardInterrupt:
         interrupted = True
         print("\n[scan] interrupted; returning to E1 before exit.")

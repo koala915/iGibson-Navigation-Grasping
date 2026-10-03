@@ -65,6 +65,9 @@ jobs:
       - name: Camera capture recovery
         run: python tests/test_stream_cam_capture.py
 
+      - name: Sugarbox approach to E1 handoff
+        run: python tests/test_sugarbox_approach_grasp.py
+
       - name: Vision bridge pose
         run: python tests/test_vision_grasp_bridge_pose.py
 

@@ -52,6 +52,8 @@
 > 但沒有尺量點，**≤1 cm 映射驗證仍未完成、RIGHT 仍未走過**，兩個旗標維持 false、
 > 正式掃描照樣在開硬體前拒絕。三視角的用意是擴大可見範圍（E1 單獨可用的縱深只有
 > 約 3 cm），不是視角互相驗算，所以單視角可夾是刻意的。細節見 `grasp/v23/README.md`。
+> 搜尋可明確啟用 `--first-valid-view`，在第一個有效且穩定目標後提前結束，保留回 E1
+> 到位、原有單旋轉視角確認，以及裁切／凸包／策略座標範圍檢查。預設仍為完整掃描。
 > 模式 A / B / C 在兩個分支上都還是接 v21。
 
 > **2026-09-20 起 v23 有常駐服務：`grasp/v23/grasp_service.py` + `graspctl.py`。**
@@ -116,6 +118,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | 檔案 | 說明 |
 |------|------|
 | `mission_pipeline.py` | ★**完整任務**：巡航→辨識→接近→夾取→送垃圾桶→續巡。單一 Py3.8 程序擁有 `/dev/myserial`，ROS 只跑感測/定位。見 `MISSION.md` |
+| `sugarbox_approach_grasp.py` / `sugarbox_rl_approach_final2.py` | Windows 的 doorway PPO 避障接近→停車→E1 新鮮辨識→v23夾取交接；預設只讀，實機需 `--real --i-am-beside-the-robot`。後相機校正尚缺，未完成實機驗收；見 `docs/operations/SUGARBOX_APPROACH_GRASP_2026-10-03.md` |
 | `mission_fsm.py` | 21 狀態任務機（純邏輯，`--selftest`/`--diagram`）。強制「輪子與手臂不同時動」「換目標來源必重置 nav」 |
 | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`。含 `--validate` 與弧長重取樣（Route C 原檔最小間距只有 0.049 m） |
 | `feedback_odom.py` | `get_motion_data()` → odom pose；2026-09-24 實車重校：linear 0.966、lateral 0.65、angular 0.986（2026-09-28 從機器收進 repo） |

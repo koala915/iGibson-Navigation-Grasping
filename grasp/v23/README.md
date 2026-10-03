@@ -248,6 +248,12 @@ python3 jetson_one_command_grasp.py --three-pose-scan --allow-top-clipped
 ```
 
 `--three-pose-scan` 不改變 PPO 的 grasp-home：策略仍從 E1 開始，因此不用重訓。
+搜尋可加 `--first-valid-view`：LEFT／E1／RIGHT 中第一個取得有效且穩定目標的
+視角就結束搜尋，不再走剩餘視角；掃描器仍先 guarded 回 E1、確認編碼器到位，
+才釋出固定座標給 PPO。裁切、homography 凸包、座標範圍與單視角取樣穩定度檢查仍保留。
+此選項不自動開啟 `--accept-single-rotated-view`，原本的 E1 再辨識流程仍保留。
+只辨識到超出策略評估帶的物體（例如 y=-0.083 m）仍不會啟動夾取。
+
 若改動 S1 以外的關節，這個共用映射立即失效，必須另量 homography；不能把
 `yaw_mapping_validated` 留成 true。S1 超過配置允許的 ±25° 也會被拒絕。
 

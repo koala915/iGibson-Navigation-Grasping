@@ -135,6 +135,15 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `mission_status.py` | 遙測發布器。`--status-udp` 每 tick 一個 JSON 封包（UDP），fire-and-forget，沒人聽也不影響任務 |
 | `README.md` | 兩種模式開啟流程、各檔用途、校正清單 |
 
+`sugarbox_rl_approach_final2.py` 的最後接近與搜尋互斥：後相機連續確認置中後，
+`FinalApproachController` 維持零角速度並以輪速里程完成預設 0.15 m 的前進，最長 3.5 s。
+這段期間物體被夾爪遮住時不切回搜尋、不重設已累積距離；感測過期、急停及原有
+raw LiDAR hard-stop／forward-block 仍優先停車。**行駛姿態的夾爪就在後相機畫面正下方**，
+近距離的盒子會被它擋住：總指揮帶 `--blind-stop-x`（首次 0.30 m）時，盒子在 0.60 m、±10°
+內丟失就沿里程計記憶直走到該距離再交給 E1，E1 手臂相機看不到就不夾。後相機在 1 m
+看盒子要 `--yolo-imgsz 1280`（640 認不到）。原地轉向至少 wz 1.0（輪速 20 轉不動）。
+手臂相機由後續 E1 夾取交接使用，不是這支 standalone 底盤接近程式的輸入。
+
 ### `ui/`（操作台）
 
 手機/筆電網頁介面，讓使用者不用開終端機打指令。**網頁由 Jetson 自己提供**，

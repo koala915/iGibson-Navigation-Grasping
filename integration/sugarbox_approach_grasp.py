@@ -156,9 +156,19 @@ def main(argv=None):
     parser.add_argument('--dry-run', action='store_true', help='live vision/ROS/PPO, no arm or motor commands')
     parser.add_argument('--i-am-beside-the-robot', action='store_true')
     parser.add_argument('--approach-timeout', type=float, default=120)
+    parser.add_argument('--blind-stop-x', type=float, default=None,
+                        help='finish blind to this remembered forward x (m) when the gripper '
+                             'hides the box; unset keeps the original search')
+    parser.add_argument('--yolo-imgsz', type=int, default=None,
+                        help='rear-camera YOLO input size (default 640 in the approach)')
     args = parser.parse_args(argv)
     if args.real and args.dry_run:
         parser.error('--real and --dry-run are mutually exclusive')
+    if args.blind_stop_x is not None and not (
+            math.isfinite(args.blind_stop_x) and 0.05 <= args.blind_stop_x <= 0.60):
+        parser.error('--blind-stop-x must be 0.05..0.60 m')
+    if args.yolo_imgsz is not None and (args.yolo_imgsz % 32 or not 320 <= args.yolo_imgsz <= 1920):
+        parser.error('--yolo-imgsz must be a multiple of 32 in 320..1920')
     ipaddress.IPv4Address(args.host)  # fixed-format SSH target, no shell interpolation
     if (not math.isfinite(args.final_travel_m) or not 0 < args.final_travel_m <= 0.15
             or not math.isfinite(args.approach_timeout) or not 0 < args.approach_timeout <= 300):
@@ -185,6 +195,16 @@ def main(argv=None):
     env = os.environ.copy()
     env.update({key: str(value.resolve()) for key, value in paths.items()})
     env.update(ROUTE_B_IP=args.host, SUGARBOX_FINAL_TRAVEL_M=str(args.final_travel_m))
+    # Explicit flags replace anything inherited from the shell, so a run's settings
+    # are the ones on its own command line.
+    env.pop('SUGARBOX_BLIND_STOP_X', None)
+    env.pop('SUGARBOX_YOLO_IMGSZ', None)
+    if args.blind_stop_x is not None:
+        env['SUGARBOX_BLIND_STOP_X'] = str(args.blind_stop_x)
+    if args.yolo_imgsz is not None:
+        env['SUGARBOX_YOLO_IMGSZ'] = str(args.yolo_imgsz)
+    print('[config] blind_stop_x={} yolo_imgsz={} final_travel_m={}'.format(
+        args.blind_stop_x, args.yolo_imgsz or 640, args.final_travel_m))
     if args.dry_run:
         env.update(SUGARBOX_RUN_MODE='DRY_RUN', SUGARBOX_EXIT_ON_ARRIVAL='0')
         return subprocess.run([sys.executable, '-u', str(APPROACH)], env=env).returncode

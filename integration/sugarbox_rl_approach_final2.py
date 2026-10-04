@@ -528,6 +528,7 @@ BLIND_START_MAX_M = 0.60        # only near the robot, where the gripper hides t
 BLIND_MAX_BEARING_DEG = 10.0    # and only nearly straight ahead, behind the gripper
 BLIND_VX = 0.08                 # same creep as the final approach
 BLIND_MAX_TRAVEL_M = 0.35       # never further than this without seeing the box
+BLIND_BUDGET_SLACK_M = 0.03     # odometry may run this far past the plan
 
 # In-place turns. The service maps |wz| <= 0.8 rad/s with vx = 0 to motor 20,
 # which stalled on the floor on 2026-10-04 (8 s of search, odometry wz ~0);
@@ -3340,45 +3341,62 @@ class BlindFinishController:
         self.spent = False
 
     def eligible(self, target, now):
+        if BLIND_STOP_X is None or self.active or self.spent:
+            return False
+        if not target.has_memory() or target.visual_recent(now):
+            return False
+        memory = (target.x, target.y, target.dist, target.bearing)
+        if not all(math.isfinite(v) for v in memory):
+            return False
+        # Too far to finish blind: leave it to the search, do not stop short of
+        # the window and call that an arrival.
         return (
-            BLIND_STOP_X is not None
-            and not self.active
-            and not self.spent
-            and target.has_memory()
-            and not target.visual_recent(now)
-            and target.dist <= BLIND_START_MAX_M
+            target.dist <= BLIND_START_MAX_M
             and abs(math.degrees(target.bearing)) <= BLIND_MAX_BEARING_DEG
+            and target.x - BLIND_STOP_X <= BLIND_MAX_TRAVEL_M
         )
 
     def start(self, target, now):
-        if self.active:
+        if not self.eligible(target, now):
             return False
         self.active = True
         self.spent = True
         self.start_time = now
         self.last_update_time = now
         self.travelled_m = 0.0
-        self.budget_m = max(0.0, min(BLIND_MAX_TRAVEL_M, target.x - BLIND_STOP_X))
+        self.budget_m = max(0.0, target.x - BLIND_STOP_X)
         print(
             "[BLIND] box hidden at x={:.3f} y={:+.3f}; straight {:.3f} m on odometry "
             "to x={:.3f}, then E1 must confirm it".format(
                 target.x, target.y, self.budget_m, BLIND_STOP_X))
         return True
 
+    def _finish(self, arrived, reason):
+        self.active = False
+        return (arrived, 0.0, reason)
+
     def command(self, target, odom_vx, now):
-        """(arrived, vx, reason). arrived is True only when the distance was covered."""
+        """(arrived, vx, reason). Arrival means the remembered box reached BLIND_STOP_X."""
+        if not self.active:
+            return (False, 0.0, "BLIND_INACTIVE")
+        odom_vx = float(odom_vx)
+        if not math.isfinite(odom_vx):
+            return self._finish(False, "BLIND_BAD_ODOM")
         dt = max(0.0, now - self.last_update_time)
         self.last_update_time = now
         if dt <= 0.5:
-            self.travelled_m += max(0.0, float(odom_vx)) * dt
-        if self.travelled_m >= self.budget_m or target.x <= BLIND_STOP_X:
-            self.active = False
-            return (True, 0.0, "BLIND_DONE travel={:.3f}m x={:.3f}".format(
+            self.travelled_m += max(0.0, odom_vx) * dt
+        if target.x <= BLIND_STOP_X:
+            return self._finish(True, "BLIND_DONE travel={:.3f}m x={:.3f}".format(
                 self.travelled_m, target.x))
+        # The memory moves with the same odometry, so the distance running out
+        # while the box is still ahead means vision moved it back: not arrived.
+        if self.travelled_m >= self.budget_m + BLIND_BUDGET_SLACK_M:
+            return self._finish(False, "BLIND_BUDGET travel={:.3f}/{:.3f}m x={:.3f}".format(
+                self.travelled_m, self.budget_m, target.x))
         # Twice the time the creep should need, plus slack for the motor to start.
         if now - self.start_time > 2.0 * self.budget_m / BLIND_VX + 2.0:
-            self.active = False
-            return (False, 0.0, "BLIND_TIMEOUT travel={:.3f}/{:.3f}m".format(
+            return self._finish(False, "BLIND_TIMEOUT travel={:.3f}/{:.3f}m".format(
                 self.travelled_m, self.budget_m))
         return (False, BLIND_VX, "BLIND_FORWARD travel={:.3f}/{:.3f}m x={:.3f}".format(
             self.travelled_m, self.budget_m, target.x))
@@ -5781,10 +5799,16 @@ def main():
                 # Odom-memory visual reacquisition near the target
                 # ------------------------------------------------
 
+                # Once the final 15 cm has started, losing the box (it slides
+                # behind the gripper) must not hand control to the search: on
+                # 2026-10-04 that reset FINAL_FORWARD at 11 cm and arrival never
+                # came. Sensor staleness, E-stop and the LiDAR stops still win.
                 target_searching = (
                     not should_stop
                     and
                     not blind_finish.active
+                    and
+                    not final_approach.active
                     and
                     target.has_memory()
                     and

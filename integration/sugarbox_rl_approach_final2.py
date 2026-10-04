@@ -141,7 +141,15 @@ FRAME_W = 640
 FRAME_H = 480
 
 YOLO_CONF = 0.30
-YOLO_IMGSZ = 640
+
+# The box is ~25x50 px in the rear camera at 1 m. At 640 the model saw nothing
+# in a 2026-10-04 frame (best candidate 0.07); at 1280 it found the box at 0.94
+# with no other box, 56 ms per frame on the RTX 3050. 960 also found the box but
+# flagged the fixed black bracket at the bottom of the image at 0.97. Only the
+# input size changes; the confidence threshold and every later gate stay.
+YOLO_IMGSZ = int(os.environ.get("SUGARBOX_YOLO_IMGSZ", "640"))
+if YOLO_IMGSZ % 32 or not 320 <= YOLO_IMGSZ <= 1920:
+    raise SystemExit("SUGARBOX_YOLO_IMGSZ must be a multiple of 32 in 320..1920")
 
 # SAM mask 至少要有多少 pixel
 MIN_MASK_PIXELS = 100
@@ -503,6 +511,28 @@ if not math.isfinite(FINAL_APPROACH_TRAVEL_M) or not 0.0 < FINAL_APPROACH_TRAVEL
     raise ValueError("SUGARBOX_FINAL_TRAVEL_M must be in (0, 0.15]")
 EXIT_ON_ARRIVAL = os.environ.get("SUGARBOX_EXIT_ON_ARRIVAL", "0") == "1"
 FINAL_APPROACH_MAX_DURATION_S = 3.5
+
+# Blind finish. In the travel pose the arm's gripper sits in the middle of the
+# rear camera's view, right where a centred box ends up near the robot. On
+# 2026-10-04 the box vanished behind it at 0.44 m, as centring turned toward it,
+# and the search then spun for a box that was hidden, not gone. When the box is
+# lost close and nearly straight ahead, drive straight on the odometry-propagated
+# memory until its forward distance reaches SUGARBOX_BLIND_STOP_X, then report
+# arrival. Nothing is grasped on this alone: the E1 arm camera must still see the
+# box inside its window, or the handoff stops. Unset = off (the original search).
+_blind = os.environ.get("SUGARBOX_BLIND_STOP_X", "").strip()
+BLIND_STOP_X = float(_blind) if _blind else None
+if BLIND_STOP_X is not None and not (math.isfinite(BLIND_STOP_X) and 0.05 <= BLIND_STOP_X <= 0.60):
+    raise SystemExit("SUGARBOX_BLIND_STOP_X must be 0.05..0.60 m")
+BLIND_START_MAX_M = 0.60        # only near the robot, where the gripper hides the box
+BLIND_MAX_BEARING_DEG = 10.0    # and only nearly straight ahead, behind the gripper
+BLIND_VX = 0.08                 # same creep as the final approach
+BLIND_MAX_TRAVEL_M = 0.35       # never further than this without seeing the box
+
+# In-place turns. The service maps |wz| <= 0.8 rad/s with vx = 0 to motor 20,
+# which stalled on the floor on 2026-10-04 (8 s of search, odometry wz ~0);
+# motor 25 (wz 1.0) turned 43-47 deg in 2 s on 2026-09-28.
+TURN_MIN_WZ = 1.0
 
 
 # ============================================================
@@ -3291,6 +3321,69 @@ class FinalApproachController:
         )
 
 
+class BlindFinishController:
+    """Straight creep on the remembered box after the gripper hides it (see BLIND_STOP_X)."""
+
+    def __init__(self):
+        self.spent = False      # one blind finish per approach; R re-arms it
+        self.reset()
+
+    def reset(self):
+        self.active = False
+        self.start_time = 0.0
+        self.last_update_time = 0.0
+        self.travelled_m = 0.0
+        self.budget_m = 0.0
+
+    def rearm(self):
+        self.reset()
+        self.spent = False
+
+    def eligible(self, target, now):
+        return (
+            BLIND_STOP_X is not None
+            and not self.active
+            and not self.spent
+            and target.has_memory()
+            and not target.visual_recent(now)
+            and target.dist <= BLIND_START_MAX_M
+            and abs(math.degrees(target.bearing)) <= BLIND_MAX_BEARING_DEG
+        )
+
+    def start(self, target, now):
+        if self.active:
+            return False
+        self.active = True
+        self.spent = True
+        self.start_time = now
+        self.last_update_time = now
+        self.travelled_m = 0.0
+        self.budget_m = max(0.0, min(BLIND_MAX_TRAVEL_M, target.x - BLIND_STOP_X))
+        print(
+            "[BLIND] box hidden at x={:.3f} y={:+.3f}; straight {:.3f} m on odometry "
+            "to x={:.3f}, then E1 must confirm it".format(
+                target.x, target.y, self.budget_m, BLIND_STOP_X))
+        return True
+
+    def command(self, target, odom_vx, now):
+        """(arrived, vx, reason). arrived is True only when the distance was covered."""
+        dt = max(0.0, now - self.last_update_time)
+        self.last_update_time = now
+        if dt <= 0.5:
+            self.travelled_m += max(0.0, float(odom_vx)) * dt
+        if self.travelled_m >= self.budget_m or target.x <= BLIND_STOP_X:
+            self.active = False
+            return (True, 0.0, "BLIND_DONE travel={:.3f}m x={:.3f}".format(
+                self.travelled_m, target.x))
+        # Twice the time the creep should need, plus slack for the motor to start.
+        if now - self.start_time > 2.0 * self.budget_m / BLIND_VX + 2.0:
+            self.active = False
+            return (False, 0.0, "BLIND_TIMEOUT travel={:.3f}/{:.3f}m".format(
+                self.travelled_m, self.budget_m))
+        return (False, BLIND_VX, "BLIND_FORWARD travel={:.3f}/{:.3f}m x={:.3f}".format(
+            self.travelled_m, self.budget_m, target.x))
+
+
 # ============================================================
 # Dummy Env for VecNormalize
 # ============================================================
@@ -3764,17 +3857,18 @@ class MotorClient:
 
             return
 
+        vx, wz = float(vx), float(wz)
+        # A pure turn below motor 25 stalls on the floor (see TURN_MIN_WZ).
+        if abs(vx) < 1e-6 and 1e-6 < abs(wz) < TURN_MIN_WZ:
+            wz = math.copysign(TURN_MIN_WZ, wz)
+
         msg = {
 
             "action": "velocity",
 
-            "vx": float(
-                vx
-            ),
+            "vx": vx,
 
-            "wz": float(
-                wz
-            )
+            "wz": wz
         }
 
         self._send_json(
@@ -4906,7 +5000,8 @@ def main():
     print(
         f"[PERF] camera_pipe={CAMERA_PIPE_FPS} FPS (live async) | "
         f"vision={1.0 / VISION_INTERVAL:.1f} Hz max | "
-        f"display={DISPLAY_HZ:.1f} Hz"
+        f"display={DISPLAY_HZ:.1f} Hz | "
+        f"yolo imgsz={YOLO_IMGSZ} conf={YOLO_CONF:.2f}"
     )
 
 
@@ -5177,6 +5272,7 @@ def main():
     anti_jitter = AntiJitterSafetyFilter()
     center_controller = BottomCenterController()
     final_approach = FinalApproachController()
+    blind_finish = BlindFinishController()
 
 
     e_stop_latched = False
@@ -5668,11 +5764,27 @@ def main():
 
 
                 # ------------------------------------------------
+                # Blind finish: the box was lost close and straight
+                # ahead, i.e. behind the gripper (see BLIND_STOP_X)
+                # ------------------------------------------------
+
+                if (
+                    not should_stop
+                    and not final_approach.active
+                    and blind_finish.eligible(target, now)
+                ):
+                    center_controller.reset()
+                    anti_jitter.reset_motion()
+                    blind_finish.start(target, now)
+
+                # ------------------------------------------------
                 # Odom-memory visual reacquisition near the target
                 # ------------------------------------------------
 
                 target_searching = (
                     not should_stop
+                    and
+                    not blind_finish.active
                     and
                     target.has_memory()
                     and
@@ -5718,7 +5830,7 @@ def main():
                 center_reason = ""
                 center_just_started = False
 
-                if not should_stop and not target_searching:
+                if not should_stop and not target_searching and not blind_finish.active:
 
                     # FINAL_FORWARD 一旦開始，禁止 CENTER 在途中重新啟動。
                     # 之前 log 會反覆出現 CENTERED -> FINAL start，導致 0.55s
@@ -5792,6 +5904,7 @@ def main():
 
                     center_controller.reset()
                     final_approach.reset()
+                    blind_finish.reset()
 
                     last_raw_action[:] = 0.0
 
@@ -5828,6 +5941,79 @@ def main():
                             0.0,
                             0.0
                         )
+
+
+                # ------------------------------------------------
+                # Blind finish drive (straight, front LiDAR safety kept)
+                # ------------------------------------------------
+
+                elif blind_finish.active:
+
+                    center_controller.reset()
+                    final_approach.reset()
+                    last_raw_action[:] = 0.0
+                    prev_raw_action = np.zeros(
+                        2,
+                        dtype=np.float32
+                    )
+                    action_delay = [
+                        np.zeros(
+                            2,
+                            dtype=np.float32
+                        )
+                        for _ in range(
+                            MOTOR_DELAY_STEPS
+                        )
+                    ]
+
+                    (
+                        blind_arrived,
+                        blind_vx,
+                        blind_reason
+                    ) = blind_finish.command(
+                        target,
+                        odom.vx,
+                        now
+                    )
+
+                    last_desired_vx = float(blind_vx)
+                    last_desired_wz = 0.0
+
+                    if blind_finish.active:
+                        (
+                            vx_cmd,
+                            wz_cmd,
+                            blind_safety_reason
+                        ) = anti_jitter.apply_final_approach(
+                            blind_vx,
+                            front_robust,
+                            front_min
+                        )
+                        safety_reason = (
+                            blind_reason + " | " + blind_safety_reason
+                        )
+                    else:
+                        anti_jitter.reset_motion()
+                        vx_cmd = 0.0
+                        wz_cmd = 0.0
+                        safety_reason = blind_reason
+                        print("[BLIND] " + blind_reason)
+                        if blind_arrived:
+                            arrived_latched = True
+                            safety_reason = "ARRIVED_BLIND " + blind_reason
+
+                    last_cmd_vx = float(vx_cmd)
+                    last_cmd_wz = float(wz_cmd)
+
+                    if RUN_MODE == "DRIVE":
+                        motor.send_velocity(
+                            last_cmd_vx,
+                            last_cmd_wz,
+                            force=not blind_finish.active
+                        )
+                        if EXIT_ON_ARRIVAL and arrived_latched:
+                            motor.stop(repeat=5)
+                            break
 
 
                 # ------------------------------------------------
@@ -6553,6 +6739,7 @@ def main():
                 anti_jitter.reset_all()
                 center_controller.reset()
                 final_approach.reset()
+                blind_finish.rearm()
                 target_search_start = 0.0
                 last_safety_reason = "RESET"
 
@@ -6571,6 +6758,7 @@ def main():
                 target_search_start = 0.0
                 center_controller.reset()
                 final_approach.reset()
+                blind_finish.rearm()
                 anti_jitter.reset_all()
                 last_safety_reason = "TARGET_MEMORY_CLEARED"
 

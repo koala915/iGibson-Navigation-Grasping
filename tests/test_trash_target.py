@@ -153,6 +153,33 @@ class TestParsing(unittest.TestCase):
         self.assertEqual(target.reason, "publisher_shutdown")
         self.assertEqual(tt.to_rear_detection(target, NOW), tt.NOT_FOUND)
 
+    def test_optional_approach_metadata_is_preserved(self):
+        target = tt.parse_trash_target(payload(
+            bbox_xyxy=[10, 20, 50, 80], mask_bottom_u=30,
+            mask_bottom_v=79, on_floor=True, observation_age_s=0.2))
+        self.assertEqual(target.bbox_xyxy, (10.0, 20.0, 50.0, 80.0))
+        self.assertTrue(target.on_floor)
+        self.assertAlmostEqual(target.observation_age_s, 0.2)
+
+    def test_latency_compensation_propagates_target_to_now(self):
+        target = tt.parse_trash_target(payload(
+            object_x_base=1.0, object_y_base=0.0,
+            observation_age_s=0.5))
+        found, forward, offset = tt.to_rear_detection(
+            target, NOW, compensate_vx=0.2, compensate_wz=0.0)
+        self.assertTrue(found)
+        self.assertAlmostEqual(forward, 0.9)
+        self.assertAlmostEqual(offset, 0.0)
+
+    def test_latency_compensation_includes_local_receipt_age(self):
+        target = tt.parse_trash_target(payload(
+            object_x_base=1.0, object_y_base=0.0,
+            timestamp_unix=NOW - 0.25, observation_age_s=0.25))
+        found, forward, _offset = tt.to_rear_detection(
+            target, NOW, compensate_vx=0.2, compensate_wz=0.0)
+        self.assertTrue(found)
+        self.assertAlmostEqual(forward, 0.9)
+
 
 class TestContractWithThePublisher(unittest.TestCase):
     """Pin the field names against the publisher, so a rename cannot drift."""
@@ -163,7 +190,7 @@ class TestContractWithThePublisher(unittest.TestCase):
                    encoding="utf-8")
         for field in ("valid", "object_x_base", "object_y_base", "distance_m",
                       "timestamp_unix", "frame_id", "coordinate_convention",
-                      "reason", "source"):
+                      "reason", "source", "bbox_xyxy", "observation_age_s"):
             self.assertIn(f'"{field}"', src,
                           f"the adapter reads {field!r} but the publisher no "
                           f"longer writes it")

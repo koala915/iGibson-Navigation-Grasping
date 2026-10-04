@@ -213,6 +213,8 @@ class Sense:
     target_visible: bool = False
     target_dist: float = float("inf")
     target_fix_age: float = float("inf")
+    approach_ready: bool = True          # optional rear-camera close-range phase done
+    approach_failed: bool = False
 
     # align / handoff
     handoff_ready: bool = False          # object inside the v21 trained envelope
@@ -382,17 +384,22 @@ class MissionFSM:
                             "confirming target bearing", now)
 
         if st is State.APPROACH:
+            if s.approach_failed:
+                return self._retry_or_give_up("rear-camera final approach failed", now)
             if s.target_fix_age > cfg.target_lost_timeout_s:
                 return self._abandon_target(
                     f"target lost for {s.target_fix_age:.1f}s during approach", now)
             if self._elapsed(now) > cfg.approach_timeout_s:
                 return self._abandon_target("approach timed out", now)
-            if s.target_dist <= cfg.approach_to_align_m:
+            if s.target_dist <= cfg.approach_to_align_m and s.approach_ready:
                 # Stop first.  The ALIGN state confirms wheel feedback is
                 # stationary on a later tick before raising the arm to C3.
                 return self._go(State.ALIGN, Action.SETTLE,
                                 f"within {cfg.approach_to_align_m:.2f} m — fine align",
                                 now, reset_nav=True)
+            if s.target_dist <= cfg.approach_to_align_m:
+                return self._go(State.APPROACH, Action.DRIVE_TARGET,
+                                "finishing rear-camera centering", now)
             return self._go(State.APPROACH, Action.DRIVE_TARGET, "approaching", now)
 
         if st is State.ALIGN:

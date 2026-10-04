@@ -21,7 +21,7 @@ YOLO_MODEL_PATH = r"C:\Users\user\Downloads\trash_identify.v8i.yolov11(0517)\run
 # 2. Jetson 網路設定
 # ============================================================
 
-JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "172.31.28.252")
+JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "yahboom.local")
 
 TOPIC_REAR = "/back_cam/image_raw"
 TOPIC_ARM = "/arm_cam/image_raw"

@@ -15,7 +15,7 @@ from ultralytics import YOLO
 
 YOLO_MODEL_PATH = r"C:\Users\user\Downloads\trash_identify.v8i.yolov11(0517)\runs\detect\train\weights\best.pt"
 
-JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "172.31.28.252")
+JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "yahboom.local")
 TOPIC_ARM = "/arm_cam/image_raw"
 URL_ARM = f"http://{JETSON_IP}:8080/stream?topic={TOPIC_ARM}"
 

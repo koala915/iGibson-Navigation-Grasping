@@ -37,6 +37,7 @@ from integration import map_goal_provider as mgp
 from integration import mission_fsm as mfsm
 from integration import mission_pipeline as mp
 from integration import nav_rl_grasp_pipeline as nrgp
+from integration import trash_target as tt
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -641,6 +642,27 @@ class MissionEndToEnd(unittest.TestCase):
         self.assertFalse(runner._grasp_finished)
         self.assertEqual(runner._det_streak, 0)
         self.assertTrue(runner._at_nav_home, "patrol resumed with the arm at C3")
+
+
+class OffboardApproachRegression(unittest.TestCase):
+    def test_close_range_refresh_keeps_the_selected_offboard_source(self):
+        runner = build_runner()
+        runner._target_source = "offboard"
+        runner._trash_max_age_s = 1.0
+        runner._last_det = 0.0
+        now = time.time()
+        observation = tt.TrashTarget(
+            True, 0.62, 0.08, 0.63, now, "accepted", "test",
+            bbox_xyxy=(280.0, 330.0, 360.0, 420.0), on_floor=True)
+        runner.rio.latest_trash_target = lambda: observation
+        runner.nav._detect_rear = mock.Mock(
+            side_effect=AssertionError("offboard approach switched to onboard"))
+
+        runner._refresh_close_fix(now)
+
+        self.assertAlmostEqual(runner.nav.tracker.dist(), 0.62, places=6)
+        runner.nav._detect_rear.assert_not_called()
+        self.assertIs(runner._latest_offboard_target, observation)
 
 
 class FineAlignSafetyRegression(unittest.TestCase):

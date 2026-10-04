@@ -2271,13 +2271,13 @@ def scan_to_policy_rays(scan):
 # ============================================================
 
 def raw_front_metrics(scan):
-    """Dense robot-frame front ranges; only PPO ranges receive scaling."""
+    """Yaw-corrected sensor-origin front sector and original measured ranges."""
     if scan.ranges is None or len(scan.ranges) == 0:
         return float("inf"), float("inf"), 0
     half_angle = math.radians(FRONT_SAFETY_HALF_ANGLE_DEG)
-    values = [sample.range_m for sample in robot_scan_samples(
+    values = [sample.sensor_range_m for sample in robot_scan_samples(
         scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY)
-        if sample.range_m is not None and abs(sample.angle_rad) <= half_angle]
+        if sample.sensor_range_m is not None and abs(sample.sensor_angle_rad) <= half_angle]
     if not values:
         return float("inf"), float("inf"), 0
     arr = np.asarray(values, dtype=np.float32)
@@ -2288,7 +2288,7 @@ def raw_front_metrics(scan):
 
 
 def raw_side_metrics(scan):
-    """Original side percentiles/guards, with robot x forward and y left."""
+    """Yaw-corrected sensor-origin side sectors and original measured ranges."""
     if scan.ranges is None or len(scan.ranges) == 0:
         return (float("inf"), float("inf"), 0,
                 float("inf"), float("inf"), 0)
@@ -2297,12 +2297,12 @@ def raw_side_metrics(scan):
     right_values, left_values = [], []
     for sample in robot_scan_samples(
             scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY):
-        if sample.range_m is None:
+        if sample.sensor_range_m is None:
             continue
-        if -side_max <= sample.angle_rad <= -front_exclude:
-            right_values.append(sample.range_m)
-        elif front_exclude <= sample.angle_rad <= side_max:
-            left_values.append(sample.range_m)
+        if -side_max <= sample.sensor_angle_rad <= -front_exclude:
+            right_values.append(sample.sensor_range_m)
+        elif front_exclude <= sample.sensor_angle_rad <= side_max:
+            left_values.append(sample.sensor_range_m)
 
     def summarize(values):
         if not values:

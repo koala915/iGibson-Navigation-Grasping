@@ -126,7 +126,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `ros_io.py` | rosbridge：發 `/odom_setmotor` + `odom→base_footprint` TF、收 `/amcl_pose`（含 covariance 發散門檻）與 `/trash_target/detection`（僅 `--target-source offboard` 時訂閱） |
 | `trash_target.py` | 離機 SAM2 目標的轉接層。**發布端 y 左為正、pipeline offset 右為正，這裡負號翻轉** —— 兩邊都是同範圍的 float，接錯不會報錯只會轉錯邊。逾時／無效／後方目標一律 fail closed |
 | `target_approach.py` | 選配的 offboard 近距離流程：bbox 置中後，以 odometry 量測前進 0.15 m，再交給 arm-camera ALIGN |
-| `sugarbox_lidar_geometry.py` | standalone 接近的 ROS scan→robot frame；實測 yaw180°、x+0.10m，保留原48束nearest與1.15 observation scale，禁止用鏡射當旋轉 |
+| `sugarbox_lidar_geometry.py` | standalone ROS scan→robot frame；實測 yaw180°、x+0.10m；PPO保留48束nearest與1.15 scale，raw safety保留sensor原始距離／旋轉扇區，禁止用鏡射當旋轉 |
 | `nav_safety.py` | 導航命令最後一道 raw LiDAR 安全層；增強前方/側向遲滯、脫困與角速度限幅皆為 opt-in |
 | `vision_grasp_pipeline.py` | ★模式A 自走全流程：雙相機導航(set_car_motion)→handoff→PPO 夾取(obj_provider)→驗證/重試(≤3)。含 `--selftest` |
 | `vision_grasp_bridge.py` | 模式B（除錯）：辨識→算 x/y/z/寬度/高度→TCP 5555 送夾取端。payload 是 superset，v17 讀 `w`、v21 讀 `height` |

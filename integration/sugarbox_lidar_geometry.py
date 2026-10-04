@@ -1,8 +1,10 @@
 """Pure ROS LaserScan geometry for the standalone sugarbox approach.
 
 The measured TF is base_link -> laser: yaw 180 degrees, x +0.10 m.
-Coordinates after this transform use robot x forward and y left. Unknown
-returns keep an unknown range; they cannot be filled from a neighbouring hit.
+PPO point coordinates use that complete transform, with robot x forward and y
+left. Safety retains its measured sensor-origin sectors/ranges after applying
+only the yaw correction; translation must not relax the existing thresholds.
+Unknown returns cannot be filled from a neighbouring hit.
 """
 from __future__ import annotations
 
@@ -27,6 +29,8 @@ class LidarGeometry:
 class RobotScanSample:
     angle_rad: float
     range_m: Optional[float]
+    sensor_range_m: Optional[float] = None
+    sensor_angle_rad: Optional[float] = None
 
 
 def wrap_angle(angle: float) -> float:
@@ -41,6 +45,9 @@ def robot_scan_samples(ranges: Sequence[float], angle_min: float,
     Invalid returns retain their nominal rotated beam angle with no range.
     Their unknown range cannot provide the distance needed for translation.
     This preserves no-hit policy samples instead of borrowing valid hits.
+    The yaw-corrected sensor angle and sensor range are retained separately:
+    safety sectors/thresholds were measured from the sensor. Translation must
+    not move a close return between front and side sectors or increase range.
     The 2 cm invalid-return cutoff matches nav_rl's canonical transform.
     """
     if (not math.isfinite(float(angle_min))
@@ -56,11 +63,12 @@ def robot_scan_samples(ranges: Sequence[float], angle_min: float,
         except (TypeError, ValueError):
             distance = float("nan")
         if not math.isfinite(distance) or distance <= 0.02:
-            samples.append(RobotScanSample(angle, None))
+            samples.append(RobotScanSample(angle, None, None, angle))
             continue
         x = distance * math.cos(angle) + geometry.forward_offset_m
         y = distance * math.sin(angle)
-        samples.append(RobotScanSample(math.atan2(y, x), math.hypot(x, y)))
+        samples.append(RobotScanSample(math.atan2(y, x), math.hypot(x, y),
+                                      distance, angle))
     return tuple(samples)
 
 

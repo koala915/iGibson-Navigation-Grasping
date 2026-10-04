@@ -107,8 +107,10 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
   手臂處於 other 姿態並遮住有效區，須先安全收至 travel、調整盒子再測。
 - 實測 `base_link→laser` TF 為 yaw=180°、x=+0.10 m。
   原 standalone 的 π−raw 是鏡射，會把左右反向，也漏了平移。
-  新 `sugarbox_lidar_geometry.py` 用旋轉／平移統一 policy 與 raw safety frame，
-  保留 48 束 nearest 採樣、1.15 observation scale、原防護門檻與避障控制。
+  新 `sugarbox_lidar_geometry.py` 讓 PPO 使用完整旋轉／平移後的 base 座標，
+  保留 48 束 nearest 採樣與 1.15 observation scale。
+  raw safety 僅旋轉原感測扇區並保留 sensor 原始測距，維持原物理停車距離與側向 coverage；
+  不能把正前方 d 換成 d+0.10 後仍宣稱門檻沒有放寬。
   對不同的實測安裝可指定 `SUGARBOX_LIDAR_YAW_OFFSET_DEG`／
   `SUGARBOX_LIDAR_FORWARD_OFFSET_M`；這不是安全閘 override。
 - 錄製 scan 的離線重播前方 min 約 0.571 m；側向有極近回波，未新增遮罩或放寬門檻。
@@ -122,7 +124,7 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
 
 - 使用者確認空爪、收臂範圍淨空、人在旁可立即斷電，允許張爪並收臂；底盤不行駛。
 - 必要回歸 controller138／servo37／floor641／UI48、FSM 自測全過。
-  新 LiDAR geometry10、travel50、chassis58、calibration21、handoff9 亦全過。
+  新 LiDAR geometry13、travel50、chassis58、calibration21、handoff9 亦全過。
 - Jetson 只更新 `grasp/v23/grasp_service.py`，使用 service 的 Python3.8 編譯通過、
   LF SHA256 `8117dc3c657bb84d9154e917855cfe68957be0f254f22ea5bb312eb652464bdf`。
   原檔保留為 `grasp_service.py.bak_home_encoder_20261004`，重啟後姿態保持不變。
@@ -133,7 +135,22 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
 - 這是本次監督操作的單次到位結果，不更改任何 hardware_validated 旗標。
   有效物體追蹤與實車避障接近仍未驗收。
 
-## 2026-10-04 離線回歸
+### 收臂後第二輪辨識（同日）
+
+- 使用者確認收手臂正常、無碰撞或卡住，並重新調整藍盒。
+- 第二次 bounded DRY_RUN 正常退出，主迴圈 46.03 秒；MotorClient 禁用，
+  只有相機／LiDAR／odom 讀取。四輪指令與實測 odom twist 保持零。
+- 即時 YOLO 框到畫面最下方的機器人夾爪，最終為 OUTSIDE_CALIBRATION，
+  沒有有效目標鎖定。不能把這次檢出稱為已辨識到藍盒。
+- 離線診斷：真正藍盒手動 SAM bbox 得接地 (253.5,393)，hull 距離 -4.34 px，
+  在既有 10 px 邊界容許值內；此為診斷位置，非 runtime 的有效目標。
+  藍盒約 18×57 px、露出窄側面，1280 診斷可檢出，但正式 imgsz=640 尚未有效檢出。
+  不修改 conf=0.30、imgsz=640、校正範圍或驗證旗標。
+- 使用者已同意場地淨空後的巡航辨識／避障接近／E1 夾取測試。
+  下一步先轉寬正面朝相機、稍移畫面中央，再確認正式辨識和追蹤鎖定。
+  校正與 LiDAR 安全距離確認前，尚未啟動底盤導航。
+
+## 2026-10-04 PR #8 合併前離線回歸
 
 - 23 套 Python 測試／自測全部通過；17 套共 1,093 checks，另 6 套 selftests。
 - 新 runtime 校正 21、E1 交接 9、LiDAR 安全層 12 項皆通過。

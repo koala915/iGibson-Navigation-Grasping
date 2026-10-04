@@ -3,6 +3,7 @@ import ast
 import math
 from pathlib import Path
 import sys
+import time
 from types import SimpleNamespace
 import unittest
 
@@ -26,18 +27,28 @@ def runtime_geometry_functions():
         'SIDE_SAFETY_MAX_ANGLE_DEG', 'SIDE_SAFETY_FRONT_EXCLUDE_DEG',
         'SIDE_ROBUST_MIN_POINTS', 'SIDE_ROBUST_PERCENTILE',
         'scan_to_policy_rays', 'raw_front_metrics', 'raw_side_metrics',
+        'clamp', 'AntiJitterSafetyFilter',
     }
     source = ROOT / 'integration/sugarbox_rl_approach_final2.py'
+    tree = ast.parse(source.read_text(encoding='utf-8'))
+    safety_class = next(node for node in tree.body
+                        if isinstance(node, ast.ClassDef)
+                        and node.name == 'AntiJitterSafetyFilter')
+    names.update(node.id for node in ast.walk(safety_class)
+                 if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                 and node.id.isupper())
     selected = []
-    for node in ast.parse(source.read_text(encoding='utf-8')).body:
+    for node in tree.body:
         if isinstance(node, ast.FunctionDef) and node.name in names:
+            selected.append(node)
+        elif isinstance(node, ast.ClassDef) and node.name == 'AntiJitterSafetyFilter':
             selected.append(node)
         elif isinstance(node, ast.Assign) and any(
                 isinstance(target, ast.Name) and target.id in names
                 for target in node.targets):
             selected.append(node)
     namespace = {
-        'np': np, 'math': math, 'os': SimpleNamespace(environ={}),
+        'np': np, 'math': math, 'time': time, 'os': SimpleNamespace(environ={}),
         'LidarGeometry': LidarGeometry,
         'nearest_policy_ranges': nearest_policy_ranges,
         'robot_scan_samples': robot_scan_samples,
@@ -63,6 +74,9 @@ class SugarboxLidarGeometryTests(unittest.TestCase):
                     [distance], math.radians(raw_angle), 0.01, self.geometry)[0]
                 self.assertAlmostEqual(sample.range_m * math.cos(sample.angle_rad), x)
                 self.assertAlmostEqual(sample.range_m * math.sin(sample.angle_rad), y)
+                self.assertEqual(sample.sensor_range_m, distance)
+                self.assertAlmostEqual(sample.sensor_angle_rad,
+                                       wrap_angle(math.radians(raw_angle) + math.pi))
 
     def test_valid_samples_match_existing_canonical_ros_geometry(self):
         msg = {'angle_min': -math.pi, 'angle_increment': math.pi / 12,
@@ -116,18 +130,71 @@ class SugarboxLidarGeometryTests(unittest.TestCase):
                 self.assertAlmostEqual(float(rays[beam_index]), 0.40 * 1.15, places=6)
                 right, right_min, _, left, left_min, _ = self.runtime['raw_side_metrics'](scan)
                 self.assertAlmostEqual(right_min if side == 'right' else left_min,
-                                       0.40, places=6)
+                                       float(scan.ranges[1024]), places=6)
                 self.assertGreater(left_min if side == 'right' else right_min, 2.8)
 
-    def test_front_policy_and_safety_share_translation_without_scaling_safety(self):
+    def test_front_policy_uses_translation_and_safety_retains_sensor_clearance(self):
         scan = self._scan_with_robot_hit(23, 0.35)
         rays = self.runtime['scan_to_policy_rays'](scan)
         robust, minimum, count = self.runtime['raw_front_metrics'](scan)
         self.assertEqual(int(np.argmin(rays)), 23)
         self.assertAlmostEqual(float(rays[23]), 0.35 * 1.15, places=6)
-        self.assertAlmostEqual(minimum, 0.35, places=6)
+        self.assertAlmostEqual(minimum, float(scan.ranges[1024]), places=6)
         self.assertGreater(robust, minimum)
         self.assertGreater(count, 8)
+
+    def test_front_block_and_hard_stop_keep_original_physical_sensor_distances(self):
+        for sensor_distance, expected_hard_stop in ((0.20, False), (0.29, False),
+                                                    (0.17, True)):
+            with self.subTest(sensor_distance=sensor_distance):
+                scan = SimpleNamespace(ranges=[sensor_distance], angle_min=math.pi,
+                                       angle_increment=0.01)
+                sample = robot_scan_samples(scan.ranges, scan.angle_min,
+                                             scan.angle_increment, self.geometry)[0]
+                self.assertAlmostEqual(sample.range_m, sensor_distance + 0.10)
+                front = self.runtime['raw_front_metrics'](scan)
+                self.assertAlmostEqual(front[1], sensor_distance, places=6)
+                safety = self.runtime['AntiJitterSafetyFilter']()
+                vx, wz, reason, _ = safety.apply(0.15, 0.4, front[0], front[1], now=1.0)
+                self.assertEqual(vx, 0.0)
+                self.assertTrue(safety.forward_blocked)
+                self.assertEqual(safety.hard_stopped, expected_hard_stop)
+                if expected_hard_stop:
+                    self.assertEqual(wz, 0.0)
+                    self.assertIn('HARD_STOP_HOLD', reason)
+                else:
+                    self.assertIn('FWD_BLOCK_HOLD', reason)
+
+    def test_invalid_returns_have_no_safety_or_policy_range(self):
+        samples = robot_scan_samples([0.0, float('inf'), float('nan'), -1.0],
+                                     0.0, 0.1, self.geometry)
+        self.assertTrue(all(sample.range_m is None
+                            and sample.sensor_range_m is None for sample in samples))
+
+    def test_sensor_side_sectors_do_not_lose_close_returns_after_translation(self):
+        for sensor_phi, desired_turn, side in ((36.0, 0.4, 'L'),
+                                               (-36.0, -0.4, 'R')):
+            with self.subTest(sensor_phi=sensor_phi):
+                raw_angle = wrap_angle(math.radians(sensor_phi) - math.pi)
+                scan = SimpleNamespace(ranges=[0.19], angle_min=raw_angle,
+                                       angle_increment=0.01)
+                sample = robot_scan_samples(scan.ranges, scan.angle_min,
+                                             scan.angle_increment, self.geometry)[0]
+                # The centre-origin angle would fall in the 22..25 deg gap;
+                # retaining the measured sensor sector prevents that bypass.
+                self.assertGreater(abs(math.degrees(sample.angle_rad)), 22.0)
+                self.assertLess(abs(math.degrees(sample.angle_rad)), 25.0)
+                self.assertAlmostEqual(math.degrees(sample.sensor_angle_rad), sensor_phi)
+                front = self.runtime['raw_front_metrics'](scan)
+                sides = self.runtime['raw_side_metrics'](scan)
+                sensor_minimum = sides[1] if side == 'R' else sides[4]
+                self.assertAlmostEqual(sensor_minimum, 0.19, places=6)
+                safety = self.runtime['AntiJitterSafetyFilter']()
+                vx, wz, reason, _ = safety.apply(
+                    0.15, desired_turn, front[0], front[1],
+                    right_robust=sides[0], left_robust=sides[3], now=1.0)
+                self.assertEqual(wz, 0.0)
+                self.assertIn('SIDE_GUARD_' + side, reason)
 
     def test_nearest_sampling_is_preserved_instead_of_min_pooling(self):
         angle = float(self.runtime['POLICY_ANGLES_DEG'][8])

@@ -38,7 +38,7 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements-ci.txt
 
-      - name: Grasp deployment controller (135 checks)
+      - name: Grasp deployment controller (138 checks)
         run: python grasp/v21/test_deploy_controller.py
 
       - name: Servo reads over the half-duplex bus (37 checks)
@@ -73,6 +73,18 @@ jobs:
 
       - name: Offboard SAM2 target adapter (sign convention)
         run: python tests/test_trash_target.py
+
+      - name: Offboard final target approach
+        run: python tests/test_target_approach.py
+
+      - name: Navigation raw-LiDAR safety layer
+        run: python tests/test_nav_safety.py
+
+      - name: Rear-camera ground homography
+        run: python tests/test_rear_ground_homography.py
+
+      - name: Sugarbox runtime ground calibration
+        run: python tests/test_sugarbox_ground_calibration.py
 
       - name: Operator console
         run: python ui/test_server.py

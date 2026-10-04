@@ -13,7 +13,7 @@ ENABLE_MOTION = "--real" in sys.argv[1:]
 # 基本設定
 # ============================================================
 
-JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "172.31.28.252")
+JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "yahboom.local")
 MOTOR_PORT = 7000
 
 URL_ARM = f"http://{JETSON_IP}:8080/stream?topic=/arm_cam/image_raw"

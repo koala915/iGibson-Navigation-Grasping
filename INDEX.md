@@ -12,7 +12,15 @@ Quick map for finding the right code without scanning the whole project.
 | Mission state machine | `integration/mission_fsm.py` | `State`, `Action`, `step()` — 21 states, `--diagram` |
 | Operator console | `ui/server.py` | request routing, SSE stream, the two `--allow-real` gates |
 | Offboard SAM2 detector | `detection/rear_cam_sam2_publisher.py` | mask bottom point, `GroundProjector`, the published payload |
+| Rear ground calibration | `detection/calibration/calibrate_rear_ground_homography.py` | click floor points, RANSAC solve, calibration hull |
+| Measured rear ground mapping | `detection/rear_ground_homography.json` | 2026-08-06, 640×480 camera, matrix and measurement samples |
+| Sugarbox approach → E1 grasp | `integration/sugarbox_approach_grasp.py` | read-only preflight, stopped arrival, fresh E1 detection, resident service handoff |
+| Shared Sugarbox calibration | `integration/sugarbox_ground_calibration.py` | accepted sample hull, resolution/coordinate validation, repo asset defaults |
+| Standalone Sugarbox approach | `integration/sugarbox_rl_approach_final2.py` | Windows YOLO/SAM2/PPO; repo asset paths, default DRY_RUN |
+| Standalone motor bridge | `integration/sugarbox_rl_motor_server.py` | TCP 7000, calibrated wheel odometry, watchdog |
 | Offboard target adapter | `integration/trash_target.py` | `to_rear_detection` — **the left/right sign flip**, staleness, fail-closed |
+| Close target approach | `integration/target_approach.py` | bbox centering, fresh-frame gate, odometry final travel |
+| Navigation safety layer | `integration/nav_safety.py` | dense raw-LiDAR sectors, hysteresis, optional recovery |
 | One-process navigation + grasp | `integration/vision_grasp_pipeline.py` | `Navigator`, `run_pipeline()`, camera constants |
 | RL navigation + grasp | `integration/nav_rl_grasp_pipeline.py` | `RLNavigator`, `_rl_navigate()`, shared Rosmaster device |
 | TG30 ROS scan adapter | `integration/nav_rl.py` | `RosLaserScanSource`, `laser_scan_to_points()`, `make_lidar()` |
@@ -84,6 +92,7 @@ max_delta_deg = 8.0    # v21. The v17 fallback uses 3.0 -- do not mix them up.
 | `detection/nav_arm_cam.py` | Arm-camera navigation demo |
 | `detection/rear_nav/rear_to_arm_blind_handoff.py` | Source of rear/arm navigation logic ported into pipeline |
 | `detection/calibration/calibrate_arm_camera_theta.py` | Arm camera pitch/distance calibration |
+| `detection/calibration/calibrate_rear_ground_homography.py` | Rear-camera pixel → ground homography and inlier hull |
 | `detection/calibration/arm_camera_calibration_points.csv` | Existing arm camera calibration samples |
 | `integration/verify_camera_grasp_frame.py` | Checks whether camera pose assumptions match URDF base frame |
 

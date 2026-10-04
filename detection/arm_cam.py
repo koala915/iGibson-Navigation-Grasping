@@ -21,7 +21,7 @@ import arm_cam_geometry as acg
 # ========= 1. 檔案與硬體參數 =========
 # best.pt 位於同層的 models/ 子資料夾（detection/models/best.pt）
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "best.pt")
-JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "172.31.28.252")
+JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "yahboom.local")
 VIDEO_PATH = f"http://{JETSON_IP}:8080/stream?topic=/arm_cam/image_raw"
 CONF_THRESHOLD = 0.3 
 IMG_SIZE = 640

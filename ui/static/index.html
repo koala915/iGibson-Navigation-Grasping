@@ -49,7 +49,7 @@
         <div class="specs">
           <div><div class="v">5</div><div class="k">機械臂自由度</div></div>
           <div><div class="v">4</div><div class="k">麥克納姆輪</div></div>
-          <div><div class="v">117</div><div class="k">巡航路徑點</div></div>
+          <div><div class="v" id="wpCount">83</div><div class="k">巡航航點</div></div>
           <div><div class="v">21</div><div class="k">任務狀態</div></div>
         </div>
       </div>
@@ -116,7 +116,7 @@
                 <rect width="29" height="29" fill="#fff"/><g fill="#0F1B2A" id="qrCells"></g>
               </svg>
               <div>
-                <div style="font-size:.86rem; font-weight:620">掃描後直接進入操作台</div>
+                <div style="font-size:.86rem; font-weight:620">掃描後直接進入操作台<span class="tok" style="margin-left:6px">示意圖</span></div>
                 <p class="hint" style="margin:5px 0 0">
                   內容是 <code class="mono">http://&lt;目前 IP&gt;:8080</code>，開機時由
                   <code class="mono">ui/make_qr.py</code> 重新產生。IP 變了圖也跟著變。

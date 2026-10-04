@@ -1,0 +1,114 @@
+{
+  "package": "grasp-v24-e1-replacement-candidate",
+  "status": "candidate",
+  "status_note": "Formal simulation passed 230/235 cases, but this exact weight pair has no Jetson load, dry-run, deployment-controller parity, or physical grasp evidence. It must not inherit v23's 3/3 hardware result. --real remains blocked unless an operator deliberately uses --unlock-candidate-real beside the robot.",
+  "created": "2026-09-07",
+  "deployment_base": {
+    "runtime": "../v23/x3plus_real_grasp.py",
+    "launcher": "run_candidate.py",
+    "reason": "v24 retains v23's E1 home, obs_28_incremental contract, deploy_contract.py, URDF, servo mapping, target envelope, and physical compensation tuple. Reusing the hardened controller avoids a second safety fork; the launcher locks the new model, VecNormalize, contract, and this manifest.",
+    "workspace_baseline": "67d29af58ae68acbba020e427c748d1790bc3b1b"
+  },
+  "source": {
+    "delivery": "v24_e1_replacement_seed23404_r3_COMPLETE/v24_e1_replacement_seed23404_r3",
+    "run_id": "v24_e1_corner_recovery_seed23404_r3",
+    "training_seed": 23404,
+    "selected_update": 10,
+    "method": "targeted_dagger_frozen_vecnormalize",
+    "training_git_head": "7410eb33028c71a96671e5602c902fe8043f3cc3",
+    "training_git_dirty": true,
+    "provenance_note": "The delivered files are internally hash-consistent. Preregistration is timestamped 37.929 seconds after the reported training start, and the source-bundle requirements pin stable-baselines3 2.1.0 while training metadata and model system_info report 2.2.1. Preserve these discrepancies; do not rewrite the evidence."
+  },
+  "artifacts": {
+    "model": {
+      "file": "models/candidate_v24_e1_seed23404_bc_u10.zip",
+      "sha256": "0ed9989154ed280971fd4499c8927c198539f37915f6d9191f9cd08eaf100d81"
+    },
+    "vecnormalize": {
+      "file": "models/candidate_v24_e1_seed23404_bc_u10_vec.pkl",
+      "sha256": "6ebb5a64ef967a1fcfca522fe330f71e0eef3f95b452c78a8248b4edb74ecd26"
+    },
+    "pairing_rule": "These two files are one indivisible pair. Never substitute either file. The launcher rejects --model and --vecnorm overrides.",
+    "upstream_checksum_verification": "All 55 entries in the delivered SHA256SUMS.txt matched on 2026-09-07."
+  },
+  "contract": {
+    "name": "obs_28_incremental",
+    "observation_dim": 28,
+    "action_dim": 6,
+    "arm_action_mode": "incremental",
+    "arm_step_rad": 0.08,
+    "gripper_action_mode": "absolute",
+    "action_contract_string": "6D_arm_incremental_gripper_absolute",
+    "tcp_definition": "gripper_center = midpoint of the two finger-pad links",
+    "vecnormalize_runtime": {
+      "training": false,
+      "norm_reward": false
+    }
+  },
+  "grasp_home": {
+    "name": "E1",
+    "sim_rad": [0.0, -0.275, -1.42, -1.42, 0.0],
+    "api_deg": [90.0, 74.2, 8.6, 8.6, 90.0, 30.0]
+  },
+  "deployment_profile": {
+    "source": "The complete v23 E1 tuple that succeeded 3/3 on supervised hardware on 2026-08-30. These geometry/controller measurements are reused to isolate the model-pair change; the success result itself is not inherited by v24.",
+    "pose_tolerance_deg": 3.0,
+    "entry_xy_mm": 10.0,
+    "floor_finger_error_mm": 15.0,
+    "tcp_forward_error_mm": 20.0,
+    "jaw_track_fraction": 0.5,
+    "jaw_max_lag_deg": 15.0,
+    "s6_stall_grasp_steps": 2,
+    "locked_by_launcher": true
+  },
+  "target_envelope": {
+    "trained_x_range_m": [0.205, 0.28],
+    "trained_y_range_m": [-0.07, 0.065],
+    "formal_total": 235,
+    "formal_successes": 230,
+    "formal_success_rate": 0.9787234042553191,
+    "formal_min_cell_successes": 13,
+    "formal_cases_per_grid_cell": 15,
+    "remaining_failures": "2 sphere at (0.205,-0.070), 1 cylinder at (0.2425,+0.065), and 2 cylinder at (0.280,+0.065)."
+  },
+  "simulation_evidence": {
+    "formal_protocol_id": "grasp_v24_e1_r1_formal_90410_235",
+    "formal_seed": 90410,
+    "rows_recounted_locally": true,
+    "unique_case_seeds": 235,
+    "floor_penetration_episodes": 0,
+    "reported_floor_guard_interventions": 0,
+    "episodes_with_recorded_gripper_z_below_8mm": 97,
+    "minimum_recorded_gripper_z_m": 0.0008429372979896488,
+    "scope": "Static recount of delivered JSON. The simulator was not replayed and the model was not unpickled during intake.",
+    "files": [
+      "evidence/formal_claim.json",
+      "evidence/formal_evaluation_seed90410.json",
+      "evidence/selection_lock.json",
+      "evidence/training_metadata.json"
+    ]
+  },
+  "runtime_parity": {
+    "deploy_contract_lf_normalized_identical_to_v23": true,
+    "urdf_lf_normalized_identical_to_workspace": true,
+    "controller_equivalent_replay": false,
+    "floor_guard_8mm_parity": false,
+    "warning": "The formal evaluator uses simulator contact/magnet and scripted return behavior, while deployment uses encoder-based jaw contact, preventive swept-path FloorGuard, and the v23 staged controller. Zero simulated penetration does not prove deployment guard parity; do not lower the 8 mm guard."
+  },
+  "hardware_gates": {
+    "note": "All gates that depend on this exact model hash start false. Pose-only E1 measurements from v23 remain useful context but do not approve the new policy pair.",
+    "jetson_sb3_load_ok_for_new_pair": false,
+    "jetson_offline_tests_ok": false,
+    "jetson_dry_run_ok": false,
+    "deployment_floor_guard_parity": false,
+    "new_weight_fixed_coordinate_grasp": false,
+    "new_weight_visual_e1_grasp_3_of_3": false,
+    "new_weight_complete_log_reviewed": false,
+    "mission_integration_validated": false
+  },
+  "rollback": {
+    "production": "../v21/",
+    "previous_e1_candidate": "../v23/",
+    "rule": "Do not replace either manifest or model pair in place. Select a versioned launcher explicitly."
+  }
+}

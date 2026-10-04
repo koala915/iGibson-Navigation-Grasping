@@ -1,0 +1,48 @@
+<launch>
+  <!--
+    X3Plus TG30 navigation launch, measured on the real robot on 2026-09-27.
+
+    Measurements from the laser rotation centre:
+      floor to scan plane: 0.095 m
+      chassis front/rear: 0.05 / 0.25 m
+      chassis left/right: 0.12 / 0.12 m
+
+    The X3 URDF places base_link 0.0815 m above base_footprint, so the
+    remaining laser height relative to base_link is 0.0135 m.  The laser is
+    about 0.10 m ahead of the chassis centre.  A board placed physically in
+    front was observed at raw scan angle 180 degrees, hence the pi yaw.
+  -->
+  <node name="ydlidar_lidar_publisher"
+        pkg="ydlidar_ros_driver"
+        type="ydlidar_ros_driver_node"
+        output="screen">
+    <param name="port" type="string" value="/dev/ydlidar"/>
+    <param name="baudrate" type="int" value="512000"/>
+    <param name="frame_id" type="string" value="laser"/>
+    <param name="resolution_fixed" type="bool" value="true"/>
+    <param name="auto_reconnect" type="bool" value="true"/>
+    <param name="reversion" type="bool" value="false"/>
+    <!-- Publish REP-103 counter-clockwise angles; false mirrors left/right. -->
+    <param name="inverted" type="bool" value="true"/>
+    <param name="isSingleChannel" type="bool" value="false"/>
+    <param name="support_motor_dtr" type="bool" value="true"/>
+    <param name="lidar_type" type="int" value="0"/>
+    <param name="angle_min" type="double" value="-180"/>
+    <param name="angle_max" type="double" value="180"/>
+    <param name="range_min" type="double" value="0.1"/>
+    <param name="range_max" type="double" value="16.0"/>
+    <param name="frequency" type="double" value="10.0"/>
+    <param name="sample_rate" type="int" value="20"/>
+    <param name="ignore_array" type="string" value=""/>
+  </node>
+
+  <node name="base_footprint_to_base_link"
+        pkg="tf"
+        type="static_transform_publisher"
+        args="0 0 0.0815 0 0 0 base_footprint base_link 100"/>
+
+  <node name="base_link_to_laser"
+        pkg="tf"
+        type="static_transform_publisher"
+        args="0.10 0 0.0135 3.141592653589793 0 0 base_link laser 100"/>
+</launch>

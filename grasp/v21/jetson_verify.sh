@@ -110,7 +110,7 @@ echo "$gate" | grep -qi "serial Close" \
     || ok "拒絕發生在碰序列埠之前"
 
 echo
-echo "=== 7. controller 自測（需 all 119 checks passed）==="
+echo "=== 7. controller 自測（需 all 138 checks passed）==="
 # 用 grep 抓結果行而不是 tail：驅動的 "serial Close!" 之類訊息會在直譯器結束時
 # 才印出來，把結果行擠出尾端，看起來就像測試沒跑完。
 # 116 = 38 + 夾爪接觸處理（第 4 跑：物體夾住後指令仍走向 180，齒輪研磨；
@@ -124,8 +124,8 @@ echo "=== 7. controller 自測（需 all 119 checks passed）==="
 # 新增 26 項：_parse_payload 驗證、snapshot() 新鮮度、--latch-obj 凍結、--real --socket 雙重確認）。
 ctl=$(python3 test_deploy_controller.py 2>&1)
 echo "$ctl" | grep -E "checks passed|FAIL|Traceback|Error" || echo "$ctl" | tail -5
-echo "$ctl" | grep -q "all 119 checks passed" \
-    && ok "119 項全過" || bad "controller 自測未通過（完整輸出見上）"
+echo "$ctl" | grep -q "all 138 checks passed" \
+    && ok "138 項全過" || bad "controller 自測未通過（完整輸出見上）"
 # 測試不得碰硬體：若出現驅動的開/關埠訊息，代表有建構點漏掉 dry_run
 echo "$ctl" | grep -qi "serial Close" \
     && bad "測試過程開了序列埠（不該發生，檢查 ServoController 建構點）" \
@@ -142,6 +142,15 @@ rd=$(python3 test_servo_read.py 2>&1)
 echo "$rd" | grep -E "checks passed|FAIL|Traceback" || echo "$rd" | tail -5
 echo "$rd" | grep -q "all 37 checks passed" \
     && ok "37 項全過" || bad "伺服機讀取測試未通過（完整輸出見上）"
+
+echo
+echo "=== 7.6 一鍵 launcher 接線（需 all 29 checks passed）==="
+# 2026-08-14：launcher 還在傳 nav-home 外參、也沒傳 --homography，而 bridge 早就把 C3
+# 改成只收實測 homography。兩邊各自都對，是介面對不上——而且要等手臂走到 C3 才會發現。
+lch=$(python3 test_one_command_launcher.py 2>&1)
+echo "$lch" | grep -E "checks passed|FAIL|Traceback" || echo "$lch" | tail -5
+echo "$lch" | grep -q "all 29 checks passed" \
+    && ok "29 項全過" || bad "一鍵 launcher 接線測試未通過（完整輸出見上）"
 
 echo
 echo "=== 8. dry-run（不驅動伺服機；需 wrist_z_offset = 0.0564）==="
@@ -161,7 +170,7 @@ tail -3 /tmp/v21_guard.log
 echo
 echo "═══════════════════════════════════════════════════════════════"
 echo "Gate 判準："
-echo "  · 119 / 37 / 641 一字不差"
+echo "  · 135 / 37 / 641 / 29 一字不差"
 echo "  · wrist_z_offset 必須 0.0564（純幾何，跨平台不該變）"
 echo "  · Stage 序列 0→1 → jaw close → ABORT → retreat home，exit 0"
 echo "  · 策略步數容許 ±3 浮點漂移；超過就停下來回報"

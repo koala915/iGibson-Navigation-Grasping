@@ -1,0 +1,71 @@
+test_a_trailing_newline_does_not_sneak_through (__main__.TestArgvBuilding.test_a_trailing_newline_does_not_sneak_through)
+'$' matches before a trailing newline in Python; '\Z' does not. ... ok
+test_deliver_off_adds_the_flag (__main__.TestArgvBuilding.test_deliver_off_adds_the_flag) ... ok
+test_height_is_clamped_not_trusted (__main__.TestArgvBuilding.test_height_is_clamped_not_trusted) ... ok
+test_laps_cannot_go_negative (__main__.TestArgvBuilding.test_laps_cannot_go_negative) ... ok
+test_route_cannot_escape_the_project (__main__.TestArgvBuilding.test_route_cannot_escape_the_project) ... ok
+test_route_is_validated_too (__main__.TestArgvBuilding.test_route_is_validated_too) ... ok
+test_shell_metacharacters_refused (__main__.TestArgvBuilding.test_shell_metacharacters_refused) ... ok
+test_status_endpoint_points_at_this_server (__main__.TestArgvBuilding.test_status_endpoint_points_at_this_server) ... ok
+test_unknown_mode_refused (__main__.TestArgvBuilding.test_unknown_mode_refused) ... ok
+test_confirm_without_a_mission_says_so (__main__.TestHTTP.test_confirm_without_a_mission_says_so) ... ok
+test_healthz (__main__.TestHTTP.test_healthz) ... ok
+test_index_is_served (__main__.TestHTTP.test_index_is_served) ... ok
+test_preview_refuses_a_real_run_on_a_read_only_server (__main__.TestHTTP.test_preview_refuses_a_real_run_on_a_read_only_server) ... ok
+test_preview_returns_a_quoted_command (__main__.TestHTTP.test_preview_returns_a_quoted_command) ... ok
+test_sse_delivers_a_published_frame (__main__.TestHTTP.test_sse_delivers_a_published_frame) ... ok
+test_state_reports_the_hardware_gate (__main__.TestHTTP.test_state_reports_the_hardware_gate) ... ok
+test_static_traversal_is_refused (__main__.TestHTTP.test_static_traversal_is_refused)
+A path that climbs out of static/ must not be served. ... ok
+test_stop_is_safe_with_nothing_running (__main__.TestHTTP.test_stop_is_safe_with_nothing_running) ... ok
+test_unknown_route_is_404 (__main__.TestHTTP.test_unknown_route_is_404) ... ok
+test_a_stalled_client_does_not_block_the_others (__main__.TestHub.test_a_stalled_client_does_not_block_the_others)
+A phone that slept stops draining; it must not hold up the console. ... ok
+test_subscriber_receives_published_events (__main__.TestHub.test_subscriber_receives_published_events) ... ok
+test_formal_ui_keeps_only_the_requested_surfaces (__main__.TestLiteFrontend.test_formal_ui_keeps_only_the_requested_surfaces) ... ok
+test_qr_enters_the_console_without_an_ip_prompt (__main__.TestLiteFrontend.test_qr_enters_the_console_without_an_ip_prompt) ... ok
+test_confirm_reaches_the_child_stdin (__main__.TestMissionProcess.test_confirm_reaches_the_child_stdin)
+The mission blocks on input() before driving; a button answers it. ... C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\case.py:589: ResourceWarning: unclosed file <_io.TextIOWrapper name=3 encoding='utf-8'>
+  if method() is not None:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\case.py:589: ResourceWarning: unclosed file <_io.TextIOWrapper name=4 encoding='utf-8'>
+  if method() is not None:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_only_one_mission_at_a_time (__main__.TestMissionProcess.test_only_one_mission_at_a_time) ... ok
+test_output_is_captured_and_exit_recorded (__main__.TestMissionProcess.test_output_is_captured_and_exit_recorded) ... ok
+test_memory_reports_or_says_nothing (__main__.TestResourceGuards.test_memory_reports_or_says_nothing)
+Never invent a figure: off Linux the fields are simply absent. ... ok
+test_sse_clients_are_capped (__main__.TestResourceGuards.test_sse_clients_are_capped)
+A reconnect loop must not accumulate threads on a memory-bound box. ... ok
+test_the_console_never_opens_a_camera (__main__.TestResourceGuards.test_the_console_never_opens_a_camera) ... ok
+test_the_pipeline_no_longer_encodes_preview_frames (__main__.TestResourceGuards.test_the_pipeline_no_longer_encodes_preview_frames)
+JPEG encoding inside the detection loop was the largest cost added. ... ok
+test_a_missing_route_explains_itself (__main__.TestRoute.test_a_missing_route_explains_itself) ... ok
+test_a_readable_route_returns_map_frame_metres (__main__.TestRoute.test_a_readable_route_returns_map_frame_metres)
+Skipped where the route package is not checked out beside the repo. ... ok
+test_a_traversal_path_is_refused (__main__.TestRoute.test_a_traversal_path_is_refused) ... ok
+test_dry_run_is_the_default (__main__.TestSafetyGates.test_dry_run_is_the_default) ... ok
+test_estop_latch_blocks_a_new_start (__main__.TestSafetyGates.test_estop_latch_blocks_a_new_start) ... ok
+test_real_allowed_only_with_both (__main__.TestSafetyGates.test_real_allowed_only_with_both) ... ok
+test_real_refused_without_allow_real (__main__.TestSafetyGates.test_real_refused_without_allow_real) ... ok
+test_real_refused_without_operator_unlock (__main__.TestSafetyGates.test_real_refused_without_operator_unlock) ... ok
+test_simulate_never_drives (__main__.TestSafetyGates.test_simulate_never_drives) ... ok
+test_every_state_the_pipelines_report_has_ui_wording (__main__.TestSimpleReporter.test_every_state_the_pipelines_report_has_ui_wording)
+A state the front end cannot describe would render as a raw token. ... ok
+test_modes_b_and_c_are_told_where_to_report (__main__.TestSimpleReporter.test_modes_b_and_c_are_told_where_to_report) ... ok
+test_simulated_frames_match_the_wire_schema (__main__.TestSimulator.test_simulated_frames_match_the_wire_schema) ... ok
+test_the_script_only_uses_real_state_names (__main__.TestSimulator.test_the_script_only_uses_real_state_names)
+A simulated state the UI has no wording for would be a silent hole. ... ok
+test_a_real_emitter_frame_lands_in_the_console (__main__.TestStatusIngest.test_a_real_emitter_frame_lands_in_the_console)
+End to end over the loopback, using the mission's own emitter. ... ok
+test_garbage_datagrams_are_ignored (__main__.TestStatusIngest.test_garbage_datagrams_are_ignored) ... ok
+test_the_mission_defaults_to_the_throttled_period (__main__.TestTelemetryCost.test_the_mission_defaults_to_the_throttled_period) ... ok
+test_unchanged_ticks_are_collapsed (__main__.TestTelemetryCost.test_unchanged_ticks_are_collapsed) ... ok
+
+----------------------------------------------------------------------
+Ran 47 tests in 7.162s
+
+OK
+[map-goal] re-sampled route at 0.75 m: 117 -> 83 waypoints; min gap 0.049 -> 0.530 m (45 gaps under 0.5 m -> 0); loop length 58.2 m
+[map-goal] re-sampled route at 0.75 m: 117 -> 83 waypoints; min gap 0.049 -> 0.530 m (45 gaps under 0.5 m -> 0); loop length 58.2 m

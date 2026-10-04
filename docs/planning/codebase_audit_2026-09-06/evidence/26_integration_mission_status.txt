@@ -1,0 +1,13 @@
+== mission status selftest ==
+  endpoint parsing rejects the malformed forms
+  disabled emitter builds frames and drops sends
+  infinite and NaN measurements become null, so the frame stays JSON
+  lifted counts objects, not ticks (2)
+  a frame sent over the loopback arrives intact
+  an oversized reason is trimmed instead of losing the frame
+  50 unchanged ticks publish once (49 skipped)
+  a state change is published immediately regardless of the throttle
+  --status-period 0 restores every-tick publishing
+  SimpleReporter derives the drive/arm gates from the real FSM sets
+  an invented state name is refused, not silently published
+== all mission status selftests passed ==

@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
@@ -67,14 +68,13 @@ class TestSafetyGates(unittest.TestCase):
         r = c.build_argv({"mode": "A", "real": True, "unlock": False})
         self.assertIn("error", r)
 
-    def test_real_allowed_only_with_both(self):
+    def test_real_still_refused_when_mode_specific_evidence_is_unavailable(self):
         c = srv.Console(Args(allow_real=True))
-        r = c.build_argv({"mode": "A", "real": True, "unlock": True})
-        self.assertNotIn("error", r)
-        self.assertIn("--real", r["argv"])
-        # The grasp package is still 'candidate', so a real run has to carry the
-        # unlock flag or the mission itself refuses to start.
-        self.assertIn("--unlock-candidate-real", r["argv"])
+        for mode in "ABC":
+            with self.subTest(mode=mode):
+                r = c.build_argv({"mode": mode, "real": True, "unlock": True})
+                self.assertIn("error", r)
+                self.assertNotIn("argv", r)
 
     def test_simulate_never_drives(self):
         c = srv.Console(Args(allow_real=True, simulate=True))
@@ -149,6 +149,24 @@ class TestArgvBuilding(unittest.TestCase):
                       self.c.build_argv({"mode": "A", "deliver": False})["argv"])
         self.assertNotIn("--no-deliver",
                          self.c.build_argv({"mode": "A", "deliver": True})["argv"])
+
+    def test_each_dry_mode_is_accepted_by_its_real_parser(self):
+        import mission_pipeline
+        import vision_grasp_bridge
+        import nav_rl_grasp_pipeline
+        parsers = {
+            "A": mission_pipeline.parse_args,
+            "B": vision_grasp_bridge.parse_args,
+            "C": nav_rl_grasp_pipeline.parse_args,
+        }
+        for mode, parser in parsers.items():
+            argv = self.c.build_argv({"mode": mode})["argv"]
+            with self.subTest(mode=mode), mock.patch.object(sys, "argv", argv[1:]):
+                parsed = parser()
+                if mode in ("A", "B"):
+                    self.assertTrue(parsed.dry_run)
+                else:
+                    self.assertFalse(parsed.real)
 
 
 class TestHub(unittest.TestCase):

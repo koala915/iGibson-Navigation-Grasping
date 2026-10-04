@@ -1,0 +1,71 @@
+pybullet build time: Jul 10 2026 12:08:18
+[WARNING] Rosmaster_Lib not found. Servo output will be printed only (dry-run). --real will refuse to start.
+Servo-read tests for the half-duplex bus, with a stub driver. No hardware.
+
+1. the array API is preferred: one bus transaction, not six
+  [ok]   read succeeds on a quiet bus
+  [ok]   1 bus transaction (got 1)
+  [ok]   per-servo path untouched (got 0 calls)
+  [ok]   angles come back intact
+
+2. the Jetson failure: a read issued straight after a write
+  [ok]   read now succeeds where the old code reported S1: -1
+  [ok]   it took a retry (8 transactions)
+  [ok]   recovery cost 71 ms, not a run abort
+
+3. the quiet window alone handles short contention
+  [ok]   read succeeds
+  [ok]   no retry needed: the wait absorbed it (1 transactions)
+
+4. fallback when the board has no array API
+  [ok]   falls back to per-servo reads and still succeeds
+  [ok]   read all six individually (6)
+
+5. fallback when the array API exists but answers -1
+  [ok]   per-servo path rescues an unsupported array call
+  [ok]   read all six individually (6)
+
+6. array answers for the arm but not the gripper: fill the hole, not the array
+  [ok]   read succeeds
+  [ok]   2 transactions, not 7 (got 2)
+  [ok]   only the gripper re-read individually (got 1)
+  [ok]   gripper angle correct (got 30.0)
+
+7. a board that never serves the array request stops being asked
+[INFO] get_uart_servo_angle_array keeps returning nothing usable; per-servo reads from here on.
+  [ok]   steady state is 6 per-servo reads, no wasted array call (got 6)
+
+8. read failures are counted per servo for the run summary
+  [ok]   gripper failures counted: 'servo read failures: 12 (S1×2, S2×2, S3×2, S4×2, S5×2, S6×2)'
+  [ok]   summary reports a total: 'servo read failures: 12 (S1×2, S2×2, S3×2, S4×2, S5×2, S6×2)'
+
+9. a shifted bus pipeline is recovered, not reported as failure
+  [ok]   all six read despite every response arriving off by one
+  [ok]   no NaN got through: [90.0, 67.0, 10.0, 10.0, 90.0, 30.0]
+  [ok]   misdirected responses were counted (5)
+  [ok]   a recovered shift is not a failure: 'servo reads: no failures; 5 misdirected response(s) recovered'
+  [ok]   but it is still reported as evidence: 'servo reads: no failures; 5 misdirected response(s) recovered'
+
+10. and this is what the driver's own wrapper does with that same traffic
+  [ok]   the first read, still in step, works (got 90.0)
+  [ok]   the other five good readings are discarded as -1: [90.0, -1, -1, -1, -1, -1]
+
+11. a driver without the raw call still reads, through the wrapper
+  [ok]   falls back to get_uart_servo_angle and succeeds
+  [ok]   six per-servo reads (6)
+
+12. FAIL-CLOSED: a genuinely unreadable bus is still reported unknown
+  [ok]   invalid, not optimistic
+  [ok]   every angle NaN, no last-command substitution (got [nan, nan, nan, nan, nan, nan])
+  [ok]   did not hand back the last command as a measurement
+  [ok]   reason names the retries: 'unreadable: S1, S2, S3, S4, S5, S6 (after 2 attempts)'
+
+13. FAIL-CLOSED: NaN from the driver is not waved through
+  [ok]   NaN rejected rather than treated as a valid reading
+  [ok]   names the offending servo: 'unreadable: S2 (after 3 attempts)'
+
+14. no device: unchanged fail-closed behaviour
+  [ok]   invalid without a board
+  [ok]   all NaN without a board
+
+all 37 checks passed — servo reads survive the half-duplex bus

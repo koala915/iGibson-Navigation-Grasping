@@ -1,0 +1,23 @@
+test_the_declared_convention_matches_what_the_adapter_expects (__main__.TestContractWithThePublisher.test_the_declared_convention_matches_what_the_adapter_expects) ... ok
+test_the_pipeline_still_defines_offset_as_right_positive (__main__.TestContractWithThePublisher.test_the_pipeline_still_defines_offset_as_right_positive) ... ok
+test_the_publisher_and_the_adapter_agree_on_every_field (__main__.TestContractWithThePublisher.test_the_publisher_and_the_adapter_agree_on_every_field) ... ok
+test_a_frame_mismatch_is_refused (__main__.TestFailsClosed.test_a_frame_mismatch_is_refused) ... ok
+test_a_stale_fix_is_not_found (__main__.TestFailsClosed.test_a_stale_fix_is_not_found) ... ok
+test_a_wildly_future_stamp_is_not_found (__main__.TestFailsClosed.test_a_wildly_future_stamp_is_not_found) ... ok
+test_an_object_behind_the_origin_is_not_found (__main__.TestFailsClosed.test_an_object_behind_the_origin_is_not_found) ... ok
+test_invalid_payload_is_not_found (__main__.TestFailsClosed.test_invalid_payload_is_not_found) ... ok
+test_no_target_is_not_found (__main__.TestFailsClosed.test_no_target_is_not_found) ... ok
+test_non_finite_coordinates_are_refused (__main__.TestFailsClosed.test_non_finite_coordinates_are_refused) ... ok
+test_accepts_json_text_mapping_and_rosbridge_envelope (__main__.TestParsing.test_accepts_json_text_mapping_and_rosbridge_envelope) ... ok
+test_distance_is_derived_when_absent (__main__.TestParsing.test_distance_is_derived_when_absent) ... ok
+test_garbage_returns_none_rather_than_raising (__main__.TestParsing.test_garbage_returns_none_rather_than_raising) ... ok
+test_the_publisher_shutdown_message_parses_as_invalid (__main__.TestParsing.test_the_publisher_shutdown_message_parses_as_invalid) ... ok
+test_dead_ahead_is_zero_either_way (__main__.TestSignConvention.test_dead_ahead_is_zero_either_way) ... ok
+test_object_on_the_left_reports_a_negative_offset (__main__.TestSignConvention.test_object_on_the_left_reports_a_negative_offset) ... ok
+test_object_on_the_right_reports_a_positive_offset (__main__.TestSignConvention.test_object_on_the_right_reports_a_positive_offset) ... ok
+test_the_flip_is_not_accidentally_symmetric (__main__.TestSignConvention.test_the_flip_is_not_accidentally_symmetric) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.003s
+
+OK

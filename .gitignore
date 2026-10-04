@@ -81,4 +81,13 @@ build/
 !grasp/trained_6d_models_v17/*.zip
 !grasp/trained_6d_models_v18/*.zip
 !grasp/v21/models/*.zip
+!grasp/v23/models/*.zip
+!grasp/v24/models/*.zip
 !integration/nav_best_model/*.zip
+
+# The v23 delivery package is 205 MB of meshes and a copy of the controller --
+# it is built from the tree, not authored here. Ship it out of band.
+grasp/deploy_v23/
+.venv-approach/
+# Official SAM2 download is 154 MB; fetch locally as documented, do not commit.
+/detection/models/sam2.1_b.pt

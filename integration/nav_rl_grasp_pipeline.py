@@ -19,7 +19,9 @@ policy instead of the hand-tuned rear-camera state machine:
 Run:
     python nav_rl_grasp_pipeline.py --selftest              # pure logic, no hw
     python nav_rl_grasp_pipeline.py --no-lidar              # dry-run w/o lidar
-    python nav_rl_grasp_pipeline.py --real --show           # full run (needs lidar)
+
+The integrated --real path is intentionally refused until measured grasp-home
+homography mapping is connected to final alignment and target latching.
 
 HARDWARE PREREQUISITES (same as vision_grasp_pipeline.py, plus lidar):
     * port-7000 motor server / ROS base driver NOT running
@@ -183,7 +185,7 @@ class RLNavigator(vgp.Navigator):
             vx, wz, stall = nr.shape_action(executed, obs, cfg)
 
             # ── geometric safety brake (raw points see below the ray floor) ──
-            fmin = nr.front_min_raw(pts, cfg)
+            fmin = nr.front_min_brake(pts, cfg)
             braked = fmin < cfg.safety_brake_dist and vx > 0.0
             if braked:
                 vx = 0.0
@@ -245,7 +247,7 @@ class RLNavigator(vgp.Navigator):
                 # the RL navigator before issuing any camera-driven motion.
                 vx, _vy, _vz = vgp.action_to_vxyz(action, speed)
                 if vx > 0.0:
-                    front = nr.front_min_raw(self.lidar.get_points(), self.ncfg)
+                    front = nr.front_min_brake(self.lidar.get_points(), self.ncfg)
                     if front < self.ncfg.safety_brake_dist:
                         self.stop()
                         print(f"[nav-rl] ARM_ALIGN brake: front={front:.2f} m")
@@ -443,15 +445,17 @@ def run_pipeline(args):
             else:
                 report.say("VERIFY", "VERIFY", "checking the object left the floor",
                            attempt=attempt)
-                if nav.verify_grasp(obj_pos):
+                verification = nav.verify_grasp(obj_pos)
+                if verification is True:
                     report.say("COMPLETE", "STOP",
                                f"grasp succeeded on attempt {attempt}", attempt=attempt,
                                lifted=1)
                     print(f"[pipeline] OK grasp succeeded on attempt {attempt}.")
                     success = True
                     break
-                report.say("RETRY", "BACK_OFF", "object is still on the floor",
-                           attempt=attempt)
+                reason = ("object is still on the floor" if verification is False
+                          else "grasp verification unavailable")
+                report.say("RETRY", "BACK_OFF", reason, attempt=attempt)
             print("[pipeline] FAILED grasp — retreating and retrying.")
             controller.move_home()   # guarded; ensures gripper open for retry
             time.sleep(1.0)
@@ -516,10 +520,11 @@ def run_selftest():
     print("\n== safety brake precedence ==")
     obs = nr.build_nav_obs(2.0, 0.0, 0.0, 0.0, np.zeros(2), np.full(48, 4.0, np.float32))
     vx, wz, _ = nr.shape_action(np.array([1.0, 0.0]), obs, cfg)
-    pts = [(0.0, 0.15)]                # something 15 cm dead ahead
-    fmin = nr.front_min_raw(pts, cfg)
+    # Three adjacent returns at 25 cm form a normal-zone obstacle cluster.
+    pts = [(-0.2, 0.25), (0.0, 0.25), (0.2, 0.25)]
+    fmin = nr.front_min_brake(pts, cfg)
     assert fmin < cfg.safety_brake_dist and vx > 0
-    print(f"  vx={vx:.2f} -> braked to 0.0 (front raw {fmin:.2f} m)")
+    print(f"  vx={vx:.2f} -> braked to 0.0 (front cluster {fmin:.2f} m)")
 
     print("\n[selftest] OK")
 
@@ -562,8 +567,10 @@ def parse_args():
     p.add_argument("--lidar-backend", choices=("ros", "rplidar", "none"),
                    default="ros", help="scan source (X3Plus TG30 default: ros)")
     p.add_argument("--lidar-port", type=str, default=None)
-    p.add_argument("--lidar-yaw-offset-deg", type=float, default=None)
-    p.add_argument("--lidar-forward-offset-m", type=float, default=0.0)
+    p.add_argument("--lidar-yaw-offset-deg", type=float, default=180.0,
+                   help="measured TG30 yaw; raw 180 deg points robot-forward")
+    p.add_argument("--lidar-forward-offset-m", type=float, default=0.10,
+                   help="measured LiDAR origin ahead(+) of base footprint")
     p.add_argument("--lidar-orientation-evidence", default=None,
                    help="verified Route B four-direction evidence/marker; required by --real")
     p.add_argument("--lidar-dir", type=float, default=None, choices=(-1.0, 1.0))

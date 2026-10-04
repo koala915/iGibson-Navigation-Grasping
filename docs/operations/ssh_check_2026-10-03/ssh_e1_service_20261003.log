@@ -1,0 +1,139 @@
+[DetectionReceiver] New detection from ('127.0.0.1', 50360): pos=[0.2728999853134155, -0.014800000004470348, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50376): pos=[0.2793999910354614, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50378): pos=[0.2793999910354614, -0.015300000086426735, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50392): pos=[0.2793000042438507, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50394): pos=[0.2793000042438507, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50408): pos=[0.2791000008583069, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50410): pos=[0.2791999876499176, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50424): pos=[0.27900001406669617, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50428): pos=[0.2791000008583069, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50440): pos=[0.27900001406669617, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50454): pos=[0.27900001406669617, -0.01510000042617321, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50456): pos=[0.27889999747276306, -0.01510000042617321, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50470): pos=[0.27900001406669617, -0.015200000256299973, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50472): pos=[0.27790001034736633, -0.012900000438094139, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50486): pos=[0.27059999108314514, -0.014700000174343586, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50488): pos=[0.27059999108314514, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50502): pos=[0.27070000767707825, -0.014800000004470348, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50504): pos=[0.27070000767707825, -0.014800000004470348, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50518): pos=[0.27059999108314514, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50532): pos=[0.27059999108314514, -0.014800000004470348, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50534): pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50548): pos=[0.27070000767707825, -0.014800000004470348, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50550): pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50564): pos=[0.27070000767707825, -0.014800000004470348, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50566): pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50580): pos=[0.27059999108314514, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50582): pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50596): pos=[0.27059999108314514, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50600): pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50614): pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50616): pos=[0.27059999108314514, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 50630): pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+============================================================
+X3Plus Real Grasp Controller
+  Stage 0 → align gripper above object
+  Stage 1 → close gripper (grasp)
+  Stage 2 → lift and return home
+============================================================
+[Start] Moving to grasp start pose [90.0, 74.2, 8.6, 8.6, 90.0, 30.0]...
+[Start] home: reached=True (arrived, 1 steps; tolerance 3.0 deg)
+[Latch] cam_pose stamp v23_e1_grasp_home agrees with the encoders (worst joint off by 0.60 deg, tol 3.0 deg)
+[Latch] Object latched at home pose: pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065m
+[Start] Object position: [0.27070000767707825, -0.01489999983459711, 0.032499998807907104]
+[Start] Running for up to 300 steps at 10.0 Hz
+[Init] episode wrist_z_offset = 0.0565 m (object height 0.065, resting z 0.0325)
+[Step   1] Stage=0 target_dist=0.091m grip_cmd=-0.82 S1-6=[90.0, 74.0, 8.0, 9.0, 90.0, 30.0][Step   2] Stage=0 target_dist=0.091m grip_cmd=-1.00 S1-6=[90.0, 72.0, 10.0, 11.0, 90.0, 38.0][Step   3] Stage=0 target_dist=0.086m grip_cmd=-1.00 S1-6=[91.0, 69.0, 11.0, 12.0, 91.0, 35.0][Step   4] Stage=0 target_dist=0.082m grip_cmd=-0.99 S1-6=[91.0, 68.0, 13.0, 14.0, 91.0, 30.0][DetectionReceiver] New detection from ('127.0.0.1', 50644): pos=[0.27070000767707825, -0.014800000004470348, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[Step   5] Stage=0 target_dist=0.078m grip_cmd=-0.99 S1-6=[91.0, 65.0, 15.0, 15.0, 92.0, 30.0][Step   6] Stage=0 target_dist=0.073m grip_cmd=-0.97 S1-6=[91.0, 63.0, 16.0, 16.0, 93.0, 30.0][Step   7] Stage=0 target_dist=0.069m grip_cmd=-0.95 S1-6=[91.0, 61.0, 18.0, 17.0, 93.0, 32.0][Step   8] Stage=0 target_dist=0.066m grip_cmd=-0.93 S1-6=[91.0, 58.0, 19.0, 18.0, 94.0, 33.0][Step   9] Stage=0 target_dist=0.061m grip_cmd=-0.90 S1-6=[91.0, 56.0, 21.0, 19.0, 94.0, 34.0][Step  10] Stage=0 target_dist=0.057m grip_cmd=-0.88 S1-6=[91.0, 54.0, 23.0, 20.0, 95.0, 37.0][Step  11] Stage=0 target_dist=0.054m grip_cmd=-0.86 S1-6=[91.0, 51.0, 24.0, 20.0, 95.0, 39.0][Step  12] Stage=0 target_dist=0.050m grip_cmd=-0.82 S1-6=[91.0, 49.0, 26.0, 21.0, 95.0, 40.0][Step  13] Stage=0 target_dist=0.046m grip_cmd=-0.79 S1-6=[91.0, 48.0, 27.0, 21.0, 95.0, 43.0][Step  14] Stage=0 target_dist=0.044m grip_cmd=-0.78 S1-6=[92.0, 48.0, 27.0, 22.0, 95.0, 44.0][Step  15] Stage=0 target_dist=0.043m grip_cmd=-0.77 S1-6=[92.0, 46.0, 28.0, 22.0, 95.0, 45.0][DetectionReceiver] New detection from ('127.0.0.1', 50646): pos=[0.27070000767707825, -0.01489999983459711, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[Step  16] Stage=0 target_dist=0.040m grip_cmd=-0.74 S1-6=[92.0, 45.0, 28.0, 22.0, 94.0, 47.0][Step  17] Stage=0 target_dist=0.039m grip_cmd=-0.70 S1-6=[93.0, 45.0, 29.0, 23.0, 94.0, 48.0][Step  18] Stage=0 target_dist=0.038m grip_cmd=-0.69 S1-6=[93.0, 43.0, 29.0, 23.0, 93.0, 51.0][Step  19] Stage=0 target_dist=0.035m grip_cmd=-0.63 S1-6=[94.0, 42.0, 30.0, 23.0, 92.0, 52.0][Step  20] Stage=0 target_dist=0.033m grip_cmd=-0.58 S1-6=[94.0, 42.0, 30.0, 24.0, 92.0, 55.0][Step  21] Stage=0 target_dist=0.032m grip_cmd=-0.55 S1-6=[94.0, 40.0, 31.0, 24.0, 90.0, 59.0][Step  22] Stage=0 target_dist=0.029m grip_cmd=-0.47 S1-6=[94.0, 39.0, 31.0, 24.0, 90.0, 61.0][Step  23] Stage=0 target_dist=0.028m grip_cmd=-0.38 S1-6=[94.0, 39.0, 31.0, 25.0, 89.0, 66.0][Step  24] Stage=0 target_dist=0.027m grip_cmd=-0.30 S1-6=[94.0, 38.0, 31.0, 25.0, 89.0, 71.0]
+[Gate  25] xy=17.8/10mm z=19.2/18mm r=26.2/26mm centred=False pads_ready=False (pad_after_close=63.2mm, object_top=65.0mm) guard={'pass': 24}
+[Step  25] Stage=0 target_dist=0.026m grip_cmd=-0.17 S1-6=[94.0, 37.0, 31.0, 26.0, 88.0, 75.0][Step  26] Stage=0 target_dist=0.024m grip_cmd=-0.02 S1-6=[94.0, 37.0, 31.0, 26.0, 88.0, 81.0][Step  27] Stage=0 target_dist=0.024m grip_cmd=0.14 S1-6=[94.0, 37.0, 31.0, 27.0, 87.0, 85.0][Step  28] Stage=0 target_dist=0.022m grip_cmd=0.28 S1-6=[94.0, 35.0, 31.0, 27.0, 87.0, 91.0][Step  29] Stage=0 target_dist=0.022m grip_cmd=0.51 S1-6=[94.0, 35.0, 31.0, 28.0, 86.0, 96.0][Step  30] Stage=0 target_dist=0.020m grip_cmd=0.67 S1-6=[94.0, 35.0, 31.0, 28.0, 86.0, 101.0][Step  31] Stage=0 target_dist=0.020m grip_cmd=0.80 S1-6=[95.0, 33.0, 31.0, 29.0, 85.0, 106.0][Step  32] Stage=0 target_dist=0.020m grip_cmd=0.92 S1-6=[95.0, 33.0, 31.0, 29.0, 85.0, 111.0][Step  33] Stage=0 target_dist=0.020m grip_cmd=0.99 S1-6=[95.0, 33.0, 31.0, 29.0, 85.0, 116.0][Step  34] Stage=0 target_dist=0.020m grip_cmd=1.00 S1-6=[95.0, 32.0, 31.0, 30.0, 84.0, 121.0][Step  35] Stage=0 target_dist=0.019m grip_cmd=1.00 S1-6=[95.0, 32.0, 31.0, 30.0, 84.0, 126.0][Step  36] Stage=0 target_dist=0.019m grip_cmd=1.00 S1-6=[95.0, 32.0, 31.0, 30.0, 83.0, 131.0][Step  37] Stage=0 target_dist=0.019m grip_cmd=1.00 S1-6=[95.0, 31.0, 31.0, 31.0, 83.0, 136.0][Step  38] Stage=0 target_dist=0.018m grip_cmd=1.00 S1-6=[95.0, 31.0, 31.0, 31.0, 83.0, 141.0][Step  39] Stage=0 target_dist=0.018m grip_cmd=1.00 S1-6=[95.0, 31.0, 31.0, 31.0, 82.0, 145.0][Step  40] Stage=0 target_dist=0.018m grip_cmd=1.00 S1-6=[95.0, 30.0, 31.0, 31.0, 82.0, 148.0]
+[Stage] 0→2  S6 slipping for 2 steps at 150.0deg (encoder moved 2.0deg of 7.0deg requested); jaw stalled at 151.0deg (19.3% short of closed). Holding at 151.0deg (+1deg bias).
+[Stage 2] grasp check: CONFIRMED — jaw stalled at 151.0deg (19.3% short of closed)
+[Stage 2] lift direction: S2 +0.05 rad raises gripper_center (6.9cm vs 5.3cm)
+[Stage 2] lift 1/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 2/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 3/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 4/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 5/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 6/6: reached=True (arrived) guard={'pass'}
+[Stage 2] return home: reached=True (arrived, 5 steps)
+[Stage 2] post-return check: CONFIRMED — jaw stalled at 152.0deg (18.7% short of closed)
+[Done] Scripted return complete; object still detected in the jaw.
+[End] The jaw keeps its hold — take the object, then Ctrl+C. The servos hold position while powered.
+[service] episode 1: confirmed=True outcome=confirmed 6.89s  rss 512 MB
+============================================================
+X3Plus Release — Stage 3 only
+  reach forward, open jaw, return home (bin rim 5cm)
+============================================================
+[Start] Measured pose S1-6 = [90.0, 73.0, 8.0, 9.0, 90.0, 152.0]
+[Start] grasp check: CONFIRMED — jaw stalled at 152.0deg (18.7% short of closed)
+[Stage 3] reach direction: S2 +0.05 rad extends forward (23.1cm vs 22.2cm)
+[Stage 3] reach 1/6: reached=True (arrived) guard={'pass'}
+[Stage 3] reach 2/6: reached=True (arrived) guard={'pass'}
+[Stage 3] reach 3/6: reached=True (arrived) guard={'pass'}
+[Stage 3] reach 4/6: reached=True (arrived) guard={'pass'}
+[Stage 3] reach 5/6: reached=True (arrived) guard={'pass'}
+[Stage 3] reach 6/6: reached=True (arrived) guard={'pass'}
+[Stage 3] releasing at x=23.8cm (+1.1cm forward of the post-lift pose), pad bottom 10.8cm vs rim 5cm
+[Stage 3] open jaw: reached=True (arrived, 15 steps)
+[Stage 3] return home: reached=True (arrived)
+[Done] Release motion complete (the drop itself is not sensed).
+[DetectionReceiver] New detection from ('127.0.0.1', 51172): pos=[0.262800008058548, -0.005200000014156103, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51174): pos=[0.26269999146461487, -0.005799999926239252, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51188): pos=[0.26269999146461487, -0.00570000009611249, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51190): pos=[0.26269999146461487, -0.00570000009611249, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51204): pos=[0.26269999146461487, -0.00570000009611249, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51206): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51220): pos=[0.26269999146461487, -0.005799999926239252, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51222): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51236): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51250): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51252): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51266): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51268): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51282): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51284): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51298): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51300): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51314): pos=[0.26260000467300415, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51316): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51330): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51332): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51346): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51348): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51362): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51378): pos=[0.26260000467300415, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51380): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51394): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51396): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51410): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51412): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51426): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51428): pos=[0.26260000467300415, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51442): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51444): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51458): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51460): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51474): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51488): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51490): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51504): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51506): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51520): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51522): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51536): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51538): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51552): pos=[0.26260000467300415, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51554): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51568): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51570): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51584): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51598): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51602): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51616): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51618): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51632): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51634): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51648): pos=[0.26269999146461487, -0.005900000222027302, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home
+[DetectionReceiver] New detection from ('127.0.0.1', 51650): pos=[0.26269999146461487, -0.006000000052154064, 0.032499998807907104] height=0.065 cam_pose=v23_e1_grasp_home

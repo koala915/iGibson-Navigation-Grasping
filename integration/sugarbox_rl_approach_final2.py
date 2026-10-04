@@ -1,3 +1,5 @@
+# Upstream: enoch20050427/iGibson-Navigation-Grasping PR #6, cf0b3ad0cb648c9fd1f1609e958ea2250e587e64.
+# Local changes: configurable assets; opt-in stopped arrival exit for E1 handoff.
 import cv2
 import json
 import math
@@ -31,6 +33,7 @@ else:
     )
 
 
+
 # ============================================================
 # 0. 執行模式
 # ============================================================
@@ -59,31 +62,20 @@ RUN_MODE = os.environ.get(
 
 
 # ============================================================
-# 1. Windows 路徑
+# 1. 資產路徑
 # ============================================================
 
-REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ASSET_PATHS = resolve_asset_paths(REPO_DIR)
-BASE_DIR = ASSET_PATHS['base_dir']
-
-YOLO_MODEL_PATH = ASSET_PATHS['yolo']
-
-SAM2_MODEL_PATH = ASSET_PATHS['sam']
-
-HOMOGRAPHY_PATH = ASSET_PATHS['homography']
-
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSET_PATHS = resolve_asset_paths(REPO_ROOT)
+BASE_DIR = ASSET_PATHS["base_dir"]
+YOLO_MODEL_PATH = ASSET_PATHS["yolo"]
+SAM2_MODEL_PATH = ASSET_PATHS["sam"]
+HOMOGRAPHY_PATH = ASSET_PATHS["homography"]
 
 # 你原本 PPO
-RL_MODEL_PATH = os.environ.get(
-    "SUGARBOX_RL_MODEL", os.path.join(
-        REPO_DIR, "integration", "nav_best_model", "doorway_ft_final.zip")
-)
+RL_MODEL_PATH = os.environ.get("SUGARBOX_RL_MODEL", os.path.join(os.path.dirname(__file__), "nav_best_model", "doorway_ft_final.zip"))
 
-VECNORMALIZE_PATH = os.environ.get(
-    "SUGARBOX_VECNORMALIZE", os.path.join(
-        REPO_DIR, "integration", "nav_best_model",
-        "doorway_ft_final_vecnormalize.pkl")
-)
+VECNORMALIZE_PATH = os.environ.get("SUGARBOX_VECNORMALIZE", os.path.join(os.path.dirname(__file__), "nav_best_model", "doorway_ft_final_vecnormalize.pkl"))
 
 
 # ============================================================
@@ -384,21 +376,21 @@ FRONT_HARD_STOP_EXIT_M = 0.22
 # Forward block hysteresis：
 # < 0.26 m 才禁止正向 vx；
 # 必須 > 0.32 m 才解除。wz 仍交給 PPO。
-FRONT_BLOCK_ENTER_M = 0.45
-FRONT_BLOCK_EXIT_M = 0.55
+FRONT_BLOCK_ENTER_M = 0.30
+FRONT_BLOCK_EXIT_M = 0.36
 
 # 只在 0.50 m 內才開始額外縮小正向速度；更遠完全不干預 PPO。
-FRONT_SLOW_START_M = 0.80
+FRONT_SLOW_START_M = 0.55
 
 # 近障礙物時只做「轉向方向防抖」，而且現在到 0.42 m 內才啟用。
 # PPO 的 |wz| 大小仍然直接使用；只有左右方向若每幀反覆翻轉，
 # 需要連續兩個 control tick 都要求新方向才允許切換。
 # 這避免在障礙物前 LEFT/RIGHT/LEFT/RIGHT 原地抖很久，
 # 又不會讓舊的 wz 大小殘留造成繞過後繼續轉。
-AVOID_TURN_HOLD_ENTER_M = 0.70
-AVOID_TURN_HOLD_EXIT_M = 0.85
+AVOID_TURN_HOLD_ENTER_M = 0.45
+AVOID_TURN_HOLD_EXIT_M = 0.55
 AVOID_TURN_MIN_ABS_WZ = 0.12
-AVOID_TURN_SWITCH_CONFIRM_TICKS = 3
+AVOID_TURN_SWITCH_CONFIRM_TICKS = 2
 
 # ============================================================
 # 12b. 250-degree side-clearance safety (outside PPO)
@@ -407,24 +399,20 @@ AVOID_TURN_SWITCH_CONFIRM_TICKS = 3
 # We only widen the *external safety layer* to -125..+125 deg so obstacles
 # that slide alongside the chassis remain visible after they leave the
 # narrow front sector.
-SIDE_SAFETY_MAX_ANGLE_DEG = 90.0
+SIDE_SAFETY_MAX_ANGLE_DEG = 125.0
 SIDE_SAFETY_FRONT_EXCLUDE_DEG = 25.0
 SIDE_ROBUST_PERCENTILE = 5.0
 SIDE_ROBUST_MIN_POINTS = 8
 
 # If an obstacle is this close on one side, do not allow PPO to keep
 # steering farther toward that side. Hysteresis avoids edge chatter.
-SIDE_TURN_GUARD_ENTER_M = 0.32
-SIDE_TURN_GUARD_EXIT_M = 0.40
-SIDE_STRICT_GUARD_ENTER_M = 0.20
-SIDE_STRICT_GUARD_EXIT_M = 0.24
+SIDE_TURN_GUARD_ENTER_M = 0.20
+SIDE_TURN_GUARD_EXIT_M = 0.24
 
 # If the side clearance becomes very small, also cap forward speed.
 # This is intentionally a soft cap rather than a full stop.
-SIDE_VX_SLOW_ENTER_M = 0.32
-SIDE_VX_CAP_MPS = 0.04
-SIDE_VX_STOP_ENTER_M = 0.22
-SIDE_VX_STOP_EXIT_M = 0.28
+SIDE_VX_SLOW_ENTER_M = 0.16
+SIDE_VX_CAP_MPS = 0.06
 
 # ============================================================
 # 12c. Hard-stop simple reverse recovery
@@ -513,7 +501,10 @@ CENTER_CONTROL_PERIOD = 1.0 / CENTER_CONTROL_HZ
 # 這裡不再用 Homography 距離當作提前到站條件，避免明明還沒到畫面底部
 # 就因 dist <= 0.45 m 被提前鎖死。
 FINAL_APPROACH_VX = 0.08
-FINAL_APPROACH_TRAVEL_M = 0.15
+FINAL_APPROACH_TRAVEL_M = float(os.environ.get("SUGARBOX_FINAL_TRAVEL_M", "0.15"))
+if not math.isfinite(FINAL_APPROACH_TRAVEL_M) or not 0.0 < FINAL_APPROACH_TRAVEL_M <= 0.15:
+    raise ValueError("SUGARBOX_FINAL_TRAVEL_M must be in (0, 0.15]")
+EXIT_ON_ARRIVAL = os.environ.get("SUGARBOX_EXIT_ON_ARRIVAL", "0") == "1"
 FINAL_APPROACH_MAX_DURATION_S = 3.5
 
 
@@ -2549,14 +2540,18 @@ def raw_side_metrics(scan):
 class AntiJitterSafetyFilter:
 
     """
-    名稱為了少改主程式而保留，但這版已經「沒有 anti-jitter smoothing」。
+    名稱為了少改主程式而保留；這個 class 本身不做 PPO temporal smoothing。
 
-    PPO 路徑只做 LiDAR safety：
+    PPO action 經 action_to_velocity() 後直接進入這個 safety class。
+
+    這個 safety class 只做：
       1) hard stop hysteresis
       2) forward-block hysteresis
-      3) 接近障礙物時只縮小正向 vx
+      3) 接近障礙物時縮小正向 vx
+      4) 近障礙物時的轉向方向確認
+      5) 側邊安全 guard / hard-stop reverse recovery
 
-    不會保存上一幀 vx/wz，也不會用 EMA / slew / deadzone 改變 PPO 轉向。
+    這裡不會用 EMA，也不會保存上一幀 vx/wz 做 command smoothing。
     """
 
     def __init__(self):
@@ -2566,7 +2561,6 @@ class AntiJitterSafetyFilter:
         # 250-degree side-clearance guard hysteresis.
         self.right_side_guard = False
         self.left_side_guard = False
-        self.side_forward_blocked = False
 
         # HARD_STOP simple reverse recovery state.
         self.hard_stop_since = None
@@ -2597,7 +2591,6 @@ class AntiJitterSafetyFilter:
         self.hard_stopped = False
         self.right_side_guard = False
         self.left_side_guard = False
-        self.side_forward_blocked = False
         self.hard_stop_since = None
         self.recovery_active = False
         self.recovery_started_at = 0.0
@@ -2611,62 +2604,39 @@ class AntiJitterSafetyFilter:
     def _update_side_latches(
         self,
         right_robust,
-        right_min,
-        left_robust,
-        left_min
+        left_robust
     ):
 
-        def update_guard(active, robust, strict_min):
-            if active:
-                robust_clear = (
-                    (not math.isfinite(robust))
-                    or
-                    robust >= SIDE_TURN_GUARD_EXIT_M
-                )
-                strict_clear = (
-                    (not math.isfinite(strict_min))
-                    or
-                    strict_min >= SIDE_STRICT_GUARD_EXIT_M
-                )
-                return not (robust_clear and strict_clear)
-
-            robust_close = (
-                math.isfinite(robust)
-                and
-                robust < SIDE_TURN_GUARD_ENTER_M
-            )
-            strict_close = (
-                math.isfinite(strict_min)
-                and
-                strict_min < SIDE_STRICT_GUARD_ENTER_M
-            )
-            return robust_close or strict_close
-
-        self.right_side_guard = update_guard(
-            self.right_side_guard,
-            right_robust,
-            right_min
-        )
-        self.left_side_guard = update_guard(
-            self.left_side_guard,
-            left_robust,
-            left_min
-        )
-
-        side_nearest = min(right_robust, left_robust)
-        if self.side_forward_blocked:
+        if self.right_side_guard:
             if (
-                (not math.isfinite(side_nearest))
+                (not math.isfinite(right_robust))
                 or
-                side_nearest >= SIDE_VX_STOP_EXIT_M
+                right_robust >= SIDE_TURN_GUARD_EXIT_M
             ):
-                self.side_forward_blocked = False
-        elif (
-            math.isfinite(side_nearest)
-            and
-            side_nearest < SIDE_VX_STOP_ENTER_M
-        ):
-            self.side_forward_blocked = True
+                self.right_side_guard = False
+        else:
+            if (
+                math.isfinite(right_robust)
+                and
+                right_robust < SIDE_TURN_GUARD_ENTER_M
+            ):
+                self.right_side_guard = True
+
+        if self.left_side_guard:
+            if (
+                (not math.isfinite(left_robust))
+                or
+                left_robust >= SIDE_TURN_GUARD_EXIT_M
+            ):
+                self.left_side_guard = False
+        else:
+            if (
+                math.isfinite(left_robust)
+                and
+                left_robust < SIDE_TURN_GUARD_ENTER_M
+            ):
+                self.left_side_guard = True
+
 
     def _update_distance_latches(
         self,
@@ -2752,9 +2722,16 @@ class AntiJitterSafetyFilter:
                 )
             )
 
-        # The target itself may occupy the front LiDAR sector here. This
-        # short blind approach ignores the normal forward-block latch, while
-        # the strict-min hard stop above remains active.
+        if self.forward_blocked:
+            return (
+                0.0,
+                0.0,
+                (
+                    "FWD_BLOCK_HOLD "
+                    f"front={front_robust:.3f}m "
+                    f"release>{FRONT_BLOCK_EXIT_M:.2f}"
+                )
+            )
 
         vx = clamp(
             float(desired_vx),
@@ -2775,18 +2752,25 @@ class AntiJitterSafetyFilter:
     def _stabilize_turn_direction(
         self,
         wz,
-        front_robust,
-        right_robust,
-        left_robust
+        front_robust
     ):
-        """Debounce PPO sign changes near obstacles without choosing a side."""
+        """
+        近障礙物專用的方向 hysteresis。
+
+        - 不平滑 wz 大小。
+        - 不延遲同方向的 PPO 變化。
+        - 只有 PPO 左右方向反覆翻轉時，要求新方向連續出現
+          AVOID_TURN_SWITCH_CONFIRM_TICKS 次才切換。
+        """
 
         wz = float(wz)
+
         near_obstacle = (
             math.isfinite(front_robust)
             and
             front_robust < AVOID_TURN_HOLD_ENTER_M
         )
+
         clear_again = (
             (not math.isfinite(front_robust))
             or
@@ -2801,6 +2785,7 @@ class AntiJitterSafetyFilter:
             return (wz, "")
 
         if abs(wz) < AVOID_TURN_MIN_ABS_WZ:
+            # PPO 幾乎沒有要求轉向時，不自行創造轉向。
             return (wz, "")
 
         requested_sign = 1.0 if wz > 0.0 else -1.0
@@ -2809,19 +2794,22 @@ class AntiJitterSafetyFilter:
             self.avoid_turn_sign = requested_sign
             self.avoid_switch_sign = 0.0
             self.avoid_switch_count = 0
+
             return (
-                wz,
-                "TURN_FILTER_START=L" if requested_sign > 0.0 else "TURN_FILTER_START=R"
+                self.avoid_turn_sign * abs(wz),
+                "TURN_HOLD_START=L" if self.avoid_turn_sign > 0.0 else "TURN_HOLD_START=R"
             )
 
         if requested_sign == self.avoid_turn_sign:
             self.avoid_switch_sign = 0.0
             self.avoid_switch_count = 0
+
             return (
-                wz,
-                "TURN_FILTER=L" if requested_sign > 0.0 else "TURN_FILTER=R"
+                self.avoid_turn_sign * abs(wz),
+                "TURN_HOLD=L" if self.avoid_turn_sign > 0.0 else "TURN_HOLD=R"
             )
 
+        # PPO 想換方向：必須連續多個 tick 都要求同一個新方向。
         if requested_sign != self.avoid_switch_sign:
             self.avoid_switch_sign = requested_sign
             self.avoid_switch_count = 1
@@ -2832,18 +2820,21 @@ class AntiJitterSafetyFilter:
             self.avoid_turn_sign = requested_sign
             self.avoid_switch_sign = 0.0
             self.avoid_switch_count = 0
+
             return (
-                wz,
-                "TURN_FILTER_SWITCH=L" if requested_sign > 0.0 else "TURN_FILTER_SWITCH=R"
+                self.avoid_turn_sign * abs(wz),
+                "TURN_SWITCH=L" if self.avoid_turn_sign > 0.0 else "TURN_SWITCH=R"
             )
 
+        # 尚未確認換向：只鎖 sign，wz magnitude 仍使用本幀 PPO 值。
         return (
             self.avoid_turn_sign * abs(wz),
-            "TURN_FILTER_WAIT {}/{}".format(
-                self.avoid_switch_count,
-                AVOID_TURN_SWITCH_CONFIRM_TICKS
+            (
+                "TURN_SWITCH_WAIT "
+                f"{self.avoid_switch_count}/{AVOID_TURN_SWITCH_CONFIRM_TICKS}"
             )
         )
+
 
     def apply(
         self,
@@ -2854,17 +2845,20 @@ class AntiJitterSafetyFilter:
         right_robust=float("inf"),
         left_robust=float("inf"),
         odom_vx=0.0,
-        now=None,
-        right_min=float("inf"),
-        left_min=float("inf")
+        now=None
     ):
 
         """
         PPO command -> LiDAR safety -> motor.
 
-        HARD_STOP is a safety veto, not a recovery planner.
-        Forward and in-place commands stop immediately. Reverse motion is
-        allowed only when PPO explicitly requests it; no backup is invented.
+        HARD_STOP recovery（簡化版）：
+          1) HARD_STOP 立即停止
+          2) 必須連續維持 HARD_RECOVERY_WAIT_S（0.30 s）
+          3) 才倒退一小段（odom 實際量約 6 cm）
+          4) 停一下後把控制權交回 PPO
+          5) 同一次 HARD_STOP episode 只退一次
+
+        注意：後方 LiDAR 被車體遮住，因此完全不使用 rear scan。
         """
 
         if now is None:
@@ -2879,53 +2873,141 @@ class AntiJitterSafetyFilter:
 
         self._update_side_latches(
             right_robust,
-            right_min,
-            left_robust,
-            left_min
+            left_robust
         )
 
         # ----------------------------------------------------
-        # Hard stop remains a safety veto. It never invents a recovery move.
-        # A reverse command is passed only when PPO explicitly requests it.
+        # Active reverse recovery
         # ----------------------------------------------------
-        if self.hard_stopped:
-            escape_vx = clamp(
-                float(desired_vx),
-                -TEST_MAX_REV,
-                0.0
+        if self.recovery_active:
+
+            dt = max(
+                0.0,
+                min(
+                    0.25,
+                    now - self.recovery_last_time
+                )
             )
-            escape_wz = clamp(
-                float(desired_wz),
-                -TEST_MAX_WZ,
-                TEST_MAX_WZ
+            self.recovery_last_time = now
+
+            # 用實際 odom 倒車速度積分，靜摩擦時不會把「有送命令」誤當成已退距離。
+            if math.isfinite(float(odom_vx)):
+                self.recovery_travel_m += (
+                    max(0.0, -float(odom_vx)) * dt
+                )
+
+            elapsed = now - self.recovery_started_at
+
+            enough_distance = (
+                self.recovery_travel_m >= HARD_RECOVERY_TARGET_M
+            )
+            timed_out = (
+                elapsed >= HARD_RECOVERY_MAX_S
             )
 
-            if escape_vx < -1e-3:
-                if self.right_side_guard and escape_wz < 0.0:
-                    escape_wz = 0.0
-                if self.left_side_guard and escape_wz > 0.0:
-                    escape_wz = 0.0
-
+            if enough_distance or timed_out:
+                travelled = self.recovery_travel_m
+                self.recovery_active = False
+                self.recovery_settle_until = now + HARD_RECOVERY_SETTLE_S
+                self.hard_stop_since = None
                 self.reset_motion()
+
                 return (
-                    float(escape_vx),
-                    float(escape_wz),
-                    "HARD_STOP_PPO_ESCAPE min={:.3f}m".format(front_min),
+                    0.0,
+                    0.0,
+                    (
+                        "HARD_RECOVERY_DONE "
+                        f"travel={travelled:.3f}m "
+                        + ("timeout " if timed_out and not enough_distance else "")
+                        + f"settle={HARD_RECOVERY_SETTLE_S:.2f}s"
+                    ),
                     0.0
                 )
 
-            self.reset_motion()
             return (
+                float(HARD_RECOVERY_REVERSE_VX),
                 0.0,
-                0.0,
-                "HARD_STOP_HOLD min={:.3f}m".format(front_min),
+                (
+                    "HARD_RECOVERY_BACKUP "
+                    f"travel={self.recovery_travel_m:.3f}/"
+                    f"{HARD_RECOVERY_TARGET_M:.3f}m "
+                    f"t={elapsed:.2f}s"
+                ),
                 0.0
             )
 
-        self.recovery_active = False
-        self.hard_stop_since = None
-        self.recovery_used_this_hard_stop = False
-        # PPO output direct, no temporal smoothing.
+        # Recovery 完成後先完全停一下，避免一退完立刻又被 PPO 指令拉走。
+        if now < self.recovery_settle_until:
+            return (
+                0.0,
+                0.0,
+                (
+                    "HARD_RECOVERY_SETTLE "
+                    f"remain={self.recovery_settle_until - now:.2f}s"
+                ),
+                0.0
+            )
+
+        # HARD_STOP 已真的解除，才算新的 episode；之後若再撞近才可再退一次。
+        if not self.hard_stopped:
+            self.hard_stop_since = None
+            self.recovery_used_this_hard_stop = False
+
+        # ----------------------------------------------------
+        # Hard stop: 必須連續卡住 0.30 s，之後只倒一次
+        # ----------------------------------------------------
+        if self.hard_stopped:
+
+            if self.hard_stop_since is None:
+                self.hard_stop_since = now
+
+            hard_elapsed = now - self.hard_stop_since
+
+            if (
+                hard_elapsed >= HARD_RECOVERY_WAIT_S
+                and
+                not self.recovery_used_this_hard_stop
+            ):
+                self.recovery_active = True
+                self.recovery_started_at = now
+                self.recovery_last_time = now
+                self.recovery_travel_m = 0.0
+                self.recovery_used_this_hard_stop = True
+                self.reset_motion()
+
+                return (
+                    float(HARD_RECOVERY_REVERSE_VX),
+                    0.0,
+                    (
+                        "HARD_RECOVERY_START "
+                        f"waited={hard_elapsed:.2f}s "
+                        f"target={HARD_RECOVERY_TARGET_M:.2f}m"
+                    ),
+                    0.0
+                )
+
+            if self.recovery_used_this_hard_stop:
+                reason = (
+                    "HARD_STOP_HOLD_AFTER_RECOVERY "
+                    f"min={front_min:.3f}m"
+                )
+            else:
+                reason = (
+                    "HARD_STOP_HOLD "
+                    f"min={front_min:.3f}m "
+                    f"wait={hard_elapsed:.2f}/"
+                    f"{HARD_RECOVERY_WAIT_S:.2f}s"
+                )
+
+            return (
+                0.0,
+                0.0,
+                reason,
+                0.0
+            )
+
+        # PPO 的 action[1] rate limit 已在進入這個 safety class 前完成。
+        # 這裡不再額外做 EMA / vx-wz slew smoothing。
         vx = clamp(
             float(desired_vx),
             -TEST_MAX_REV,
@@ -2940,34 +3022,24 @@ class AntiJitterSafetyFilter:
 
         wz, turn_hold_reason = self._stabilize_turn_direction(
             wz,
-            front_robust,
-            right_robust,
-            left_robust
+            front_robust
         )
 
         side_reason_parts = []
 
         if self.right_side_guard and wz < 0.0:
             wz = 0.0
-            self.reset_motion()
             side_reason_parts.append(
                 f"SIDE_GUARD_R {right_robust:.3f}m"
             )
 
         if self.left_side_guard and wz > 0.0:
             wz = 0.0
-            self.reset_motion()
             side_reason_parts.append(
                 f"SIDE_GUARD_L {left_robust:.3f}m"
             )
 
         side_nearest = min(right_robust, left_robust)
-
-        if self.side_forward_blocked and vx > 0.0:
-            vx = 0.0
-            side_reason_parts.append(
-                f"SIDE_FWD_BLOCK {side_nearest:.3f}m"
-            )
 
         if (
             vx > 0.0
@@ -3569,8 +3641,16 @@ def load_policy_and_vecnormalize():
 
         RL_MODEL_PATH,
 
-        device="cpu"
+        device="cpu",
+        # Training schedules are unused at inference. Avoid old Python lambda
+        # pickles; match the navigation runtime's cross-version fallback.
+        custom_objects={"lr_schedule": lambda _: 0.0, "clip_range": lambda _: 0.0}
     )
+
+    if (tuple(model.observation_space.shape) != (55,)
+            or tuple(model.action_space.shape) != (2,)
+            or tuple(vecnormalize.observation_space.shape) != (55,)):
+        raise RuntimeError("avoidance contract must be obs=55D/action=2D")
 
     return (
         model,
@@ -5374,8 +5454,12 @@ def main():
         "(external safety still uses raw meters)"
     )
     print(
-        "[HARD_STOP] safety veto only | no automatic backup | "
-        "PPO reverse command may escape"
+        "[RECOVERY] hard-stop = STOP -> "
+        f"wait {HARD_RECOVERY_WAIT_S:.2f}s -> "
+        f"reverse {HARD_RECOVERY_TARGET_M:.2f}m "
+        f"@ {abs(HARD_RECOVERY_REVERSE_VX):.2f}m/s -> "
+        f"settle {HARD_RECOVERY_SETTLE_S:.2f}s | "
+        "one backup per hard-stop episode | NO rear LiDAR"
     )
 
     print(
@@ -6190,6 +6274,9 @@ def main():
                             last_cmd_wz,
                             force=final_reason.startswith("FINAL_DONE")
                         )
+                        if EXIT_ON_ARRIVAL and arrived_latched:
+                            motor.stop(repeat=5)
+                            break
 
 
                 # ------------------------------------------------
@@ -6285,9 +6372,7 @@ def main():
                         right_side_robust,
                         left_side_robust,
                         odom.vx,
-                        now,
-                        right_min=right_side_min,
-                        left_min=left_side_min
+                        now
                     )
 
                     last_cmd_vx = vx_cmd
@@ -6767,10 +6852,14 @@ def main():
             "[INFO] ended"
         )
 
+    if EXIT_ON_ARRIVAL:
+        return 0 if arrived_latched and RUN_MODE == "DRIVE" else 3
+    return 0
+
 
 if __name__ == "__main__":
 
     if "--selftest-target-memory" in sys.argv:
         run_target_memory_selftest()
     else:
-        main()
+        raise SystemExit(main())

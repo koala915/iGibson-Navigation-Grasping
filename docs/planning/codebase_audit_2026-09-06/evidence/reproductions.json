@@ -1,0 +1,71 @@
+{
+  "cached_feedback_accepted": {
+    "fresh": true,
+    "valid": true,
+    "stationary": true,
+    "stamp": 105.3
+  },
+  "odom_join": "TypeError(\"'Event' object is not callable\")",
+  "eof_starts_patrol": true,
+  "five_unavailable_frames_verify_success": true,
+  "ui_A_dry": {
+    "exit": 0,
+    "error": []
+  },
+  "ui_A_real": {
+    "exit": 2,
+    "error": [
+      "mission_pipeline.py: error: unrecognized arguments: --unlock-candidate-real"
+    ]
+  },
+  "ui_B_dry": {
+    "exit": 0,
+    "error": []
+  },
+  "ui_B_real": {
+    "exit": 2,
+    "error": [
+      "vision_grasp_bridge.py: error: unrecognized arguments: --real --unlock-candidate-real"
+    ]
+  },
+  "ui_C_dry": {
+    "exit": 2,
+    "error": [
+      "nav_rl_grasp_pipeline.py: error: unrecognized arguments: --dry-run"
+    ]
+  },
+  "ui_C_real": {
+    "exit": 2,
+    "error": [
+      "nav_rl_grasp_pipeline.py: error: unrecognized arguments: --unlock-candidate-real"
+    ]
+  },
+  "opposite_bin_heading_counts_arrived": true,
+  "place_align_without_heading": "PLACE",
+  "invalid_amcl_frame_quaternion_negative_covariance": [
+    true,
+    ""
+  ],
+  "all_nan_scan": {
+    "points": 0,
+    "front": "inf",
+    "ray_min": 4.0
+  },
+  "fine_alignment_speed": {
+    "requested_near_mps": 0.045,
+    "actual_mps": 0.16788,
+    "requested_yaw_cap": 0.35,
+    "minimum_turn_radps": 0.57216
+  },
+  "c3_reachable_target_negative_camera_distance": {
+    "base_x_m": 0.24,
+    "camera_x_m": 0.2762,
+    "camera_distance_m": -0.03620000000000001,
+    "distance_state": "INVALID"
+  },
+  "frozen_snapshot_still_fresh": {
+    "fresh": true,
+    "stamp": 105.3,
+    "now": 10000.0
+  }
+}

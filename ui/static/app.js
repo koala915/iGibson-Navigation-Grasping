@@ -177,6 +177,9 @@ const yn = v => v === undefined ? "—" : (v ? "是" : "否");
 
 /* ── 即時狀態 ───────────────────────────────────────── */
 let source = null, lastSeq = null, latched = false, allowReal = false, simulate = false;
+/* 任務在不在跑，用伺服器送來的布林值記著。之前是去讀 procTok 這個元素上的
+ * 中文字有沒有「執行中」—— 改一句文案，按鈕就會在任務執行中悄悄變成可按。 */
+let missionRunning = false;
 const changes = [];       // 狀態變化紀錄
 const trail = [];         // 地圖軌跡
 
@@ -208,7 +211,7 @@ function applySnapshot(s) {
   allowReal = !!s.allow_real;
   simulate = !!s.simulate;
   el("allowRealNote").innerHTML = allowReal
-    ? `<span>✓</span><div>這台伺服器以 <code class="mono">--allow-real</code> 啟動，勾選上面的確認後即可驅動硬體。</div>`
+    ? `<span>🔒</span><div><code class="mono">--allow-real</code> 只開啟第一道閘；目前 A/B/C 都缺少操作台可提交的模式專用校正證據，因此實機請求仍會被拒絕。</div>`
     : `<span>🔒</span><div>這台伺服器<b>不允許驅動硬體</b>。要實際動作，需在機器人上以 <code class="mono">--allow-real</code> 重新啟動操作台。</div>`;
   const foot = simulate
     ? "<b>模擬模式</b> — 狀態由伺服器的模擬器產生，沒有連接實體機器人。"
@@ -364,6 +367,9 @@ async function loadRoute(path) {
   el("miniRoute").setAttribute("points", el("routeLine").getAttribute("points"));
   el("miniMapTok").textContent = `${r.waypoints.length} 點`;
   tok.textContent = `${r.waypoints.length} 個航點`;
+  // 首頁那格也用同一個數字。route.yaml 原始有 117 點，但那個間距根本載不起來
+  // （會撞上到達半徑的檢查），實際跑的是重取樣後的數量 —— 兩個畫面必須一致。
+  el("wpCount").textContent = r.waypoints.length;
   el("scaleTok").textContent = `格線 ${step} m`;
   el("mapNote").textContent = `路線來源：${r.source}`;
 }
@@ -421,7 +427,7 @@ function renderChanges() {
 renderChanges();
 
 function applyProcess(p) {
-  const running = !!p.running;
+  const running = missionRunning = !!p.running;
   el("stopBtn").hidden = !running;
   el("procTok").textContent = running
     ? `任務執行中 · pid ${p.pid} · ${Math.round(p.uptime || 0)} 秒`
@@ -437,7 +443,7 @@ function applyEstop(on) {
   const b = el("estopBtn");
   b.dataset.latched = on ? "1" : "0";
   b.textContent = on ? "已停止 · 點此解除" : "■ 停止";
-  el("startBtn").disabled = on || el("procTok").textContent.includes("執行中");
+  el("startBtn").disabled = on || missionRunning;
 }
 
 /* ── 控制 ───────────────────────────────────────────── */
@@ -499,7 +505,7 @@ function buildCmd() {
     note.innerHTML = real
       ? `<span>⚠</span><div>將驅動實體手臂。請確認<b>有人在場、手放在電源開關上</b>。</div>`
       : `<span>✓</span><div>不驅動硬體，可以直接執行。</div>`;
-    start.disabled = latched || el("procTok").textContent.includes("執行中");
+    start.disabled = latched || missionRunning;
     start.textContent = real ? "開始任務（驅動實體硬體）" : "開始任務（不驅動硬體）";
   }, 150);
 }

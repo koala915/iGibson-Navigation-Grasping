@@ -1,0 +1,65 @@
+{
+  "ok": true,
+  "episodes": 1,
+  "last": {
+    "confirmed": true,
+    "outcome": "confirmed",
+    "elapsed_s": 6.89
+  },
+  "servo_deg": [
+    90.0,
+    73.0,
+    8.0,
+    9.0,
+    90.0,
+    152.0
+  ],
+  "detection": {
+    "pos": [
+      0.26,
+      0.0,
+      0.02
+    ],
+    "height": null,
+    "fresh": false
+  },
+  "chassis": {
+    "motors": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "moving": false,
+    "stopped_for_s": null,
+    "arm_busy": false,
+    "arm_pose": "e1",
+    "pose_blocked_total": 0,
+    "board_rx_age_s": 0.0,
+    "rx_blocked_total": 0,
+    "dropped_total": 0,
+    "refused_total": 0,
+    "client": null
+  },
+  "odom": {
+    "rosbridge": true,
+    "published": 48674,
+    "skipped_invalid": 1,
+    "skipped_board_silent": 0,
+    "failures": 0,
+    "valid": true,
+    "pose": [
+      -0.0013,
+      -0.0017,
+      -0.0122
+    ],
+    "twist": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "reason": ""
+  },
+  "rss_mb": 511.8,
+  "uptime_s": 2445.2
+}

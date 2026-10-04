@@ -2,6 +2,7 @@
 import copy
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -100,6 +101,37 @@ class HandoffTests(unittest.TestCase):
             self.assertEqual(read.call_args.args[1], 'status')
             stopping.assert_not_called()
             process.assert_not_called()
+
+    def test_default_calibration_uses_committed_json(self):
+        snapshot = copy.deepcopy(self.snapshot)
+        snapshot['servo_deg'] = [90, 74, 8, 9, 90, 30]
+        with patch.dict(runner.os.environ, {}, clear=True), \
+             patch.object(runner, 'preflight', return_value=({}, [])) as check, \
+             patch.object(runner, 'ctl', return_value=snapshot):
+            self.assertEqual(runner.main([]), 0)
+            self.assertEqual(check.call_args.args[0].homography,
+                             runner.ROOT / 'detection/rear_ground_homography.json')
+
+    def test_bad_calibration_blocks_real_run_before_stow(self):
+        snapshot = copy.deepcopy(self.snapshot)
+        snapshot['servo_deg'] = [90, 74, 8, 9, 90, 30]
+        with tempfile.TemporaryDirectory() as folder:
+            placeholder = Path(folder) / 'asset'
+            placeholder.write_text('', encoding='utf-8')
+            bad = Path(folder) / 'bad.json'
+            bad.write_text('{}', encoding='utf-8')
+            with patch.object(runner.importlib.util, 'find_spec', return_value=True), \
+                 patch.object(runner, 'ctl', return_value=snapshot) as read, \
+                 patch.object(runner, 'stop') as stopping, \
+                 patch.object(runner.subprocess, 'run') as process:
+                result = runner.main(['--real', '--i-am-beside-the-robot',
+                                      '--sam', str(placeholder),
+                                      '--gstreamer', str(placeholder),
+                                      '--homography', str(bad)])
+                self.assertEqual(result, 2)
+                read.assert_called_once_with('10.16.224.252', 'status')
+                stopping.assert_not_called()
+                process.assert_not_called()
 
 
 if __name__ == '__main__':

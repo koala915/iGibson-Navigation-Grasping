@@ -4,6 +4,14 @@
 Windows 跑 `integration/sugarbox_rl_approach_final2.py`；Jetson 的 grasp-service
 仍是唯一伺服／底盤序列埠持有者。沒有啟動另一個 motor server。
 
+2026-10-04 更新：PR #7 已補回 `detection/rear_ground_homography.json`；
+本次整合修正其 runtime loader，從 `samples` 的 7 個 inlier 建立校正凸包，
+拒絕缺失／退化／非有限的矩陣與凸包，以及宣告不符的解析度或座標契約。
+缺校正時不會略過範圍檢查。Jetson 10/03 已依使用者要求關機；10/04 已重新連線，
+本次只讀 preflight 通過（資產、模型雜湊、Python imports 與服務 status）。
+手臂回報 `other`、目標過期，odom 尚未連 rosbridge；輪速為零。
+尚未重新部署此次整合或完成現場視覺 dry-run／實機驗收。
+
 ## 行為
 
 1. 起跑前夾爪必須空、readback 有效；先停車，guarded stow 並確認 travel。
@@ -33,8 +41,9 @@ Windows 跑 `integration/sugarbox_rl_approach_final2.py`；Jetson 的 grasp-serv
 - YOLO：沿用 `detection/models/best.pt`。
 - SAM2：已由 Ultralytics 官方資產下載 `detection/models/sam2.1_b.pt`，sha256
   `f1a9cf2dd69d84bb463b5ad98246d03e2d47a130a9295db0ec967e6cd95e2e47`，本機載入成功。
-- **仍缺現場後相機校正 `rear_ground_homography.json`**。不可用 E1 校正替代、
-  不可自行捏造矩陣。須確認來源裝機／相機方向、640×480 解析度與這台機器相符。
+- 後相機校正 `detection/rear_ground_homography.json` 已補回，為 2026-08-06 的
+  640×480 後相機量測。離線格式與 inlier 範圍檢查通過；現場仍須確認相機裝機／方向
+  未變更，再以真實影像 dry-run 驗收。不可用 E1 校正替代。
 - Windows 執行環境 `.venv-approach` 使用既有系統 torch/SB3/Ultralytics，另裝 roslibpy。
   roslibpy 2.1.0 已安裝且 Windows ROS 只讀訂閱成功；3 s 收到 scan 27、odom 55。
   GStreamer 採[官方 Python wheels](https://gstreamer.freedesktop.org/download/download.html)
@@ -54,14 +63,16 @@ python -m venv --system-site-packages .venv-approach
 ```
 
 SAM2 權重不納入 Git；從 Ultralytics 官方資產取得 `sam2.1_b.pt` 後放在
-`detection/models/`，並核對上列 sha256。後相機校正須另外向原作者取得。
+`detection/models/`，並核對上列 sha256。後相機校正預設讀 repo 中的 JSON；
+可用 `--homography` 指定另一份有效後相機量測。
 
-第一步只檢查；`--homography` 指向已確認的後相機校正檔，`--gstreamer` 指向
-Windows gst-launch-1.0.exe。以下指令中尖括號為待替換路徑。
+第一步只檢查；預設載入 repo 後相機 JSON。`--gstreamer` 指向已安裝的
+Windows gst-launch-1.0.exe。下列路徑以本次環境為例。
 
 ```powershell
 .venv-approach/Scripts/python.exe integration/sugarbox_approach_grasp.py `
-  --host 10.16.224.252 --homography <後相機校正檔> --gstreamer <gst-launch-1.0.exe>
+  --host 10.16.224.252 `
+  --gstreamer .venv-approach/Scripts/gst-launch-1.0.exe
 ```
 
 若要讀取相機，Windows 接收端與後相機 sender 需同時在同網段。啟動 sender
@@ -79,7 +90,14 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
 才以 `--real --i-am-beside-the-robot` 啟動一次完整接近與夾取。
 真正急停仍是電源；不要在接近過程移動物體或伸手。
 
-## 2026-10-03 檢查結果
+## 2026-10-04 離線回歸
+
+- 23 套 Python 測試／自測全部通過；17 套共 1,093 checks，另 6 套 selftests。
+- 新 runtime 校正 21、E1 交接 9、LiDAR 安全層 12 項皆通過。
+- systemd helper 在 WSL 以原內容的 LF 暫存副本驗證通過；GitHub Linux CI 另行驗證。
+- 保留 v23 原避障、到位停止／退出、15 cm 上限、模型／校正閘及 resident serial owner。
+
+## 2026-10-03 檢查結果（歷史記錄）
 
 - 原接近程式 target-memory 自測通過。
 - 真 doorway model/vecnorm 成功載入並推論，55D/2D 契約檢查通過。
@@ -101,6 +119,7 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
 驗證指令：
 ```bash
 python tests/test_sugarbox_approach_grasp.py
+python tests/test_sugarbox_ground_calibration.py
 python integration/sugarbox_rl_approach_final2.py --selftest-target-memory
 python -m py_compile integration/sugarbox_approach_grasp.py integration/sugarbox_rl_approach_final2.py
 ```

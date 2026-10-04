@@ -63,6 +63,11 @@ build/
 # them -- but the ~1 MB .docx/.pdf rebuild from those and do not belong here.
 /ui/report_output/
 
+# Local calibration backups and generated tool settings.
+/detection/homography_backups/
+/.ultralytics/
+/.pytest_cache/
+
 # Run logs. Four mode-B bridge transcripts used to be committed at the root;
 # they are captured output, not source, and they made the root look like a
 # scratch directory.

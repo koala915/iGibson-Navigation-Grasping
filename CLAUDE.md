@@ -106,24 +106,27 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | 檔案 | 說明 |
 |------|------|
 | `arm_cam.py` | ★手臂相機 + YOLO，bbox → 前向距離+左右偏移（橋接幾何來源） |
-| `rear_cam_sam2_publisher.py` | 後相機 + YOLO + **SAM2**，取遮罩最低點 → homography → base 座標，經 rosbridge 發 `/trash_target/detection`。**在 Windows 開發機執行**，不佔 Jetson RAM。需自備 `sam2.1_b.pt` 與 `rear_ground_homography.json`（皆不在 repo）|
+| `rear_cam_sam2_publisher.py` | 後相機 + YOLO + **SAM2**，HTTP 或低延遲 UDP/H264 取流，遮罩最低點 → homography → base 座標，經 rosbridge 發 `/trash_target/detection`。**在 Windows 開發機執行**，不佔 Jetson RAM。`rear_ground_homography.json` 已隨 repo 提供；需另備 `sam2.1_b.pt` |
 | `models/best.pt` | ★正式 YOLOv11 模型。**2026-08-01 起為單類別 `sugarbox`（藍色盒子，高 6.5cm）**，sha256 `ca42c3f4…`。前兩代備份於同目錄：`best_eraser_detect_train11.pt.bak`（`eraser-detect`）、`best_trash_identify_train5.pt.bak`（`bottle-cap`/`paper-ball`）|
 | `models/data.yaml` / `yolo11n.pt` | 類別定義 / 基底模型 |
-| `calibration/` | 相機/底盤校正腳本與量測資料（含 `calibrate_arm_camera_theta.py`） |
+| `calibration/` | 相機/底盤校正腳本與量測資料；`calibrate_rear_ground_homography.py` 以點選地面接觸點重建後相機 homography |
 | `debug_tools/` | `yolo_test.py`、`detect_video.py` 等測試/擷取工具 |
 | `rear_nav/` | 只剩 `rear_to_arm_blind_handoff.py`（模式 A 導航幾何的來源）。其餘 8 支舊實驗 2026-08-01 已刪 |
 | `requirements_detection.txt` | 辨識端相依（ultralytics, opencv-python） |
+| `requirements_offboard.txt` | Windows YOLO+SAM2 發布端相依；先安裝符合 CUDA 的 PyTorch，再安裝此檔 |
 
 ### `integration/`（整合）
 | 檔案 | 說明 |
 |------|------|
 | `mission_pipeline.py` | ★**完整任務**：巡航→辨識→接近→夾取→送垃圾桶→續巡。單一 Py3.8 程序擁有 `/dev/myserial`，ROS 只跑感測/定位。見 `MISSION.md` |
-| `sugarbox_approach_grasp.py` / `sugarbox_rl_approach_final2.py` | Windows 的 doorway PPO 避障接近→停車→E1 新鮮辨識→v23夾取交接；預設只讀，實機需 `--real --i-am-beside-the-robot`。後相機校正尚缺，未完成實機驗收；見 `docs/operations/SUGARBOX_APPROACH_GRASP_2026-10-03.md` |
+| `sugarbox_approach_grasp.py` / `sugarbox_rl_approach_final2.py` | Windows 的 doorway PPO 避障接近→停車→E1 新鮮辨識→v23夾取交接；預設只讀，實機需 `--real --i-am-beside-the-robot`。後相機校正已補，載入驗證使用 `sugarbox_ground_calibration.py`；未完成現場 dry-run／實機驗收，見 `docs/operations/SUGARBOX_APPROACH_GRASP_2026-10-03.md` |
 | `mission_fsm.py` | 21 狀態任務機（純邏輯，`--selftest`/`--diagram`）。強制「輪子與手臂不同時動」「換目標來源必重置 nav」 |
 | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`。含 `--validate` 與弧長重取樣（Route C 原檔最小間距只有 0.049 m） |
-| `feedback_odom.py` | `get_motion_data()` → odom pose；2026-09-24 實車重校：linear 0.966、lateral 0.65、angular 0.986（2026-09-28 從機器收進 repo） |
+| `feedback_odom.py` | `get_motion_data()` → odom pose；2026-09-24 實測 vx 0.9663094、left/right yaw 0.9857046/0.9854675（左右 90° holdout 均通過），未重測 vy 仍 0.65 |
 | `ros_io.py` | rosbridge：發 `/odom_setmotor` + `odom→base_footprint` TF、收 `/amcl_pose`（含 covariance 發散門檻）與 `/trash_target/detection`（僅 `--target-source offboard` 時訂閱） |
 | `trash_target.py` | 離機 SAM2 目標的轉接層。**發布端 y 左為正、pipeline offset 右為正，這裡負號翻轉** —— 兩邊都是同範圍的 float，接錯不會報錯只會轉錯邊。逾時／無效／後方目標一律 fail closed |
+| `target_approach.py` | 選配的 offboard 近距離流程：bbox 置中後，以 odometry 量測前進 0.15 m，再交給 arm-camera ALIGN |
+| `nav_safety.py` | 導航命令最後一道 raw LiDAR 安全層；增強前方/側向遲滯、脫困與角速度限幅皆為 opt-in |
 | `vision_grasp_pipeline.py` | ★模式A 自走全流程：雙相機導航(set_car_motion)→handoff→PPO 夾取(obj_provider)→驗證/重試(≤3)。含 `--selftest` |
 | `vision_grasp_bridge.py` | 模式B（除錯）：辨識→算 x/y/z/寬度/高度→TCP 5555 送夾取端。payload 是 superset，v17 讀 `w`、v21 讀 `height` |
 | `nav_rl.py` + `nav_rl_grasp_pipeline.py` | 模式C：RL 導航避障（PPO+48束LiDAR，訓練 plant 復刻+幾何煞停）→精對位→夾取，見 `NAV_RL.md` |

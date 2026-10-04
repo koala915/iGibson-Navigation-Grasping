@@ -21,6 +21,18 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from ultralytics import YOLO, SAM
 
+if __package__:
+    from .sugarbox_ground_calibration import (
+        load_ground_calibration, pixel_to_ground, resolve_asset_paths,
+        inside_calibration_hull as _inside_calibration_hull,
+    )
+else:
+    from sugarbox_ground_calibration import (
+        load_ground_calibration, pixel_to_ground, resolve_asset_paths,
+        inside_calibration_hull as _inside_calibration_hull,
+    )
+
+
 
 # ============================================================
 # 0. 執行模式
@@ -50,17 +62,15 @@ RUN_MODE = os.environ.get(
 
 
 # ============================================================
-# 1. Windows 路徑
+# 1. 資產路徑
 # ============================================================
 
-BASE_DIR = os.environ.get("SUGARBOX_ASSET_DIR", r"C:\Users\user\Desktop\igibson_sugarbox_vision")
-
-YOLO_MODEL_PATH = os.environ.get("SUGARBOX_YOLO_MODEL", os.path.join(BASE_DIR, "sugarbox_best.pt"))
-
-SAM2_MODEL_PATH = os.environ.get("SUGARBOX_SAM_MODEL", os.path.join(BASE_DIR, "sam2.1_b.pt"))
-
-HOMOGRAPHY_PATH = os.environ.get("SUGARBOX_HOMOGRAPHY", os.path.join(BASE_DIR, "rear_ground_homography.json"))
-
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSET_PATHS = resolve_asset_paths(REPO_ROOT)
+BASE_DIR = ASSET_PATHS["base_dir"]
+YOLO_MODEL_PATH = ASSET_PATHS["yolo"]
+SAM2_MODEL_PATH = ASSET_PATHS["sam"]
+HOMOGRAPHY_PATH = ASSET_PATHS["homography"]
 
 # 你原本 PPO
 RL_MODEL_PATH = os.environ.get("SUGARBOX_RL_MODEL", os.path.join(os.path.dirname(__file__), "nav_best_model", "doorway_ft_final.zip"))
@@ -777,324 +787,8 @@ class LatestFrameReader:
 # Homography JSON
 # ============================================================
 
-def recursive_find_key(
-    obj,
-    keys
-):
-
-    if isinstance(
-        obj,
-        dict
-    ):
-
-        for key in keys:
-
-            if key in obj:
-                return obj[key]
-
-        for value in obj.values():
-
-            result = recursive_find_key(
-                value,
-                keys
-            )
-
-            if result is not None:
-                return result
-
-    elif isinstance(
-        obj,
-        list
-    ):
-
-        for value in obj:
-
-            result = recursive_find_key(
-                value,
-                keys
-            )
-
-            if result is not None:
-                return result
-
-    return None
-
-
-def recursive_find_3x3(
-    obj
-):
-
-    if isinstance(
-        obj,
-        dict
-    ):
-
-        possible_keys = [
-
-            "H",
-
-            "homography",
-
-            "homography_matrix",
-
-            "H_pixel_to_ground",
-
-            "pixel_to_ground",
-
-            "matrix"
-        ]
-
-        for key in possible_keys:
-
-            if key not in obj:
-                continue
-
-            try:
-
-                arr = np.asarray(
-                    obj[key],
-                    dtype=np.float64
-                )
-
-                if arr.size == 9:
-
-                    arr = arr.reshape(
-                        3,
-                        3
-                    )
-
-                if arr.shape == (
-                    3,
-                    3
-                ):
-
-                    return arr
-
-            except Exception:
-                pass
-
-        for value in obj.values():
-
-            result = recursive_find_3x3(
-                value
-            )
-
-            if result is not None:
-                return result
-
-
-    elif isinstance(
-        obj,
-        list
-    ):
-
-        try:
-
-            arr = np.asarray(
-                obj,
-                dtype=np.float64
-            )
-
-            if arr.size == 9:
-
-                arr = arr.reshape(
-                    3,
-                    3
-                )
-
-            if arr.shape == (
-                3,
-                3
-            ):
-
-                return arr
-
-        except Exception:
-            pass
-
-    return None
-
-
-def find_calibration_pixels(
-    obj
-):
-
-    value = recursive_find_key(
-
-        obj,
-
-        [
-            "image_points",
-            "pixel_points",
-            "src_points",
-            "pixels",
-            "pixel_xy"
-        ]
-    )
-
-    if value is None:
-        return None
-
-    try:
-
-        arr = np.asarray(
-            value,
-            dtype=np.float32
-        )
-
-        arr = arr.reshape(
-            -1,
-            2
-        )
-
-        if len(arr) >= 3:
-            return arr
-
-    except Exception:
-        pass
-
-    return None
-
-
-def load_ground_calibration(
-    path
-):
-
-    with open(
-        path,
-        "r",
-        encoding="utf-8"
-    ) as f:
-
-        data = json.load(
-            f
-        )
-
-    H = recursive_find_3x3(
-        data
-    )
-
-    if H is None:
-
-        raise RuntimeError(
-            "rear_ground_homography.json "
-            "找不到 3x3 Homography matrix"
-        )
-
-    rear_cam_to_front_m = recursive_find_key(
-
-        data,
-
-        [
-            "rear_cam_to_front_m"
-        ]
-    )
-
-    if rear_cam_to_front_m is None:
-
-        rear_cam_to_front_m = 0.20
-
-    rear_cam_to_front_m = float(
-        rear_cam_to_front_m
-    )
-
-    calibration_pixels = find_calibration_pixels(
-        data
-    )
-
-    calibration_hull = None
-
-    if calibration_pixels is not None:
-
-        calibration_hull = cv2.convexHull(
-
-            calibration_pixels.reshape(
-                -1,
-                1,
-                2
-            )
-        )
-
-    return (
-        H,
-        rear_cam_to_front_m,
-        calibration_hull
-    )
-
-
-def pixel_to_ground(
-    u,
-    v,
-    H
-):
-
-    p = np.array(
-        [
-            float(u),
-            float(v),
-            1.0
-        ],
-        dtype=np.float64
-    )
-
-    q = H @ p
-
-    if abs(
-        q[2]
-    ) < 1e-9:
-
-        return None
-
-    q /= q[2]
-
-    x = float(
-        q[0]
-    )
-
-    y = float(
-        q[1]
-    )
-
-    if not (
-        math.isfinite(x)
-        and
-        math.isfinite(y)
-    ):
-
-        return None
-
-    return (
-        x,
-        y
-    )
-
-
-def inside_calibration_hull(
-    u,
-    v,
-    hull
-):
-
-    if hull is None:
-        return True
-
-    distance = cv2.pointPolygonTest(
-
-        hull,
-
-        (
-            float(u),
-            float(v)
-        ),
-
-        True
-    )
-
-    return (
-        distance
-        >=
-        -CALIBRATION_MARGIN_PX
-    )
+def inside_calibration_hull(u, v, hull):
+    return _inside_calibration_hull(u, v, hull, margin_px=CALIBRATION_MARGIN_PX)
 
 
 # ============================================================

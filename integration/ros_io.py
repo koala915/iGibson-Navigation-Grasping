@@ -263,7 +263,7 @@ class RosBridgeIO:
         self._pos_var = self._yaw_var = float("nan")
         self._recv_ts = 0.0
         self._trash: Optional["trash_target.TrashTarget"] = None
-        self._trash_recv_ts = 0.0
+        self._trash_recv_wall = 0.0
         self._trash_error = ""
         self._lock = threading.Lock()
         self._last_error = ""
@@ -343,7 +343,7 @@ class RosBridgeIO:
         self._trash_error = ""
         with self._lock:
             self._trash = target
-            self._trash_recv_ts = time.monotonic()
+            self._trash_recv_wall = time.time()
 
     def latest_trash_target(self):
         """Latest offboard target, restamped to LOCAL arrival time.
@@ -355,13 +355,17 @@ class RosBridgeIO:
         receipt time is the only clock both ends agree on.
         """
         with self._lock:
-            target, ts = self._trash, self._trash_recv_ts
+            target, wall = self._trash, self._trash_recv_wall
         if target is None:
             return None
-        wall = time.time() - (time.monotonic() - ts)
         return trash_target.TrashTarget(
             target.valid, target.x_forward_m, target.y_left_m,
-            target.distance_m, wall, target.reason, target.source)
+            target.distance_m, wall, target.reason, target.source,
+            bbox_xyxy=target.bbox_xyxy,
+            mask_bottom_u=target.mask_bottom_u,
+            mask_bottom_v=target.mask_bottom_v,
+            on_floor=target.on_floor,
+            observation_age_s=target.observation_age_s)
 
     def latest_pose(self) -> Optional[MapPose]:
         """Latest AMCL pose, restamped to LOCAL arrival time.
@@ -704,14 +708,33 @@ def run_selftest() -> None:
 
     # ── full bridge against the fake ──
     fake = _FakeRoslibpy()
-    io = RosBridgeIO("127.0.0.1", 9090, roslibpy_module=fake)
+    io = RosBridgeIO("127.0.0.1", 9090, trash_topic=TRASH_TOPIC,
+                     roslibpy_module=fake)
     assert io.connected
     names = {t.name: t for t in io._client.topics}
-    assert set(names) == {"/odom_setmotor", "/tf", "/amcl_pose"}, names
+    assert set(names) == {"/odom_setmotor", "/tf", "/amcl_pose", TRASH_TOPIC}, names
     assert names["/odom_setmotor"].advertised and names["/tf"].advertised
     assert names["/amcl_pose"].subscriber is not None
     assert names["/odom_setmotor"].mtype == "nav_msgs/Odometry"
     assert names["/tf"].mtype == "tf2_msgs/TFMessage"
+
+    names[TRASH_TOPIC].subscriber({
+        "valid": True,
+        "object_x_base": 0.6,
+        "object_y_base": 0.1,
+        "distance_m": 0.61,
+        "timestamp_unix": 1.0,
+        "frame_id": "base_footprint",
+        "coordinate_convention": "x_forward_y_left",
+        "bbox_xyxy": [280, 330, 360, 420],
+        "on_floor": True,
+    })
+    target_one = io.latest_trash_target()
+    time.sleep(0.002)
+    target_two = io.latest_trash_target()
+    assert target_one is not None and target_two is not None
+    assert target_one.stamp_unix == target_two.stamp_unix, \
+        "one ROS message must keep one stable local receipt stamp"
 
     ok, why = io.pose_quality_ok()
     assert not ok and "no /amcl_pose received" in why, why

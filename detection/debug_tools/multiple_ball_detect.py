@@ -18,7 +18,7 @@ ENABLE_MOTION = "--real" in sys.argv[1:]
 
 YOLO_MODEL_PATH = r"C:\Users\user\Downloads\trash_identify.v3i.yolov11 (1)\runs\detect\train7\weights\best.pt"
 
-JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "172.31.28.252")
+JETSON_IP = os.getenv("X3PLUS_JETSON_HOST", "yahboom.local")
 MOTOR_PORT = 7000
 
 URL_REAR = f"http://{JETSON_IP}:8080/stream?topic=/back_cam/image_raw"

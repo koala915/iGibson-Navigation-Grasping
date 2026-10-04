@@ -22,9 +22,11 @@
 | 檔案 | 職責 | 離線自測 |
 |------|------|---------|
 | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`；到點/繞行/中斷續巡/禁區 | `--selftest`、`--validate` |
-| `feedback_odom.py` | `get_motion_data()` → odom pose（2026-09-24 實車重校：linear 0.966、lateral 0.65、angular 0.986） | `--selftest` |
+| `feedback_odom.py` | `get_motion_data()` → odom pose（vx 0.9663094 / vy 0.65 provisional / yaw L/R 0.9857046/0.9854675） | `--selftest` |
 | `ros_io.py` | rosbridge 發 `/odom_setmotor`+TF、收 `/amcl_pose`；`--target-source offboard` 時另收 `/trash_target/detection` | `--selftest`、`--probe` |
-| `trash_target.py` | 離機 SAM2 目標 → `(found, dist, offset)`。**負號翻轉**與時效判定 | `tests/test_trash_target.py`（18） |
+| `trash_target.py` | 離機 SAM2 目標 → `(found, dist, offset)`。**負號翻轉**、時效與移動延遲補償 | `tests/test_trash_target.py`（21） |
+| `target_approach.py` | 可選的 bbox 置中 → odometry 量測前進 0.15 m；只接受地面目標 | `tests/test_target_approach.py`（6） |
+| `nav_safety.py` | PPO/近距離指令共用的 raw LiDAR 前方、側向、遲滯與選配脫困層 | `tests/test_nav_safety.py`（6） |
 | `mission_fsm.py` | 21 狀態任務機（純邏輯，含 `--no-deliver` 的終止持物狀態） | `--selftest`、`--diagram` |
 | `mission_pipeline.py` | 主程序，接起全部 | `--selftest` |
 
@@ -43,6 +45,37 @@
 
 離機來源逾時（`--trash-max-age`，預設 1 秒）即回報「沒偵測到」繼續巡航。時效以
 **本地到達時間**計算 —— 發布端在另一台機器上，時鐘不同。
+
+`--offboard-final-approach` 會在 `APPROACH` 末段使用發布端 bbox 做置中，連續兩個新鮮
+影格進入容許範圍後，以 odometry 累積前進 0.15 m，再交給既有 arm-camera `ALIGN`。
+目標明確標記 `on_floor: false`、bbox 跳動過大、置中或前進逾時都會 fail closed。
+不加此旗標時維持原本 FSM 行為。
+
+`--enhanced-nav-safety` 把 PPO、調查轉向和末段接近統一送進 dense raw LiDAR 防護；
+預設仍只保留原本的前方幾何煞停。`--hard-stop-recovery` 與
+`--ppo-angular-max-delta` 都是獨立選配，不會默默改變既有模型契約。
+
+獨立 sugarbox 專案使用的 PPO/VecNormalize 已與 repo 內
+`integration/nav_best_model/doorway_ft_final.*` 核對為同一組（SHA256 分別為
+`af5e9e1d...97b64f35`、`3cd4ef9a...ca7a8cdf`），所以沒有再提交第二份權重。
+它仍是候選模型，不改主流程預設；A/B 測試時明確指定：
+
+```bash
+--model integration/nav_best_model/doorway_ft_final.zip \
+--vecnorm integration/nav_best_model/doorway_ft_final_vecnormalize.pkl
+```
+
+獨立腳本的 `motor_delay_steps=0` 與 LiDAR 距離縮放 `1.15` 沒有出現在該模型的
+training config，這次不把它們升為部署預設。主流程繼續維持已記錄的訓練 plant
+（兩步馬達延遲、原始 LiDAR 公尺值），實車 A/B 有證據後再單獨變更。
+
+後相機位置改動後，先重新量 homography。至少點六個覆蓋實際工作區的地面接觸點，
+工具會以 RANSAC 存下 inlier hull；發布器只接受 hull 內或外擴 10 px 的 SAM2 接地點：
+
+```bash
+python detection/calibration/calibrate_rear_ground_homography.py \
+  --camera-url "http://<JETSON_IP>:8080/stream?topic=/back_cam/image_raw"
+```
 
 全部離線可測：
 
@@ -194,6 +227,12 @@ rostopic echo -n 1 /amcl_pose                # covariance[0] 與 [7] 都要 < 0.
 門檻。**不要為了開跑去調低門檻**：超標數十倍是定位真的丟了，不是誤判。self-check 每
 個 tick 都會重跑，所以定位一收斂它自己就會轉成
 `AMCL ok at (...)` → `Self-check passed`，這時才按 Enter。
+
+使用 Windows offboard YOLO+SAM2 時，runtime 封鎖解除、離線與實機個別驗證完成後，再加：
+
+```bash
+--target-source offboard --offboard-final-approach --enhanced-nav-safety
+```
 
 分段驗證見下方測試計畫。`--detection-streak 999` 讓它永遠不離開路線（只驗巡航）；
 `--no-deliver` 讓它夾到就停（不送桶）。

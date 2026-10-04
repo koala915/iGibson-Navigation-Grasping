@@ -19,6 +19,10 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from integration.sugarbox_ground_calibration import load_ground_calibration, resolve_asset_paths
+
 APPROACH = ROOT / 'integration/sugarbox_rl_approach_final2.py'
 REMOTE_CTL = '/home/jetson/Documents/deploy_jetson2/grasp/v23/graspctl.py'
 MODEL_HASHES = {
@@ -116,6 +120,11 @@ def preflight(args):
     for name, path in paths.items():
         if path is None or not Path(path).is_file():
             issues.append('missing {}: {}'.format(name, path))
+    if args.homography is not None and Path(args.homography).is_file():
+        try:
+            load_ground_calibration(args.homography)
+        except (OSError, RuntimeError, ValueError) as exc:
+            issues.append('invalid rear-camera calibration: ' + str(exc))
     for name, expected in MODEL_HASHES.items():
         path = ROOT / 'integration/nav_best_model' / name
         if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() != expected:
@@ -138,9 +147,9 @@ def find_gstreamer():
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', default='10.16.224.252')
-    parser.add_argument('--sam', type=Path, default=os.environ.get('SUGARBOX_SAM_MODEL')
-                        or ROOT / 'detection/models/sam2.1_b.pt')
-    parser.add_argument('--homography', type=Path, default=os.environ.get('SUGARBOX_HOMOGRAPHY'))
+    assets = resolve_asset_paths(str(ROOT))
+    parser.add_argument('--sam', type=Path, default=assets['sam'])
+    parser.add_argument('--homography', type=Path, default=assets['homography'])
     parser.add_argument('--gstreamer', type=Path, default=find_gstreamer())
     parser.add_argument('--final-travel-m', type=float, default=0.15)
     parser.add_argument('--real', action='store_true')

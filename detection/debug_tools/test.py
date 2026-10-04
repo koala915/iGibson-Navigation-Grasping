@@ -21,7 +21,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="X3Plus set_motor smoke test")
     parser.add_argument(
         "--host",
-        default=os.getenv("X3PLUS_JETSON_HOST", "172.31.28.252"),
+        default=os.getenv("X3PLUS_JETSON_HOST", "yahboom.local"),
     )
     parser.add_argument("--port", type=int, default=7000)
     parser.add_argument("--speed", type=int, default=30)

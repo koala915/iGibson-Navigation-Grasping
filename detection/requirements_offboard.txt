@@ -1,0 +1,4 @@
+# Windows development-machine stack for rear_cam_sam2_publisher.py.
+# Install the CUDA-matched PyTorch wheel first; Ultralytics will reuse it.
+-r requirements_detection.txt
+roslibpy>=1.6,<2

@@ -45,6 +45,7 @@ starts when it does.
 from __future__ import annotations
 
 import json
+import math
 import os
 import signal
 import socket
@@ -238,7 +239,25 @@ class GraspService:
     # ── travel pose ─────────────────────────────────────────────────────
     def _arm_deg(self):
         rd = self.controller.servo.read_degrees()
-        return list(rd.degrees) if rd.valid else None
+        if not rd.valid:
+            return None
+        try:
+            deg = list(rd.degrees)
+            if len(deg) != 6 or not all(math.isfinite(v) for v in deg):
+                return None
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return deg
+
+    def _sync_joint_state(self, deg) -> None:
+        """Give FloorGuard the measured pose before its first projection.
+
+        This changes the controller's physical state, not the jaw's hold command
+        or the servo command rate limiter.
+        """
+        ctl = self.controller
+        ctl._current_arm_rads = ctl.mapper.hw_deg_to_sim_arm(deg[:5])
+        ctl._current_grip_rad = ctl.mapper.hw_deg_to_sim_grip(deg[5])
 
     @staticmethod
     def _near(deg, pose) -> bool:
@@ -260,8 +279,7 @@ class GraspService:
         grip = (ctl._grip_hold_rad if holding
                 else ctl.mapper.hw_deg_to_sim_grip(ctl.cfg.gripper_hw_open))
         # Start from the encoders, as run() does, not from the last episode's idea.
-        ctl._current_arm_rads = ctl.mapper.hw_deg_to_sim_arm(deg[:5])
-        ctl._current_grip_rad = ctl.mapper.hw_deg_to_sim_grip(deg[5])
+        self._sync_joint_state(deg)
         t0 = time.time()
         for i, leg in enumerate(legs):
             try:
@@ -313,7 +331,13 @@ class GraspService:
         ctl = self.controller
         cfg = ctl.cfg
         deg = self._arm_deg()
-        if deg is not None and self._near(deg, TRAVEL_DEG):
+        if deg is None:
+            return {"ok": False, "reason": "servo_read_failed"}
+        # A service restart leaves the controller at the configured E1 pose in
+        # software, even when the encoders report another pose. FloorGuard must
+        # start from the physical arm and jaw before the first home command.
+        self._sync_joint_state(deg)
+        if self._near(deg, TRAVEL_DEG):
             refused = self._to_e1_from_travel(deg)
             if refused is not None:
                 return refused

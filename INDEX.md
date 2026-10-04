@@ -15,6 +15,7 @@ Quick map for finding the right code without scanning the whole project.
 | Rear ground calibration | `detection/calibration/calibrate_rear_ground_homography.py` | click floor points, RANSAC solve, calibration hull |
 | Measured rear ground mapping | `detection/rear_ground_homography.json` | 2026-08-06, 640×480 camera, matrix and measurement samples |
 | Sugarbox approach → E1 grasp | `integration/sugarbox_approach_grasp.py` | read-only preflight, stopped arrival, fresh E1 detection, resident service handoff |
+| Sugarbox ROS LiDAR frame | `integration/sugarbox_lidar_geometry.py` | measured 180° / +0.10 m rigid transform; nearest 48-beam sampling |
 | Shared Sugarbox calibration | `integration/sugarbox_ground_calibration.py` | accepted sample hull, resolution/coordinate validation, repo asset defaults |
 | Standalone Sugarbox approach | `integration/sugarbox_rl_approach_final2.py` | Windows YOLO/SAM2/PPO; repo asset paths, default DRY_RUN |
 | Standalone motor bridge | `integration/sugarbox_rl_motor_server.py` | TCP 7000, calibrated wheel odometry, watchdog |

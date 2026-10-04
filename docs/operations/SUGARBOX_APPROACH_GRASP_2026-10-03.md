@@ -10,7 +10,7 @@ Windows 跑 `integration/sugarbox_rl_approach_final2.py`；Jetson 的 grasp-serv
 缺校正時不會略過範圍檢查。Jetson 10/03 已依使用者要求關機；10/04 已重新連線，
 本次只讀 preflight 通過（資產、模型雜湊、Python imports 與服務 status）。
 手臂回報 `other`、目標過期，odom 尚未連 rosbridge；輪速為零。
-尚未重新部署此次整合或完成現場視覺 dry-run／實機驗收。
+10/04 已完成下列只讀現場測試；有效物體追蹤與實際接近／E1 全鏈路夾取仍待驗收。
 
 ## 行為
 
@@ -89,6 +89,49 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
 與 PPO 動作。此模式不收手臂、不送馬達。之後現場監督、已放下物體、前方淨空，
 才以 `--real --i-am-beside-the-robot` 啟動一次完整接近與夾取。
 真正急停仍是電源；不要在接近過程移動物體或伸手。
+
+## 2026-10-04 現場只讀 dry-run
+
+- PR #7 已合併 main、PR #8 已合併 v23-grasp-test；Windows 已同步 `3eb79ec`。
+- 啟動 `start_g2_test_stack.sh` 後，五個 ROS 感測／定位單元 active。
+  `/scan` 約 10.29 Hz、`/odom_setmotor` 約 19.72 Hz，資料有限且本地接收新鮮；
+  odom vx/vy/wz 與四輪指令全程零。仍由 grasp-service 單獨持有序列埠。
+- 固定後相機 SN0001 的 Jetson NVENC／RTP → Windows GStreamer 實際收流成功，
+  畫面 640×480；沒有占用 grasp-vision 的手臂相機。
+- 45 秒主迴圈的 headless dry-run 正常 ESC 退出，ROS／Windows receiver 正常清理。
+  臨時 harness 強制 DRY_RUN 並禁止建立 MotorClient；只保存程式原本的 HUD／辨識畫面。
+  此次沒有送速度、stop 或伺服指令。測試完成後停止本次暫時後相機 sender，ROS 保留。
+- YOLO 正式設定 conf=0.30/imgsz=640 沒有辨識到物體。離線 1280 診斷僅找到
+  confidence 0.121 的藍盒候選，約 16×39 px；沒有降低 runtime 門檻。
+  候選盒底 (120,298) 在校正凸包外約 163 px，因此不能視為可接近目標。
+  手臂處於 other 姿態並遮住有效區，須先安全收至 travel、調整盒子再測。
+- 實測 `base_link→laser` TF 為 yaw=180°、x=+0.10 m。
+  原 standalone 的 π−raw 是鏡射，會把左右反向，也漏了平移。
+  新 `sugarbox_lidar_geometry.py` 用旋轉／平移統一 policy 與 raw safety frame，
+  保留 48 束 nearest 採樣、1.15 observation scale、原防護門檻與避障控制。
+  對不同的實測安裝可指定 `SUGARBOX_LIDAR_YAW_OFFSET_DEG`／
+  `SUGARBOX_LIDAR_FORWARD_OFFSET_M`；這不是安全閘 override。
+- 錄製 scan 的離線重播前方 min 約 0.571 m；側向有極近回波，未新增遮罩或放寬門檻。
+  仍須在新的現場 dry-run 確認側向回波與障礙位置。停止時 HUD front=inf
+  不表示前方無障礙；PARTIAL 是視覺 odom 延遲補償，無有效目標時也會顯示。
+- 同時修正 resident home 首次 FloorGuard 前未同步開機實際姿態的缺口：
+  先驗證六軸有限 encoder，再同步 arm／gripper state；讀值無效、缺軸或 NaN/Inf
+  一律在第一筆 servo write 前拒絕。保留 FloorGuard、限速、到位與序列埠所有權檢查。
+
+### 使用者允許後的空爪收臂（同日）
+
+- 使用者確認空爪、收臂範圍淨空、人在旁可立即斷電，允許張爪並收臂；底盤不行駛。
+- 必要回歸 controller138／servo37／floor641／UI48、FSM 自測全過。
+  新 LiDAR geometry10、travel50、chassis58、calibration21、handoff9 亦全過。
+- Jetson 只更新 `grasp/v23/grasp_service.py`，使用 service 的 Python3.8 編譯通過、
+  LF SHA256 `8117dc3c657bb84d9154e917855cfe68957be0f254f22ea5bb312eb652464bdf`。
+  原檔保留為 `grasp_service.py.bak_home_encoder_20261004`，重啟後姿態保持不變。
+- 正式 `graspctl home` 正常到位，7 iterations／2.66秒；回讀 `[90,74,8,9,90,30]`。
+  `home` 同時張爪回 E1，不是獨立原地開爪命令。
+- 正式 `graspctl stow` 經原中繼點，3.42秒；回讀 `[90,139,0,0,90,30]`、
+  pose=travel、holding=false、arm_busy=false，輪速與odom twist保持零。
+- 這是本次監督操作的單次到位結果，不更改任何 hardware_validated 旗標。
+  有效物體追蹤與實車避障接近仍未驗收。
 
 ## 2026-10-04 離線回歸
 

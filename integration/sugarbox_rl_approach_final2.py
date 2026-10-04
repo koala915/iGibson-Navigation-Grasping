@@ -22,11 +22,17 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from ultralytics import YOLO, SAM
 
 if __package__:
+    from .sugarbox_lidar_geometry import (
+        LidarGeometry, nearest_policy_ranges, robot_scan_samples,
+    )
     from .sugarbox_ground_calibration import (
         load_ground_calibration, pixel_to_ground, resolve_asset_paths,
         inside_calibration_hull as _inside_calibration_hull,
     )
 else:
+    from sugarbox_lidar_geometry import (
+        LidarGeometry, nearest_policy_ranges, robot_scan_samples,
+    )
     from sugarbox_ground_calibration import (
         load_ground_calibration, pixel_to_ground, resolve_asset_paths,
         inside_calibration_hull as _inside_calibration_hull,
@@ -260,26 +266,17 @@ POLICY_ANGLES_DEG = np.linspace(
 
 
 # ============================================================
-# 6. TG30 特殊方向
+# 6. TG30 measured ROS mounting
 # ============================================================
 
-# 你的實測：
-#
-# 原始 /scan
-#   前後相反
-#   左右正確
-#
-# 所以不能：
-#
-# raw_angle + pi
-#
-# 因為那會連左右一起交換。
-#
-# 正確是鏡射：
-#
-# body_angle = pi - raw_angle
-#
-LIDAR_REFLECT_FRONT_BACK = True
+# /scan uses ROS CCW angles in frame "laser". The measured TF is
+# base_link -> laser: yaw 180 deg, x +0.10 m, y 0. A rigid rotation
+# preserves handedness; a front/back reflection swaps robot left/right.
+# Explicit overrides describe a separately measured mounting, not a brake bypass.
+LIDAR_GEOMETRY = LidarGeometry(
+    yaw_offset_deg=float(os.environ.get("SUGARBOX_LIDAR_YAW_OFFSET_DEG", "180")),
+    forward_offset_m=float(os.environ.get("SUGARBOX_LIDAR_FORWARD_OFFSET_M", "0.10")),
+)
 
 
 # ============================================================
@@ -2259,277 +2256,64 @@ def sanitize_policy_range(
 # /scan -> 48 rays
 # ============================================================
 
-def scan_to_policy_rays(
-    scan
-):
-
-    if scan.ranges is None:
+def scan_to_policy_rays(scan):
+    if scan.ranges is None or len(scan.ranges) == 0:
         return None
-
-    if len(
-        scan.ranges
-    ) == 0:
-
-        return None
-
-    rays = np.full(
-
-        NUM_LIDAR_RAYS,
-
-        LIDAR_MAX_M,
-
-        dtype=np.float32
-    )
-
-    for i, body_deg in enumerate(
-        POLICY_ANGLES_DEG
-    ):
-
-        body_rad = math.radians(
-            float(
-                body_deg
-            )
-        )
-
-        # ----------------------------------------------------
-        # 你的 TG30：
-        #
-        # raw front/back opposite
-        # left/right correct
-        #
-        # body = pi - raw
-        #
-        # 所以反推：
-        #
-        # raw = pi - body
-        # ----------------------------------------------------
-
-        if LIDAR_REFLECT_FRONT_BACK:
-
-            raw_rad = wrap_pi(
-
-                math.pi
-                -
-                body_rad
-            )
-
-        else:
-
-            raw_rad = body_rad
-
-        index = angle_to_scan_index(
-
-            raw_rad,
-
-            scan
-        )
-
-        if index is None:
-
-            rays[i] = LIDAR_MAX_M
-
-            continue
-
-        raw_policy_range = sanitize_policy_range(
-
-            float(
-                scan.ranges[
-                    index
-                ]
-            )
-        )
-
-        # 只對 PPO observation 做距離縮放。
-        # 外部 raw_front_metrics() 仍使用真實 LiDAR 距離，
-        # 所以 hard stop / forward block 的安全距離不會被騙大。
-        rays[i] = float(
-            min(
-                raw_policy_range * PPO_LIDAR_DISTANCE_SCALE,
-                LIDAR_MAX_M
-            )
-        )
-
-    return rays
+    samples = robot_scan_samples(
+        scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY)
+    return np.asarray(nearest_policy_ranges(
+        samples, POLICY_ANGLES_DEG, max_range_m=LIDAR_MAX_M,
+        distance_scale=PPO_LIDAR_DISTANCE_SCALE), dtype=np.float32)
 
 
 # ============================================================
 # Dense raw /scan front metrics
 # ============================================================
 
-def raw_front_metrics(
-    scan
-):
-
-    """
-    回傳：
-        robust_distance : 給 slowdown / forward-block hysteresis 用
-        strict_min      : 給 emergency hard-stop 用
-        sample_count    : 前方 sector 有效 ray 數
-
-    robust_distance 不再直接用單一 minimum，
-    避免某一束 LiDAR noise 讓安全層在門檻附近一直切換。
-    """
-
-    if scan.ranges is None:
-        return (
-            float("inf"),
-            float("inf"),
-            0
-        )
-
-    if len(scan.ranges) == 0:
-        return (
-            float("inf"),
-            float("inf"),
-            0
-        )
-
-    half_angle = math.radians(
-        FRONT_SAFETY_HALF_ANGLE_DEG
-    )
-
-    values = []
-
-    for i, value in enumerate(scan.ranges):
-
-        value = float(value)
-
-        if not math.isfinite(value):
-            continue
-
-        if value <= 0.0:
-            continue
-
-        raw_angle = (
-            scan.angle_min
-            +
-            i
-            *
-            scan.angle_increment
-        )
-
-        if LIDAR_REFLECT_FRONT_BACK:
-
-            body_angle = wrap_pi(
-                math.pi
-                -
-                raw_angle
-            )
-
-        else:
-
-            body_angle = wrap_pi(
-                raw_angle
-            )
-
-        if abs(body_angle) <= half_angle:
-            values.append(value)
-
+def raw_front_metrics(scan):
+    """Dense robot-frame front ranges; only PPO ranges receive scaling."""
+    if scan.ranges is None or len(scan.ranges) == 0:
+        return float("inf"), float("inf"), 0
+    half_angle = math.radians(FRONT_SAFETY_HALF_ANGLE_DEG)
+    values = [sample.range_m for sample in robot_scan_samples(
+        scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY)
+        if sample.range_m is not None and abs(sample.angle_rad) <= half_angle]
     if not values:
-        return (
-            float("inf"),
-            float("inf"),
-            0
-        )
-
-    arr = np.asarray(
-        values,
-        dtype=np.float32
-    )
-
-    strict_min = float(
-        np.min(arr)
-    )
-
-    if arr.size < FRONT_ROBUST_MIN_POINTS:
-        robust_distance = strict_min
-    else:
-        robust_distance = float(
-            np.percentile(
-                arr,
-                FRONT_ROBUST_PERCENTILE
-            )
-        )
-
-    return (
-        robust_distance,
-        strict_min,
-        int(arr.size)
-    )
+        return float("inf"), float("inf"), 0
+    arr = np.asarray(values, dtype=np.float32)
+    strict_min = float(np.min(arr))
+    robust_distance = (strict_min if arr.size < FRONT_ROBUST_MIN_POINTS
+                       else float(np.percentile(arr, FRONT_ROBUST_PERCENTILE)))
+    return robust_distance, strict_min, int(arr.size)
 
 
 def raw_side_metrics(scan):
-
-    """
-    External 250-degree side-clearance metrics.
-
-    Body-angle convention used elsewhere in this file:
-      negative angle = robot right
-      positive angle = robot left
-
-    The front +/-25 deg is intentionally excluded because the existing
-    front safety already handles that region. This function covers:
-      right side: -125 .. -25 deg
-      left side :  +25 .. +125 deg
-
-    Returns:
-      right_robust, right_min, right_count,
-      left_robust,  left_min,  left_count
-    """
-
+    """Original side percentiles/guards, with robot x forward and y left."""
     if scan.ranges is None or len(scan.ranges) == 0:
-        return (
-            float("inf"), float("inf"), 0,
-            float("inf"), float("inf"), 0
-        )
-
+        return (float("inf"), float("inf"), 0,
+                float("inf"), float("inf"), 0)
     side_max = math.radians(SIDE_SAFETY_MAX_ANGLE_DEG)
     front_exclude = math.radians(SIDE_SAFETY_FRONT_EXCLUDE_DEG)
-
-    right_values = []
-    left_values = []
-
-    for i, value in enumerate(scan.ranges):
-        value = float(value)
-
-        if not math.isfinite(value) or value <= 0.0:
+    right_values, left_values = [], []
+    for sample in robot_scan_samples(
+            scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY):
+        if sample.range_m is None:
             continue
-
-        raw_angle = scan.angle_min + i * scan.angle_increment
-
-        if LIDAR_REFLECT_FRONT_BACK:
-            body_angle = wrap_pi(math.pi - raw_angle)
-        else:
-            body_angle = wrap_pi(raw_angle)
-
-        if -side_max <= body_angle <= -front_exclude:
-            right_values.append(value)
-        elif front_exclude <= body_angle <= side_max:
-            left_values.append(value)
+        if -side_max <= sample.angle_rad <= -front_exclude:
+            right_values.append(sample.range_m)
+        elif front_exclude <= sample.angle_rad <= side_max:
+            left_values.append(sample.range_m)
 
     def summarize(values):
         if not values:
             return float("inf"), float("inf"), 0
-
         arr = np.asarray(values, dtype=np.float32)
         strict_min = float(np.min(arr))
-
-        if arr.size < SIDE_ROBUST_MIN_POINTS:
-            robust = strict_min
-        else:
-            robust = float(
-                np.percentile(arr, SIDE_ROBUST_PERCENTILE)
-            )
-
+        robust = (strict_min if arr.size < SIDE_ROBUST_MIN_POINTS
+                  else float(np.percentile(arr, SIDE_ROBUST_PERCENTILE)))
         return robust, strict_min, int(arr.size)
 
-    right_robust, right_min, right_count = summarize(right_values)
-    left_robust, left_min, left_count = summarize(left_values)
-
-    return (
-        right_robust, right_min, right_count,
-        left_robust, left_min, left_count
-    )
+    return (*summarize(right_values), *summarize(left_values))
 
 
 

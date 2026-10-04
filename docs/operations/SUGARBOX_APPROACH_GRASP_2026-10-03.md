@@ -150,6 +150,17 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
   下一步先轉寬正面朝相機、稍移畫面中央，再確認正式辨識和追蹤鎖定。
   校正與 LiDAR 安全距離確認前，尚未啟動底盤導航。
 
+### 原始影像確認（同日，第三輪）
+
+- LiDAR 新 13 項回歸及 PR #9 的 Linux CI 通過；raw safety 保留原 sensor 扇區／距離。
+  收臂後 49 幀 scan 的離線 safety replay 無 hard-stop／sideguard／vx-cap 事件；
+  此為靜態資料驗證，仍須實際避障測試。
+- 另外保存未標註 raw frame，第三輪主迴圈 45.06 秒正常退出。
+  最終正式 YOLO 為 NO_YOLO，沒有 VALID 或 TARGET 鎖定；MotorClient 全程禁用，
+  實測 odom 與四輪指令保持零。
+- 藍盒位於畫面中央附近但仍只露出窄側面。等待轉寬正面後的正式辨識驗證，
+  未因此降低信心門檻或改動安全閘。第三輪暫時後相機 sender 已停止，ROS 保留。
+
 ## 2026-10-04 PR #8 合併前離線回歸
 
 - 23 套 Python 測試／自測全部通過；17 套共 1,093 checks，另 6 套 selftests。

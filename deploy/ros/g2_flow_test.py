@@ -40,13 +40,14 @@ def pose():
     return p[0], p[1]
 
 
-def drive(dist, vx, max_s=8.0):
-    """Drive until odometry says `dist` metres (sign of vx), then stop."""
+def drive(dist, vx, max_s=8.0, stop_early_m=0.0):
+    """Drive to an odometry threshold, then include coasting in the return."""
     x0, y0 = pose()
     c = socket.create_connection(("127.0.0.1", 7000), timeout=3)
     moved, t = 0.0, time.time()
+    command_goal = max(0.005, dist - stop_early_m)
     try:
-        while moved < dist and time.time() - t < max_s:
+        while moved < command_goal and time.time() - t < max_s:
             c.sendall((json.dumps({"action": "velocity", "vx": vx, "wz": 0.0}) + "\n").encode())
             time.sleep(0.05)
             x, y = pose()
@@ -86,10 +87,15 @@ st = status()
 log("start: arm_pose %s, servo %s, odom %s" % (st["chassis"]["arm_pose"], st["servo_deg"], st["odom"]["pose"]))
 must(st["chassis"]["arm_pose"] == "travel", "arm is not in the travel pose")
 must(st["servo_deg"] is not None, "servo reads are failing")
-must((st["chassis"].get("board_rx_age_s") or 9) < 0.5, "the board is not talking")
+rx_age = st["chassis"].get("board_rx_age_s")
+must(rx_age is not None and rx_age < 0.5, "the board is not talking")
 
-d, t_stop = drive(FIRST_M, 0.15)
-log("approach in travel pose: %.3f m" % d)
+# The 2026-09-28 run travelled 0.222 m when commanded to stop at 0.15 m.
+# Stop commanding early; the guard below still aborts if coast is larger.
+first_d, t_stop = drive(FIRST_M, 0.15, stop_early_m=min(0.06, FIRST_M / 2))
+log("approach in travel pose: %.3f m" % first_d)
+must(first_d <= min(0.18, FIRST_M + 0.03),
+     "initial approach exceeded the safe distance; do not creep toward the box")
 
 r, dt = ctl("home")
 log("home (travel -> E1 via waypoint) -> ok=%s in %.2f s" % (r.get("ok"), dt))
@@ -107,6 +113,10 @@ while True:
             log("E1 sees the box: %s" % det2["pos"])
             break
     must(creep + 0.02 + 0.02 <= CREEP_MAX_M, "crept %.3f m at E1 and never saw the box" % creep)
+    # The box starts 25-30 cm ahead of the chassis; do not keep creeping when
+    # vision is absent and the travelled distance has consumed that clearance.
+    must(first_d + creep + 0.03 <= 0.18,
+         "forward travel reached the 0.18 m blind-approach limit without a detection")
     d, t_stop = drive(0.005, 0.10)
     creep += d
     log("creep at E1: %.3f m (total %.3f)" % (d, creep))

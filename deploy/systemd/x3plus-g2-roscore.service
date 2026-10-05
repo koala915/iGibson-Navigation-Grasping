@@ -1,0 +1,21 @@
+[Unit]
+Description=X3Plus G2 ROS master (no chassis driver)
+After=network.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=jetson
+Environment=HOME=/home/jetson
+Environment=ROS_MASTER_URI=http://127.0.0.1:11311
+WorkingDirectory=/home/jetson
+ExecStart=/bin/bash /usr/local/libexec/x3plus/start-g2-ros.sh core
+ExecStartPost=/usr/bin/python3 /usr/local/libexec/x3plus/wait-ros-ready.py master
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStartSec=45
+
+[Install]
+WantedBy=multi-user.target

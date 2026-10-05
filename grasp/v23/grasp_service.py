@@ -109,6 +109,8 @@ class GraspService:
         self.episodes = 0
         self.last = None
         self.started = time.time()
+        self.startup_pose = {"enabled": False, "ok": None, "reason": "not_run"}
+        self.chassis_tcp_ready = False
         # Monotonic, like the detection receiver's own stamps.
         self._arm_moved_at = time.monotonic()
 
@@ -156,13 +158,18 @@ class GraspService:
     # ── commands ────────────────────────────────────────────────────────
     def cmd_status(self) -> dict:
         jaw = None
+        read_reason = "ok"
         try:
             rd = self.controller.servo.read_degrees()
             jaw = rd.degrees if rd.valid else None
+            read_reason = getattr(rd, "reason", "ok" if rd.valid else "invalid")
         except Exception as exc:                      # diagnostics must not kill the service
             jaw = "read failed: %s" % exc
+            read_reason = str(exc)
         return {"ok": True, "episodes": self.episodes, "last": self.last,
                 "servo_deg": jaw, "detection": self.detection(),
+                "servo_read_reason": read_reason, "startup_pose": self.startup_pose,
+                "chassis_tcp_ready": self.chassis_tcp_ready,
                 "chassis": self.chassis.status() if self.chassis else None,
                 "odom": self.odom_bridge.status() if self.odom_bridge else None,
                 "rss_mb": round(rss_mb(), 1),
@@ -318,6 +325,59 @@ class GraspService:
                     "hint": "only E1 -> travel is a checked path; run home first"}
         return self._move_legs([self._waypoint(), TRAVEL_DEG], "stow", deg)
 
+    def prepare_startup_pose(self, enabled: bool) -> dict:
+        """Opt-in boot parking, using the same guarded commands as the operator.
+
+        The chassis TCP listener is started only after this succeeds. A failed
+        boot leaves the diagnostic socket available, without an automatic retry
+        of a partly completed physical move. A closed jaw may hold an object:
+        never automatically open it after losing the controller's hold state.
+        """
+        if not enabled:
+            self.startup_pose = {"enabled": False, "ok": True, "reason": "disabled"}
+            return self.startup_pose
+        result = {"enabled": True, "ok": False, "reason": "servo_read_failed"}
+        self.startup_pose = result
+        try:
+            deg = self._arm_deg()
+            if deg is None:
+                return result
+            if abs(deg[5] - self.controller.cfg.gripper_hw_open) > POSE_TOL_DEG:
+                result["reason"] = "jaw_not_open_at_boot"
+                return result
+            if self.chassis is not None:
+                ch = self.chassis.status()
+                if ch.get("moving") or ch.get("motors") != [0, 0, 0, 0]:
+                    result["reason"] = "chassis_not_stopped"
+                    return result
+                age = ch.get("board_rx_age_s")
+                if age is None or age > 0.5:
+                    result["reason"] = "board_feedback_stale"
+                    return result
+            if not self._near(deg, TRAVEL_DEG):
+                if not self._near(deg, self.controller.cfg.home_deg):
+                    res = self.run_arm_command(self.cmd_home)
+                    if not res.get("ok"):
+                        result.update(reason="startup_home_failed", detail=res)
+                        return result
+                res = self.run_arm_command(self.cmd_stow)
+                if not res.get("ok"):
+                    result.update(reason="startup_stow_failed", detail=res)
+                    return result
+            deg = self._arm_deg()
+            if not self._near(deg, TRAVEL_DEG):
+                result["reason"] = "startup_verification_failed"
+                return result
+            result.update(ok=True, reason="travel_verified", servo_deg=deg)
+            return result
+        except Exception as exc:
+            result.update(reason="startup_exception", detail=str(exc))
+            return result
+        finally:
+            if self.chassis is not None:
+                self.chassis.set_arm_pose("travel" if result["ok"] else "startup_failed")
+            print("[startup-pose] %s" % json.dumps(result), flush=True)
+
     def cmd_home(self) -> dict:
         """Park at the grasp home pose with the jaw open, releasing anything held.
 
@@ -446,17 +506,26 @@ class GraspService:
         os.chmod(self.sock_path, 0o600)
         srv.listen(1)
         try:
-            if self.chassis_server is not None:
-                self.chassis_server.start()
-                # R7 starts closed ("unknown") until the encoders say where the arm is.
-                self.chassis.set_arm_pose(self.arm_pose())
+            if self.chassis is not None:
+                # Initialize zero wheel commands before parking, without exposing
+                # the TCP listener until the startup pose has been verified.
+                self.chassis.stop()
             if self.odom_bridge is not None:
                 self.odom_bridge.start()
+            enabled = os.environ.get("GRASP_SERVICE_STARTUP_TRAVEL", "0") == "1"
+            prepared = self.prepare_startup_pose(enabled)
+            if self.chassis_server is not None:
+                if prepared["ok"]:
+                    self.chassis.set_arm_pose(self.arm_pose())
+                    self.chassis_server.start()
+                    self.chassis_tcp_ready = True
+                else:
+                    print("[startup-pose] chassis TCP remains disabled", flush=True)
             print("\n[service] ready on %s — startup cost is now paid.\n"
                   "[service] commands: grasp | release | home | stow | status | quit"
                   "   chassis: %s   odom: %s   (rss %.0f MB)\n"
                   % (self.sock_path,
-                     "TCP %d" % self.chassis_server.port if self.chassis_server
+                     "TCP %d" % self.chassis_server.port if self.chassis_tcp_ready
                      else "off",
                      "rosbridge %s:%d" % (self.odom_bridge.host, self.odom_bridge.port)
                      if self.odom_bridge else "off", rss_mb()), flush=True)

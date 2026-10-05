@@ -113,6 +113,7 @@ SUITES = [
     ("integration/mission_fsm.py", ["--selftest"]),
     ("integration/mission_pipeline.py", ["--selftest"]),
     ("integration/nav_rl.py", ["--selftest"]),
+    ("tests/test_g2_nav_client.py", []),
     ("integration/vision_grasp_pipeline.py", ["--selftest"]),
     ("integration/nav_rl_grasp_pipeline.py", ["--selftest"]),
     ("tests/test_grasp_home_homography.py", []),

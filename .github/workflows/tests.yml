@@ -68,6 +68,9 @@ jobs:
       - name: Sugarbox approach to E1 handoff
         run: python tests/test_sugarbox_approach_grasp.py
 
+      - name: Sugarbox blind finish, final approach under occlusion, turn floor
+        run: python tests/test_sugarbox_blind_finish.py
+
       - name: Vision bridge pose
         run: python tests/test_vision_grasp_bridge_pose.py
 
@@ -86,6 +89,15 @@ jobs:
       - name: Sugarbox runtime ground calibration
         run: python tests/test_sugarbox_ground_calibration.py
 
+      - name: Sugarbox ROS LiDAR geometry
+        run: python tests/test_sugarbox_lidar_geometry.py
+
+      - name: Resident arm transitions and encoder initialization
+        run: python grasp/v23/test_travel_pose.py
+
+      - name: Resident chassis ownership and arm interlock
+        run: python grasp/v23/test_chassis_server.py
+
       - name: Operator console
         run: python ui/test_server.py
 
@@ -99,6 +111,9 @@ jobs:
 
       - name: Mission pipeline selftest
         run: python integration/mission_pipeline.py --selftest
+
+      - name: G2 navigation TCP safety client
+        run: python tests/test_g2_nav_client.py
 
       - name: Vision grasp pipeline selftest
         run: python integration/vision_grasp_pipeline.py --selftest

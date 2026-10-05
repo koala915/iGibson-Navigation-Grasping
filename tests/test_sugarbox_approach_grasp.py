@@ -112,6 +112,36 @@ class HandoffTests(unittest.TestCase):
             self.assertEqual(check.call_args.args[0].homography,
                              runner.ROOT / 'detection/rear_ground_homography.json')
 
+    def launched_env(self, argv, inherited=None):
+        snapshot = copy.deepcopy(self.snapshot)
+        snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
+        with patch.dict(runner.os.environ, inherited or {}, clear=True), \
+             patch.object(runner, 'preflight', return_value=({}, [])), \
+             patch.object(runner, 'ctl', return_value=snapshot), \
+             patch.object(runner.subprocess, 'run') as process:
+            process.return_value.returncode = 0
+            self.assertEqual(runner.main(['--dry-run'] + argv), 0)
+            return process.call_args.kwargs['env']
+
+    def test_blind_stop_and_yolo_size_reach_the_approach(self):
+        env = self.launched_env(['--blind-stop-x', '0.30', '--yolo-imgsz', '1280'])
+        self.assertEqual(env['SUGARBOX_BLIND_STOP_X'], '0.3')
+        self.assertEqual(env['SUGARBOX_YOLO_IMGSZ'], '1280')
+
+    def test_settings_left_in_the_shell_do_not_leak_into_a_run(self):
+        env = self.launched_env([], {'SUGARBOX_BLIND_STOP_X': '0.5', 'SUGARBOX_YOLO_IMGSZ': '960'})
+        self.assertNotIn('SUGARBOX_BLIND_STOP_X', env)
+        self.assertNotIn('SUGARBOX_YOLO_IMGSZ', env)
+
+    def test_out_of_range_settings_are_refused_before_anything_runs(self):
+        for argv in (['--blind-stop-x', '0.9'], ['--blind-stop-x', 'nan'],
+                     ['--yolo-imgsz', '1000'], ['--yolo-imgsz', '64']):
+            with self.subTest(argv=argv), \
+                 patch.object(runner, 'ctl') as read, \
+                 patch('sys.stderr'), self.assertRaises(SystemExit):
+                runner.main(argv)
+            read.assert_not_called()
+
     def test_bad_calibration_blocks_real_run_before_stow(self):
         snapshot = copy.deepcopy(self.snapshot)
         snapshot['servo_deg'] = [90, 74, 8, 9, 90, 30]

@@ -10,7 +10,7 @@ Windows 跑 `integration/sugarbox_rl_approach_final2.py`；Jetson 的 grasp-serv
 缺校正時不會略過範圍檢查。Jetson 10/03 已依使用者要求關機；10/04 已重新連線，
 本次只讀 preflight 通過（資產、模型雜湊、Python imports 與服務 status）。
 手臂回報 `other`、目標過期，odom 尚未連 rosbridge；輪速為零。
-尚未重新部署此次整合或完成現場視覺 dry-run／實機驗收。
+10/04 已完成下列只讀現場測試；有效物體追蹤與實際接近／E1 全鏈路夾取仍待驗收。
 
 ## 行為
 
@@ -90,7 +90,78 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
 才以 `--real --i-am-beside-the-robot` 啟動一次完整接近與夾取。
 真正急停仍是電源；不要在接近過程移動物體或伸手。
 
-## 2026-10-04 離線回歸
+## 2026-10-04 現場只讀 dry-run
+
+- PR #7 已合併 main、PR #8 已合併 v23-grasp-test；Windows 已同步 `3eb79ec`。
+- 啟動 `start_g2_test_stack.sh` 後，五個 ROS 感測／定位單元 active。
+  `/scan` 約 10.29 Hz、`/odom_setmotor` 約 19.72 Hz，資料有限且本地接收新鮮；
+  odom vx/vy/wz 與四輪指令全程零。仍由 grasp-service 單獨持有序列埠。
+- 固定後相機 SN0001 的 Jetson NVENC／RTP → Windows GStreamer 實際收流成功，
+  畫面 640×480；沒有占用 grasp-vision 的手臂相機。
+- 45 秒主迴圈的 headless dry-run 正常 ESC 退出，ROS／Windows receiver 正常清理。
+  臨時 harness 強制 DRY_RUN 並禁止建立 MotorClient；只保存程式原本的 HUD／辨識畫面。
+  此次沒有送速度、stop 或伺服指令。測試完成後停止本次暫時後相機 sender，ROS 保留。
+- YOLO 正式設定 conf=0.30/imgsz=640 沒有辨識到物體。離線 1280 診斷僅找到
+  confidence 0.121 的藍盒候選，約 16×39 px；沒有降低 runtime 門檻。
+  候選盒底 (120,298) 在校正凸包外約 163 px，因此不能視為可接近目標。
+  手臂處於 other 姿態並遮住有效區，須先安全收至 travel、調整盒子再測。
+- 實測 `base_link→laser` TF 為 yaw=180°、x=+0.10 m。
+  原 standalone 的 π−raw 是鏡射，會把左右反向，也漏了平移。
+  新 `sugarbox_lidar_geometry.py` 讓 PPO 使用完整旋轉／平移後的 base 座標，
+  保留 48 束 nearest 採樣與 1.15 observation scale。
+  raw safety 僅旋轉原感測扇區並保留 sensor 原始測距，維持原物理停車距離與側向 coverage；
+  不能把正前方 d 換成 d+0.10 後仍宣稱門檻沒有放寬。
+  對不同的實測安裝可指定 `SUGARBOX_LIDAR_YAW_OFFSET_DEG`／
+  `SUGARBOX_LIDAR_FORWARD_OFFSET_M`；這不是安全閘 override。
+- 錄製 scan 的離線重播前方 min 約 0.571 m；側向有極近回波，未新增遮罩或放寬門檻。
+  仍須在新的現場 dry-run 確認側向回波與障礙位置。停止時 HUD front=inf
+  不表示前方無障礙；PARTIAL 是視覺 odom 延遲補償，無有效目標時也會顯示。
+- 同時修正 resident home 首次 FloorGuard 前未同步開機實際姿態的缺口：
+  先驗證六軸有限 encoder，再同步 arm／gripper state；讀值無效、缺軸或 NaN/Inf
+  一律在第一筆 servo write 前拒絕。保留 FloorGuard、限速、到位與序列埠所有權檢查。
+
+### 使用者允許後的空爪收臂（同日）
+
+- 使用者確認空爪、收臂範圍淨空、人在旁可立即斷電，允許張爪並收臂；底盤不行駛。
+- 必要回歸 controller138／servo37／floor641／UI48、FSM 自測全過。
+  新 LiDAR geometry13、travel50、chassis58、calibration21、handoff9 亦全過。
+- Jetson 只更新 `grasp/v23/grasp_service.py`，使用 service 的 Python3.8 編譯通過、
+  LF SHA256 `8117dc3c657bb84d9154e917855cfe68957be0f254f22ea5bb312eb652464bdf`。
+  原檔保留為 `grasp_service.py.bak_home_encoder_20261004`，重啟後姿態保持不變。
+- 正式 `graspctl home` 正常到位，7 iterations／2.66秒；回讀 `[90,74,8,9,90,30]`。
+  `home` 同時張爪回 E1，不是獨立原地開爪命令。
+- 正式 `graspctl stow` 經原中繼點，3.42秒；回讀 `[90,139,0,0,90,30]`、
+  pose=travel、holding=false、arm_busy=false，輪速與odom twist保持零。
+- 這是本次監督操作的單次到位結果，不更改任何 hardware_validated 旗標。
+  有效物體追蹤與實車避障接近仍未驗收。
+
+### 收臂後第二輪辨識（同日）
+
+- 使用者確認收手臂正常、無碰撞或卡住，並重新調整藍盒。
+- 第二次 bounded DRY_RUN 正常退出，主迴圈 46.03 秒；MotorClient 禁用，
+  只有相機／LiDAR／odom 讀取。四輪指令與實測 odom twist 保持零。
+- 即時 YOLO 框到畫面最下方的機器人夾爪，最終為 OUTSIDE_CALIBRATION，
+  沒有有效目標鎖定。不能把這次檢出稱為已辨識到藍盒。
+- 離線診斷：真正藍盒手動 SAM bbox 得接地 (253.5,393)，hull 距離 -4.34 px，
+  在既有 10 px 邊界容許值內；此為診斷位置，非 runtime 的有效目標。
+  藍盒約 18×57 px、露出窄側面，1280 診斷可檢出，但正式 imgsz=640 尚未有效檢出。
+  不修改 conf=0.30、imgsz=640、校正範圍或驗證旗標。
+- 使用者已同意場地淨空後的巡航辨識／避障接近／E1 夾取測試。
+  下一步先轉寬正面朝相機、稍移畫面中央，再確認正式辨識和追蹤鎖定。
+  校正與 LiDAR 安全距離確認前，尚未啟動底盤導航。
+
+### 原始影像確認（同日，第三輪）
+
+- LiDAR 新 13 項回歸及 PR #9 的 Linux CI 通過；raw safety 保留原 sensor 扇區／距離。
+  收臂後 49 幀 scan 的離線 safety replay 無 hard-stop／sideguard／vx-cap 事件；
+  此為靜態資料驗證，仍須實際避障測試。
+- 另外保存未標註 raw frame，第三輪主迴圈 45.06 秒正常退出。
+  最終正式 YOLO 為 NO_YOLO，沒有 VALID 或 TARGET 鎖定；MotorClient 全程禁用，
+  實測 odom 與四輪指令保持零。
+- 藍盒位於畫面中央附近但仍只露出窄側面。等待轉寬正面後的正式辨識驗證，
+  未因此降低信心門檻或改動安全閘。第三輪暫時後相機 sender 已停止，ROS 保留。
+
+## 2026-10-04 PR #8 合併前離線回歸
 
 - 23 套 Python 測試／自測全部通過；17 套共 1,093 checks，另 6 套 selftests。
 - 新 runtime 校正 21、E1 交接 9、LiDAR 安全層 12 項皆通過。

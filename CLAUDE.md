@@ -126,6 +126,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `ros_io.py` | rosbridge：發 `/odom_setmotor` + `odom→base_footprint` TF、收 `/amcl_pose`（含 covariance 發散門檻）與 `/trash_target/detection`（僅 `--target-source offboard` 時訂閱） |
 | `trash_target.py` | 離機 SAM2 目標的轉接層。**發布端 y 左為正、pipeline offset 右為正，這裡負號翻轉** —— 兩邊都是同範圍的 float，接錯不會報錯只會轉錯邊。逾時／無效／後方目標一律 fail closed |
 | `target_approach.py` | 選配的 offboard 近距離流程：bbox 置中後，以 odometry 量測前進 0.15 m，再交給 arm-camera ALIGN |
+| `sugarbox_lidar_geometry.py` | standalone ROS scan→robot frame；實測 yaw180°、x+0.10m；PPO保留48束nearest與1.15 scale，raw safety保留sensor原始距離／旋轉扇區，禁止用鏡射當旋轉 |
 | `nav_safety.py` | 導航命令最後一道 raw LiDAR 安全層；增強前方/側向遲滯、脫困與角速度限幅皆為 opt-in |
 | `vision_grasp_pipeline.py` | ★模式A 自走全流程：雙相機導航(set_car_motion)→handoff→PPO 夾取(obj_provider)→驗證/重試(≤3)。含 `--selftest` |
 | `vision_grasp_bridge.py` | 模式B（除錯）：辨識→算 x/y/z/寬度/高度→TCP 5555 送夾取端。payload 是 superset，v17 讀 `w`、v21 讀 `height` |
@@ -133,6 +134,15 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `nav_best_model/` | 導航 PPO 權重（best + checkpoint 281440，各配 vecnorm pkl，來源 igibson_x3_test） |
 | `mission_status.py` | 遙測發布器。`--status-udp` 每 tick 一個 JSON 封包（UDP），fire-and-forget，沒人聽也不影響任務 |
 | `README.md` | 兩種模式開啟流程、各檔用途、校正清單 |
+
+`sugarbox_rl_approach_final2.py` 的最後接近與搜尋互斥：後相機連續確認置中後，
+`FinalApproachController` 維持零角速度並以輪速里程完成預設 0.15 m 的前進，最長 3.5 s。
+這段期間物體被夾爪遮住時不切回搜尋、不重設已累積距離；感測過期、急停及原有
+raw LiDAR hard-stop／forward-block 仍優先停車。**行駛姿態的夾爪就在後相機畫面正下方**，
+近距離的盒子會被它擋住：總指揮帶 `--blind-stop-x`（首次 0.30 m）時，盒子在 0.60 m、±10°
+內丟失就沿里程計記憶直走到該距離再交給 E1，E1 手臂相機看不到就不夾。後相機在 1 m
+看盒子要 `--yolo-imgsz 1280`（640 認不到）。原地轉向至少 wz 1.0（輪速 20 轉不動）。
+手臂相機由後續 E1 夾取交接使用，不是這支 standalone 底盤接近程式的輸入。
 
 ### `ui/`（操作台）
 

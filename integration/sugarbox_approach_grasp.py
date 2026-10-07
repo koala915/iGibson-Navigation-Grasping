@@ -226,6 +226,9 @@ def main(argv=None):
             raise RuntimeError('travel pose not confirmed')
         result = subprocess.run([sys.executable, '-u', str(APPROACH)], env=env,
                                 timeout=args.approach_timeout)
+        if result.returncode == 4:
+            raise RuntimeError('approach stopped: no progress toward the box (the [STOPPED] '
+                               'line above says what held it); no E1/grasp')
         if result.returncode:
             raise RuntimeError('approach did not report stopped arrival; no E1/grasp')
         print(json.dumps(handoff(args.host), ensure_ascii=False))

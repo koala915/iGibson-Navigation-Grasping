@@ -90,6 +90,26 @@ class HandoffTests(unittest.TestCase):
             self.assertNotIn('grasp', commands)
             self.assertEqual(stopping.call_count, 2)
 
+    def test_no_progress_stop_is_reported_and_never_hands_off(self):
+        snapshot = copy.deepcopy(self.snapshot)
+        snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
+        snapshot['chassis']['arm_pose'] = 'travel'
+        commands = []
+        def read(host, cmd):
+            commands.append(cmd)
+            return snapshot if cmd == 'status' else {'ok': True}
+        with patch.object(runner, 'preflight', return_value=({}, [])), \
+             patch.object(runner, 'ctl', side_effect=read), \
+             patch.object(runner, 'stop'), \
+             patch.object(runner.time, 'sleep'), \
+             patch.object(runner.subprocess, 'run') as process, \
+             patch('builtins.print') as printed:
+            process.return_value.returncode = 4
+            self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 2)
+            self.assertNotIn('home', commands)
+            self.assertNotIn('grasp', commands)
+            self.assertIn('no progress', ' '.join(str(c.args[0]) for c in printed.call_args_list))
+
     def test_default_check_never_stows_or_starts_approach(self):
         snapshot = copy.deepcopy(self.snapshot)
         snapshot['servo_deg'] = [90, 74, 8, 9, 90, 30]

@@ -440,6 +440,21 @@ HARD_RECOVERY_TARGET_M = 0.06
 HARD_RECOVERY_MAX_S = 1.50
 HARD_RECOVERY_SETTLE_S = 0.20
 
+# 2026-10-06: reversing is OFF. Nothing watches behind the car (the body blocks
+# the rear LiDAR), so the backup above never starts, the avoidance policy's
+# reverse output is clamped to zero, and MotorClient refuses a negative vx as
+# the last line. Turning it back on takes a code edit on purpose, not an
+# environment variable that could be left set in a shell.
+ALLOW_REVERSE = False
+
+# Without reverse a blocked approach can only turn or wait. A locked target that
+# has not come NO_PROGRESS_MIN_GAIN_M closer within NO_PROGRESS_WINDOW_S stops
+# the run for good and says why, instead of waiting out the orchestrator's
+# overall timeout. Centering in place counts against the window too: it should
+# finish in a few seconds, and when it loops it is not progress either.
+NO_PROGRESS_WINDOW_S = 10.0
+NO_PROGRESS_MIN_GAIN_M = 0.03
+
 
 # ============================================================
 # 13. PPO output path: NO temporal smoothing
@@ -2480,13 +2495,23 @@ class AntiJitterSafetyFilter:
         self,
         desired_wz,
         front_robust,
-        front_min
+        front_min,
+        *,
+        right_robust,
+        left_robust
     ):
 
-        # Final centering 只受真正的 hard stop 限制。
+        # In-place turns (centering and target search) sweep the body around a
+        # ~0.19 m radius, so they get the same side guard as the avoidance path,
+        # not only the front hard stop. The side readings are required on
+        # purpose: a caller that forgot them would turn with no side check.
         self._update_distance_latches(
             front_robust,
             front_min
+        )
+        self._update_side_latches(
+            right_robust,
+            left_robust
         )
 
         if self.hard_stopped:
@@ -2504,6 +2529,20 @@ class AntiJitterSafetyFilter:
             -VISUAL_CENTER_MAX_WZ,
             VISUAL_CENTER_MAX_WZ
         )
+
+        if self.right_side_guard and wz < 0.0:
+            return (
+                0.0,
+                0.0,
+                f"SIDE_GUARD_R {right_robust:.3f}m"
+            )
+
+        if self.left_side_guard and wz > 0.0:
+            return (
+                0.0,
+                0.0,
+                f"SIDE_GUARD_L {left_robust:.3f}m"
+            )
 
         return (
             0.0,
@@ -2779,6 +2818,8 @@ class AntiJitterSafetyFilter:
             hard_elapsed = now - self.hard_stop_since
 
             if (
+                ALLOW_REVERSE
+                and
                 hard_elapsed >= HARD_RECOVERY_WAIT_S
                 and
                 not self.recovery_used_this_hard_stop
@@ -2806,6 +2847,12 @@ class AntiJitterSafetyFilter:
                     "HARD_STOP_HOLD_AFTER_RECOVERY "
                     f"min={front_min:.3f}m"
                 )
+            elif not ALLOW_REVERSE:
+                reason = (
+                    "HARD_STOP_HOLD "
+                    f"min={front_min:.3f}m "
+                    f"held={hard_elapsed:.2f}s reverse=off"
+                )
             else:
                 reason = (
                     "HARD_STOP_HOLD "
@@ -2823,9 +2870,11 @@ class AntiJitterSafetyFilter:
 
         # PPO 的 action[1] rate limit 已在進入這個 safety class 前完成。
         # 這裡不再額外做 EMA / vx-wz slew smoothing。
+        reverse_blocked = float(desired_vx) < 0.0 and not ALLOW_REVERSE
+
         vx = clamp(
             float(desired_vx),
-            -TEST_MAX_REV,
+            -TEST_MAX_REV if ALLOW_REVERSE else 0.0,
             TEST_MAX_FWD
         )
 
@@ -2835,12 +2884,20 @@ class AntiJitterSafetyFilter:
             TEST_MAX_WZ
         )
 
+        if reverse_blocked and abs(wz) < AVOID_TURN_MIN_ABS_WZ:
+            # The policy wanted to back off, not to turn. Hold still rather
+            # than let the motor's pure-turn floor make this a full-speed spin.
+            wz = 0.0
+
         wz, turn_hold_reason = self._stabilize_turn_direction(
             wz,
             front_robust
         )
 
         side_reason_parts = []
+
+        if reverse_blocked:
+            side_reason_parts.append("REVERSE_BLOCKED")
 
         if self.right_side_guard and wz < 0.0:
             wz = 0.0
@@ -3402,6 +3459,31 @@ class BlindFinishController:
             self.travelled_m, self.budget_m, target.x))
 
 
+class ProgressWatchdog:
+    """Give up when a locked target stops getting closer (see NO_PROGRESS_WINDOW_S).
+
+    Only a new best distance at least NO_PROGRESS_MIN_GAIN_M below the last one
+    restarts the window, so detection noise around a stuck position cannot keep
+    an approach alive; it would have to keep jumping lower every time.
+    """
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.best_dist = math.inf
+        self.since = None
+
+    def update(self, dist, now):
+        """True once the window has passed without that much progress."""
+        if self.since is None:
+            self.since = now
+        if math.isfinite(dist) and dist <= self.best_dist - NO_PROGRESS_MIN_GAIN_M:
+            self.best_dist = dist
+            self.since = now
+        return now - self.since >= NO_PROGRESS_WINDOW_S
+
+
 # ============================================================
 # Dummy Env for VecNormalize
 # ============================================================
@@ -3774,6 +3856,8 @@ class MotorClient:
 
         self.last_send = 0.0
 
+        self.refused = 0
+
 
     def connect(
         self
@@ -3876,6 +3960,15 @@ class MotorClient:
             return
 
         vx, wz = float(vx), float(wz)
+        # Last line for every branch (see ALLOW_REVERSE). The safety filters
+        # already clamp reverse, so getting here means a path that forgot to:
+        # stop outright rather than guess which part of the command was meant.
+        if not (math.isfinite(vx) and math.isfinite(wz)) or (vx < 0.0 and not ALLOW_REVERSE):
+            self.refused += 1
+            if self.refused in (1, 10) or self.refused % 100 == 0:
+                print(f"[MOTOR] refused vx={vx:+.3f} wz={wz:+.3f} ({self.refused}x): "
+                      "reverse is off; sending stop")
+            vx, wz = 0.0, 0.0
         # A pure turn below motor 25 stalls on the floor (see TURN_MIN_WZ).
         if abs(vx) < 1e-6 and 1e-6 < abs(wz) < TURN_MIN_WZ:
             wz = math.copysign(TURN_MIN_WZ, wz)
@@ -5297,6 +5390,10 @@ def main():
 
     arrived_latched = False
 
+    blocked_latched = False
+    blocked_reason = ""
+    progress = ProgressWatchdog()
+
     target_search_start = 0.0
 
 
@@ -5660,6 +5757,13 @@ def main():
                     should_stop = True
 
 
+                elif blocked_latched:
+
+                    safety_reason = blocked_reason
+
+                    should_stop = True
+
+
                 elif (
                     camera_age
                     >
@@ -5715,6 +5819,31 @@ def main():
                     )
 
                     should_stop = True
+
+
+                # ------------------------------------------------
+                # No progress: with reverse off, stop for good and say why
+                # (only when driving; a dry run never gets closer)
+                # ------------------------------------------------
+
+                if (
+                    RUN_MODE == "DRIVE"
+                    and target.has_memory()
+                    and not (e_stop_latched or arrived_latched or blocked_latched)
+                ):
+                    if progress.update(target.dist, now):
+                        blocked_latched = True
+                        # The last reason is what kept it from getting closer:
+                        # a LiDAR hold, a stale sensor, a looping centre or search.
+                        blocked_reason = (
+                            "NO_PROGRESS {:.0f}s: not {:.0f} cm closer | last: {}".format(
+                                NO_PROGRESS_WINDOW_S, NO_PROGRESS_MIN_GAIN_M * 100,
+                                last_safety_reason))
+                        print("[STOPPED] " + blocked_reason)
+                        safety_reason = blocked_reason
+                        should_stop = True
+                elif not target.has_memory():
+                    progress.reset()
 
 
                 # ------------------------------------------------
@@ -5966,6 +6095,10 @@ def main():
                             0.0
                         )
 
+                        if EXIT_ON_ARRIVAL and blocked_latched:
+                            motor.stop(repeat=5)
+                            break
+
 
                 # ------------------------------------------------
                 # Blind finish drive (straight, front LiDAR safety kept)
@@ -6084,7 +6217,9 @@ def main():
                     ) = anti_jitter.apply_center_turn(
                         search_wz,
                         front_robust,
-                        front_min
+                        front_min,
+                        right_robust=right_side_robust,
+                        left_robust=left_side_robust
                     )
 
                     last_cmd_vx = float(vx_cmd)
@@ -6153,7 +6288,9 @@ def main():
                         ) = anti_jitter.apply_center_turn(
                             center_wz_cmd,
                             front_robust,
-                            front_min
+                            front_min,
+                            right_robust=right_side_robust,
+                            left_robust=left_side_robust
                         )
 
                         # hard stop 永遠比置中優先；
@@ -6764,6 +6901,9 @@ def main():
                 center_controller.reset()
                 final_approach.reset()
                 blind_finish.rearm()
+                blocked_latched = False
+                blocked_reason = ""
+                progress.reset()
                 target_search_start = 0.0
                 last_safety_reason = "RESET"
 
@@ -6779,6 +6919,7 @@ def main():
             ):
 
                 target.clear()
+                progress.reset()
                 target_search_start = 0.0
                 center_controller.reset()
                 final_approach.reset()
@@ -6849,6 +6990,9 @@ def main():
         )
 
     if EXIT_ON_ARRIVAL:
+        if blocked_latched:
+            print("[STOPPED] " + blocked_reason)
+            return 4
         return 0 if arrived_latched and RUN_MODE == "DRIVE" else 3
     return 0
 

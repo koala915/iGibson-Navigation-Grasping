@@ -1,5 +1,9 @@
 # iGibson Navigation & Grasping
 
+**決賽 demo 主線：`v23-grasp-test`／常駐 v23。** 統一入口與限制見
+[v23 決賽操作說明](grasp/v23/FINAL_DEMO.md)；新計畫預設離線預覽，
+不使用下方舊 A/B/C 的實機啟動方式。
+
 [![tests](https://github.com/koala915/iGibson-Navigation-Grasping/actions/workflows/tests.yml/badge.svg)](https://github.com/koala915/iGibson-Navigation-Grasping/actions/workflows/tests.yml)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.8%20%7C%203.12-blue.svg)](#快速開始)

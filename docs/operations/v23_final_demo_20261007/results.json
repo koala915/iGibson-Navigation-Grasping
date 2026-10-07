@@ -1,0 +1,88 @@
+[
+  {
+    "command": "python grasp/v23/test_deploy_controller.py",
+    "exit": 0,
+    "seconds": 56.5,
+    "log": "grasp_v23_test_deploy_controller.txt"
+  },
+  {
+    "command": "python grasp/v23/test_servo_read.py",
+    "exit": 0,
+    "seconds": 16.3,
+    "log": "grasp_v23_test_servo_read.txt"
+  },
+  {
+    "command": "python grasp/v23/test_deploy_floor_guard.py",
+    "exit": 0,
+    "seconds": 31.6,
+    "log": "grasp_v23_test_deploy_floor_guard.txt"
+  },
+  {
+    "command": "python grasp/v23/test_one_command_launcher.py",
+    "exit": 0,
+    "seconds": 1.3,
+    "log": "grasp_v23_test_one_command_launcher.txt"
+  },
+  {
+    "command": "python grasp/v23/test_three_pose_scan.py",
+    "exit": 0,
+    "seconds": 0.7,
+    "log": "grasp_v23_test_three_pose_scan.txt"
+  },
+  {
+    "command": "python grasp/v23/test_chassis_server.py",
+    "exit": 0,
+    "seconds": 2.4,
+    "log": "grasp_v23_test_chassis_server.txt"
+  },
+  {
+    "command": "python grasp/v23/test_travel_pose.py",
+    "exit": 0,
+    "seconds": 2.9,
+    "log": "grasp_v23_test_travel_pose.txt"
+  },
+  {
+    "command": "python grasp/v23/test_odom_bridge.py",
+    "exit": 0,
+    "seconds": 0.5,
+    "log": "grasp_v23_test_odom_bridge.txt"
+  },
+  {
+    "command": "python tests/test_safety_guards.py",
+    "exit": 0,
+    "seconds": 14.8,
+    "log": "tests_test_safety_guards.txt"
+  },
+  {
+    "command": "python tests/test_mission_end_to_end.py",
+    "exit": 0,
+    "seconds": 13.5,
+    "log": "tests_test_mission_end_to_end.txt"
+  },
+  {
+    "command": "python tests/test_vision_grasp_bridge_pose.py",
+    "exit": 0,
+    "seconds": 1.4,
+    "log": "tests_test_vision_grasp_bridge_pose.txt"
+  },
+  {
+    "command": "python tests/test_stream_cam_capture.py",
+    "exit": 0,
+    "seconds": 2.4,
+    "log": "tests_test_stream_cam_capture.txt"
+  },
+  {
+    "command": "python ui/test_server.py",
+    "exit": 0,
+    "seconds": 4.4,
+    "log": "ui_test_server.txt",
+    "note": "v23 UI integration: 50 tests, one missing route fixture skipped"
+  },
+  {
+    "command": "python -m pytest tests/test_v23_demo.py tests/test_g2_safety_audit.py tests/test_g2_demo_supervisor.py -q",
+    "exit": 0,
+    "seconds": 1.7,
+    "log": "v23_demo_pytest",
+    "note": "50 tests including truthful demo UI arm/chassis permissions"
+  }
+]

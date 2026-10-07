@@ -1,0 +1,47 @@
+== stow: E1 -> travel through the waypoint ==
+  [ok] two legs: waypoint (S2 115, S3/S4 at E1), then travel
+  [ok] an empty jaw is kept open
+  [ok] a held object keeps the hold command on every leg, judged as a hold
+  [ok] already in the travel pose: nothing moves
+  [ok] from anywhere else it refuses: that path was never checked
+  [ok] a leg that does not arrive stops the sequence there
+
+== home from travel ==
+  [ok] comes back through the waypoint still holding
+  [ok] and only then opens the jaw at E1 with the usual home move
+  [ok] the hold is cleared after home
+  [ok] from any other pose home is the old single guarded move, unchanged
+
+== release from travel ==
+  [ok] carries the object back to E1 through the waypoint, then runs the checked release
+  [ok] and reports the release outcome
+  [ok] if it cannot get back to E1 it does not release
+  [ok] from an unchecked pose release refuses without moving
+  [ok] from E1 release is exactly what it was
+
+== grasp only from E1 ==
+  [ok] from the travel pose grasp refuses: a frame shot on the way up would pass the latch
+[service] episode 1: confirmed=True outcome=None 0.00s  rss -1 MB
+  [ok] from E1 it grasps as before
+
+== every arm command starts from the encoders ==
+  [ok] before the first move the rate limiter counts from the travel pose, not E1
+  [ok] the jaw's last command is left as it was
+  [ok] unreadable encoders: the arm command refuses without moving
+
+== the chassis learns the arm pose after every arm command ==
+  [ok] after stow the chassis knows the arm is in travel
+  [ok] after home it knows the arm is at E1
+  [ok] an arm command that ends anywhere else is 'other'
+
+== grasp waits for a frame shot after everything stopped ==
+[service] episode 1: confirmed=True outcome=None 0.00s  rss -1 MB
+  [ok] right after the arm stops, grasp waits 2.5 s before it starts
+  [ok] and the detection it starts on arrived at least 1.5 s after the stop
+  [ok] with no detection after the stop it refuses, arm unmoved
+[service] episode 1: confirmed=True outcome=None 0.00s  rss -1 MB
+  [ok] a fresh detection from before the lag is skipped for the next one
+[service] episode 1: confirmed=True outcome=None 0.00s  rss -1 MB
+  [ok] a creep of the wheels counts too: the wait runs from when they stopped
+
+all 28 checks passed — the travel pose is only reached through the checked waypoint, and nothing reaches or grasps from a pose it was not checked from

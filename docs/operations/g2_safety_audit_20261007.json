@@ -1,0 +1,78 @@
+{
+  "ready": true,
+  "control_faults": [],
+  "sensor_faults": [],
+  "services": {
+    "grasp-service": "active",
+    "grasp-vision": "active",
+    "x3plus-g2-roscore": "active",
+    "x3plus-g2-lidar": "active",
+    "x3plus-g2-rosbridge": "active"
+  },
+  "memory_available_mb": 1788.7,
+  "health": {
+    "ok": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.01,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 5642,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 503.7,
+    "uptime_s": 296.7
+  },
+  "counts": {
+    "/odom_setmotor": 189,
+    "/tf": 366,
+    "/scan": 96
+  },
+  "repairs": 0,
+  "time": 1791374604.314147,
+  "note": "readiness snapshot; no movement authorization"
+}

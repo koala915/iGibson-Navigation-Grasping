@@ -1,5 +1,10 @@
 # X3Plus 專題 — Sim-to-Real 夾取部署
 
+> **2026-10-07 決賽主線：v23 常駐服務。** 使用 `grasp/v23/demo.py` 與
+> [FINAL_DEMO.md](grasp/v23/FINAL_DEMO.md)；導航、手臂共用 grasp-service 的序列埠。
+> 以下 v21／A/B/C 的主線敘述為歷史背景，不能據此啟動第二個實機序列 owner。
+> 新 plan 後端不等於已完成自主巡航；待驗收項目見上述 demo 文件。
+
 > **接手這個專案？先讀 [`docs/handoff/HANDOFF_2026-09-20.md`](docs/handoff/HANDOFF_2026-09-20.md)。**
 > 那份講的是「現在做到哪裡、能跑什麼指令、卡在哪一步、下一步做什麼」，以及機器上的
 > 檔案跟這個 repo 不同步這件事。本檔是規格，那份是現況，兩份都要看。

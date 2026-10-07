@@ -1,0 +1,20 @@
+[WARNING] Rosmaster_Lib not found. Servo output will be printed only (dry-run). --real will refuse to start.
+
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+test_artifact_hashes_match_manifest (__main__.CandidatePackageTests) ... ok
+test_contract_home_and_envelope_are_e1 (__main__.CandidatePackageTests) ... ok
+test_launcher_injects_locked_identity (__main__.CandidatePackageTests) ... ok
+test_launcher_injects_v23_hardware_profile (__main__.CandidatePackageTests) ... ok
+test_launcher_parses_on_jetson_python_36 (__main__.CandidatePackageTests) ... ok
+test_launcher_rejects_identity_overrides (__main__.CandidatePackageTests) ... ok
+test_new_weight_hardware_gates_start_false (__main__.CandidatePackageTests) ... ok
+test_release_gate_uses_v24_manifest_and_stays_candidate (__main__.CandidatePackageTests) ... ok
+test_release_override_never_waives_hash (__main__.CandidatePackageTests) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 6.286s
+
+OK

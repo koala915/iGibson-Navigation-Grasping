@@ -1,0 +1,38 @@
+[
+  {
+    "command": "python grasp/v21/test_deploy_controller.py",
+    "exit": 1,
+    "log": "ascii_grasp_v21_test_deploy_controller.txt",
+    "tail": "al functionality.\nPlease upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.\nUsers of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.\nSee the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.\nTraceback (most recent call last):\n  File \"grasp/v21/test_deploy_controller.py\", line 1404, in <module>\n    sys.exit(main())\n  File \"grasp/v21/test_deploy_controller.py\", line 1392, in main\n    run_test(test)\n  File \"grasp/v21/test_deploy_controller.py\", line 1347, in run_test\n    fn()\n  File \"grasp/v21/test_deploy_controller.py\", line 720, in test_clamped_close_blocks_lift_and_stage2\n    print(\"\\n[11] guard clamping during the close \\u21d2 no lift, no stage 2, no success\")\nUnicodeEncodeError: 'cp950' codec can't encode character '\\u21d2' in position 39: illegal multibyte sequence\n"
+  },
+  {
+    "command": "python grasp/v21/test_deploy_floor_guard.py",
+    "exit": 0,
+    "log": "ascii_grasp_v21_test_deploy_floor_guard.txt",
+    "tail": "============\n  near-floor poses generated: 200 (skipped 0)\n  descend         worst commanded sweep =   +8.008 mm\n  greedy          worst commanded sweep =   +8.047 mm\n  jaw_close_only  worst commanded sweep =   +8.002 mm\n  random          worst commanded sweep =   +8.826 mm\n  from_below trials that were genuinely below the line: 0\n  guard clamped 291x, refused 0x\n============================================================================\nall 641 checks passed \ufffdX deployment guard is preventive\n\nGym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.\nPlease upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.\nUsers of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.\nSee the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.\n"
+  },
+  {
+    "command": "python grasp/v23/test_deploy_controller.py",
+    "exit": 1,
+    "log": "ascii_grasp_v23_test_deploy_controller.txt",
+    "tail": "act the authors of your software and request that they upgrade.\nUsers of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.\nSee the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.\nTraceback (most recent call last):\n  File \"grasp/v23/test_deploy_controller.py\", line 1555, in <module>\n    sys.exit(main())\n  File \"grasp/v23/test_deploy_controller.py\", line 1543, in main\n    run_test(test)\n  File \"grasp/v23/test_deploy_controller.py\", line 1493, in run_test\n    fn()\n  File \"grasp/v23/test_deploy_controller.py\", line 724, in test_fk_refuses_a_urdf_without_gripper_collision_meshes\n    rel = os.path.relpath(bad, pathlib.Path(X.__file__).parent)\n  File \"C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python38\\lib\\ntpath.py\", line 703, in relpath\n    raise ValueError(\"path is on mount %r, start on mount %r\" % (\nValueError: path is on mount 'D:', start on mount 'C:'\n"
+  },
+  {
+    "command": "python grasp/v23/test_deploy_floor_guard.py",
+    "exit": 0,
+    "log": "ascii_grasp_v23_test_deploy_floor_guard.txt",
+    "tail": "============\n  near-floor poses generated: 200 (skipped 0)\n  descend         worst commanded sweep =   +8.008 mm\n  greedy          worst commanded sweep =   +8.047 mm\n  jaw_close_only  worst commanded sweep =   +8.002 mm\n  random          worst commanded sweep =   +8.826 mm\n  from_below trials that were genuinely below the line: 0\n  guard clamped 291x, refused 0x\n============================================================================\nall 641 checks passed \ufffdX deployment guard is preventive\n\nGym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.\nPlease upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.\nUsers of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.\nSee the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.\n"
+  },
+  {
+    "command": "python grasp/v23/test_startup_pose.py",
+    "exit": 1,
+    "log": "ascii_grasp_v23_test_startup_pose.txt",
+    "tail": "\\x3plus_audit_20261007\\grasp\\v23\\grasp_service.py\", line 514, in serve\n    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)\nAttributeError: module 'socket' has no attribute 'AF_UNIX'\n\n======================================================================\nERROR: test_serve_zeros_before_boot_pose_and_then_starts_tcp (__main__.StartupTests)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"grasp/v23/test_startup_pose.py\", line 102, in test_serve_zeros_before_boot_pose_and_then_starts_tcp\n    ctl, svc, server = self.run_serve(30)\n  File \"grasp/v23/test_startup_pose.py\", line 98, in run_serve\n    svc.serve()\n  File \"C:\\tmp\\x3plus_audit_20261007\\grasp\\v23\\grasp_service.py\", line 514, in serve\n    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)\nAttributeError: module 'socket' has no attribute 'AF_UNIX'\n\n----------------------------------------------------------------------\nRan 13 tests in 0.031s\n\nFAILED (errors=3)\n"
+  },
+  {
+    "command": "python tests/test_safety_guards.py",
+    "exit": 1,
+    "log": "ascii_tests_test_safety_guards.txt",
+    "tail": "oof (__main__.SafetyGuardTests) ... ok\ntest_servo_state_is_not_advanced_when_uart_write_raises (__main__.SafetyGuardTests) ... ok\ntest_servo_write_without_a_board_is_refused_not_faked (__main__.SafetyGuardTests) ... ok\n\n======================================================================\nERROR: test_registered_extrinsics_live_in_the_policy_fk_frame (__main__.ArmCamGeometryTests)\ncam_x/cam_y must match the DEPLOYMENT FK, not the raw URDF.\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"tests/test_safety_guards.py\", line 767, in test_registered_extrinsics_live_in_the_policy_fk_frame\n    fk = _g.FKComputer(cfg.urdf_path)\n  File \"D:\\OneDrive - \ufffd\ufffd\u07e4\ufffd\ufffd\ufffd\ufffdj\ufffd\ufffd\\\ufffd\u0b71\\Slam\\0920\\repo_v23_grasp_test\\grasp\\v21\\x3plus_real_grasp.py\", line 1028, in __init__\n    self.body_id = p.loadURDF(\npybullet.error: Cannot load URDF file.\n\n----------------------------------------------------------------------\nRan 73 tests in 0.188s\n\nFAILED (errors=1)\n"
+  }
+]

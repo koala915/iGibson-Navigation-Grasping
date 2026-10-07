@@ -40,17 +40,17 @@
   <div class="hero">
     <div class="wrap inner">
       <div>
-        <div class="eyebrow">自主巡航 · 物體辨識 · 六自由度夾取</div>
+        <div class="eyebrow">v23 展示 · 物體辨識 · 定點夾取與歸位</div>
         <h1>不用打指令，用手機就能操作機器人</h1>
         <p class="lede">
-          X3Plus 會沿著預設路線自己巡航，看到目標物體就靠近、夾起來、送到垃圾桶，然後回到路線繼續走。
-          這個操作台把整段過程變成看得懂的畫面 —— 它現在在做什麼、為什麼停下來、夾到了沒有。
+          選擇定點夾取，或夾取後在原地投放，再歸回巡航姿態。
+          操作台會顯示目前步驟與停止原因；新場地的自主巡航與定位仍待驗收。
         </p>
         <div class="specs">
           <div><div class="v">5</div><div class="k">機械臂自由度</div></div>
           <div><div class="v">4</div><div class="k">麥克納姆輪</div></div>
-          <div><div class="v" id="wpCount">83</div><div class="k">巡航航點</div></div>
-          <div><div class="v">21</div><div class="k">任務狀態</div></div>
+          <div><div class="v" id="wpCount">—</div><div class="k">場地航點（待驗收）</div></div>
+          <div><div class="v">2</div><div class="k">定點展示流程</div></div>
         </div>
       </div>
 
@@ -235,28 +235,28 @@
         <div class="card">
           <header><h2>執行方式</h2></header>
           <div class="body">
-            <div class="note"><span>✓</span><div><b>A · 完整自走</b><br>巡航、辨識、夾取與送回垃圾桶由同一個任務完成。</div></div>
-            <div class="field">
+            <div class="note"><span>✓</span><div><b>v23 · 定點展示</b><br>辨識後夾取，再歸回巡航姿態。可選擇在原地投放；自主巡航尚待場地驗收。</div></div>
+            <div class="field" hidden>
               <label for="fRoute">巡航路線（留空用預設）</label>
               <input type="text" id="fRoute" placeholder="route.yaml" autocomplete="off">
             </div>
             <div class="field">
               <label for="fClass">目標物體</label>
-              <input type="text" id="fClass" value="sugarbox" autocomplete="off">
+              <input type="text" id="fClass" value="sugarbox" autocomplete="off" disabled>
               <div class="hint">辨識模型目前只認得這一類。換物體要換權重。</div>
             </div>
             <div class="field">
               <label for="fH">物體全高（公分）</label>
-              <input type="number" id="fH" value="6.5" step="0.1" min="0.5" max="30">
+              <input type="number" id="fH" value="6.5" step="0.1" min="0.5" max="30" disabled>
               <div class="hint">從頂端量到地面。這個值決定手腕高度補償，<b>不能</b>從畫面框的高度推算。</div>
             </div>
-            <div class="field">
+            <div class="field" hidden>
               <label for="fLaps">巡航圈數（0 = 不限）</label>
               <input type="number" id="fLaps" value="0" min="0" max="99">
             </div>
             <label class="toggle" style="margin-bottom:14px">
-              <input type="checkbox" id="fDeliver" checked><span class="sw"></span>
-              <span style="font-size:.85rem">夾到之後送去垃圾桶</span></label>
+              <input type="checkbox" id="fDeliver"><span class="sw"></span>
+              <span style="font-size:.85rem">夾到後在原地投放，再歸回巡航姿態</span></label>
             <label class="toggle">
               <input type="checkbox" id="fReal"><span class="sw"></span>
               <span style="font-size:.85rem">驅動實體硬體（關閉則只做運算不動）</span></label>
@@ -268,7 +268,7 @@
             <div style="font-size:.82rem; font-weight:650">實機執行前必須知道的事</div>
             <div class="checks" style="border:1px solid var(--line-soft); border-radius:6px; overflow:hidden">
               <div class="check" data-s="warn"><span class="lamp"></span>
-                <div><div class="name">夾取權重仍是候選狀態</div><div class="sub">下面三項硬體驗證還沒做完</div></div>
+                <div><div class="name">夾取權重仍是候選狀態</div><div class="sub">搆及範圍與防撞餘裕仍待驗收</div></div>
                 <div class="val">candidate</div></div>
               <div class="check" data-s="idle"><span class="lamp"></span>
                 <div><div class="name">防撞餘裕 8 mm 實機驗證</div><div class="sub">尚未在實體機器人上量測</div></div>
@@ -276,15 +276,15 @@
               <div class="check" data-s="idle"><span class="lamp"></span>
                 <div><div class="name">實機可達範圍</div><div class="sub">模擬邊界尚未與實體對照</div></div>
                 <div class="val">未完成</div></div>
-              <div class="check" data-s="idle"><span class="lamp"></span>
-                <div><div class="name">物體高度實測</div><div class="sub">目前用標稱值</div></div>
-                <div class="val">未完成</div></div>
+              <div class="check" data-s="ok"><span class="lamp"></span>
+                <div><div class="name">物體高度實測</div><div class="sub">sugarbox 已尺量為 6.5 cm</div></div>
+                <div class="val">已完成</div></div>
             </div>
             <label class="toggle">
               <input type="checkbox" id="unlockChk"><span class="sw"></span>
               <span style="font-size:.85rem; font-weight:600">我了解上述限制，允許本次驅動實體手臂</span>
             </label>
-            <div class="note warn"><span>⚠</span><div>解鎖後請<b>全程有人在場、手放在電源開關上</b>。網頁上的停止鈕是軟停止，會透過網路送出，可能延遲；真正的急停是電源開關。</div></div>
+            <div class="note warn"><span>⚠</span><div>網頁停止鈕停止展示計畫；已交給常駐服務的手臂動作可能繼續完成。需立即停機時使用現場電源開關。</div></div>
             <div class="note" id="allowRealNote"></div>
           </div>
         </div>
@@ -304,7 +304,7 @@
     <section class="screen" id="s-map">
       <div class="card">
         <header><h2>巡航路線與位置</h2><div class="spacer"></div>
-          <span class="tok" id="routeTok">路線未載入</span>
+          <span class="tok" id="routeTok">新場地路線待驗收</span>
           <button class="iconbtn" id="reloadRoute">重新載入路線</button>
           <span class="tok" id="mapTok">待命</span></header>
         <svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"

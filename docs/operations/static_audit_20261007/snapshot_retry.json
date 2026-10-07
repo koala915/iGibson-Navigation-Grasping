@@ -1,0 +1,20 @@
+[
+  {
+    "command": "python grasp/v21/test_deploy_controller.py",
+    "exit": 0,
+    "log": "snapshot_grasp_v21_test_deploy_controller.txt",
+    "tail": " [ok]   ...and the same name key ('cam_pose_name')\n\n==========================================================================\nall 138 checks passed\n\nGym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.\nPlease upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.\nUsers of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.\nSee the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.\n"
+  },
+  {
+    "command": "python grasp/v23/test_deploy_controller.py",
+    "exit": 0,
+    "log": "snapshot_grasp_v23_test_deploy_controller.txt",
+    "tail": " [ok]   ...and the same name key ('cam_pose_name')\n\n==========================================================================\nall 163 checks passed\n\nGym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.\nPlease upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.\nUsers of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.\nSee the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.\n"
+  },
+  {
+    "command": "python tests/test_safety_guards.py",
+    "exit": 1,
+    "log": "snapshot_tests_test_safety_guards.txt",
+    "tail": "\nTraceback (most recent call last):\n  File \"tests/test_safety_guards.py\", line 60, in <module>\n    from startup_device_check import camera_identity\nModuleNotFoundError: No module named 'startup_device_check'\n"
+  }
+]

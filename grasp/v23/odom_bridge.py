@@ -158,4 +158,6 @@ class OdomBridge:
                         "pose": [round(st.x, 4), round(st.y, 4), round(st.yaw, 4)],
                         "twist": [round(st.vx, 3), round(st.vy, 3), round(st.wz, 3)],
                         "reason": st.reason})
+        if self._feedback_age is not None and self._feedback_age() > self._feedback_stale_s:
+            out.update(valid=False, reason='board_feedback_stale')
         return out

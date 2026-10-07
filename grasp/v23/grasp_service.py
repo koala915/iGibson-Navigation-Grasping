@@ -45,6 +45,7 @@ starts when it does.
 from __future__ import annotations
 
 import json
+import math
 import os
 import signal
 import socket
@@ -108,6 +109,9 @@ class GraspService:
         self.episodes = 0
         self.last = None
         self.started = time.time()
+        self.started_monotonic = time.monotonic()
+        self.startup_pose = {"enabled": False, "ok": None, "reason": "not_run"}
+        self.chassis_tcp_ready = False
         # Monotonic, like the detection receiver's own stamps.
         self._arm_moved_at = time.monotonic()
 
@@ -143,29 +147,52 @@ class GraspService:
         by default) waiting for a detection that nobody is sending. Refusing up
         front costs nothing and leaves the arm where it is.
         """
-        deadline = time.time() + timeout_s
+        deadline = time.monotonic() + timeout_s
         while True:
             det = self.detection()
             if det is None or (det["fresh"] and self.detection_received_at() >= newer_than):
                 return det
-            if time.time() >= deadline:
+            if time.monotonic() >= deadline:
                 return None
             time.sleep(0.2)
 
     # ── commands ────────────────────────────────────────────────────────
+    def cmd_health(self) -> dict:
+        """Cached diagnostics only: never requests servo/serial transactions."""
+        device = getattr(self.controller.servo, 'device', None)
+        transport = getattr(device, '__dict__', {}).get('_v23_transport')
+        serial_health = transport.status() if transport else None
+        return {"ok": serial_health is None or serial_health['healthy'],
+                "serial": serial_health, "stack_version": "v23",
+                "service_pid": os.getpid(),
+                "model_path": str(self.controller.cfg.model_path),
+                "vecnorm_path": str(self.controller.cfg.vecnorm_path),
+                "holding": getattr(self.controller, "_grip_hold_rad", None) is not None,
+                "chassis": self.chassis.status() if self.chassis else None,
+                "odom": self.odom_bridge.status() if self.odom_bridge else None,
+                "startup_pose": self.startup_pose,
+                "chassis_tcp_ready": self.chassis_tcp_ready,
+                "rss_mb": round(rss_mb(), 1),
+                "uptime_s": round(time.monotonic()-self.started_monotonic, 1)}
+
     def cmd_status(self) -> dict:
         jaw = None
+        read_reason = "ok"
         try:
             rd = self.controller.servo.read_degrees()
             jaw = rd.degrees if rd.valid else None
+            read_reason = getattr(rd, "reason", "ok" if rd.valid else "invalid")
         except Exception as exc:                      # diagnostics must not kill the service
             jaw = "read failed: %s" % exc
+            read_reason = str(exc)
         return {"ok": True, "episodes": self.episodes, "last": self.last,
                 "servo_deg": jaw, "detection": self.detection(),
+                "servo_read_reason": read_reason, "startup_pose": self.startup_pose,
+                "chassis_tcp_ready": self.chassis_tcp_ready,
                 "chassis": self.chassis.status() if self.chassis else None,
                 "odom": self.odom_bridge.status() if self.odom_bridge else None,
                 "rss_mb": round(rss_mb(), 1),
-                "uptime_s": round(time.time() - self.started, 1)}
+                "uptime_s": round(time.monotonic() - self.started_monotonic, 1)}
 
     def run_arm_command(self, fn) -> dict:
         """R1/R2 around one arm command; a plain call when the chassis is off.
@@ -174,6 +201,23 @@ class GraspService:
         included: the grasp latches what the camera sees, so the robot has to
         stand still from that moment on, not only once the arm starts moving.
         """
+        import os
+        if getattr(self,'recovery_diagnostics_only',False):
+            return {'ok':False,'reason':'recovery_unverified','hint':'diagnostics only; no arm replay'}
+        try:
+            minimum = float(os.environ.get('GRASP_SERVICE_MIN_AVAILABLE_MB','0'))
+        except ValueError:
+            return {"ok":False,"reason":"invalid_RAM_reserve"}
+        if not math.isfinite(minimum) or minimum < 0:
+            return {"ok":False,"reason":"invalid_RAM_reserve"}
+        if minimum:
+            try:
+                fields = dict(line.split(':',1) for line in Path('/proc/meminfo').read_text().splitlines())
+                available = int(fields['MemAvailable'].split()[0])/1024
+            except (OSError,ValueError,KeyError):
+                return {"ok":False,"reason":"RAM_telemetry_unavailable"}
+            if available < minimum:
+                return {"ok":False,"reason":"RAM_pressure","available_mb":available}
         if self.chassis is not None:
             why = self.chassis.begin_arm()
             if why is not None:
@@ -196,12 +240,22 @@ class GraspService:
                         "hint": "the arm was not moved: without the encoders the "
                                 "rate limit would count from a guess"}
             self._sync_rate_limit(deg)
-            return fn()
+            result = fn()
+            transport = getattr(getattr(self.controller.servo, 'device', None), '__dict__', {}).get('_v23_transport')
+            if transport is not None:
+                transport.require_write_ok()
+            return result
+        except OSError as exc:
+            return {'ok':False,'reason':'serial_fault','detail':str(exc)}
         finally:
             self._arm_moved_at = time.monotonic()
             if self.chassis is not None:
-                self.chassis.set_arm_pose(self.arm_pose())
-                self.chassis.end_arm()
+                try:
+                    self.chassis.set_arm_pose(self.arm_pose())
+                except OSError as exc:
+                    print('[service] pose/stop confirmation failed: %s' % exc,flush=True)
+                finally:
+                    self.chassis.end_arm()
 
     def _sync_rate_limit(self, deg) -> None:
         """Point the servo rate limiter (S1-S5) at where the arm actually is.
@@ -238,7 +292,25 @@ class GraspService:
     # ── travel pose ─────────────────────────────────────────────────────
     def _arm_deg(self):
         rd = self.controller.servo.read_degrees()
-        return list(rd.degrees) if rd.valid else None
+        if not rd.valid:
+            return None
+        try:
+            deg = list(rd.degrees)
+            if len(deg) != 6 or not all(math.isfinite(v) for v in deg):
+                return None
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return deg
+
+    def _sync_joint_state(self, deg) -> None:
+        """Give FloorGuard the measured pose before its first projection.
+
+        This changes the controller's physical state, not the jaw's hold command
+        or the servo command rate limiter.
+        """
+        ctl = self.controller
+        ctl._current_arm_rads = ctl.mapper.hw_deg_to_sim_arm(deg[:5])
+        ctl._current_grip_rad = ctl.mapper.hw_deg_to_sim_grip(deg[5])
 
     @staticmethod
     def _near(deg, pose) -> bool:
@@ -260,9 +332,8 @@ class GraspService:
         grip = (ctl._grip_hold_rad if holding
                 else ctl.mapper.hw_deg_to_sim_grip(ctl.cfg.gripper_hw_open))
         # Start from the encoders, as run() does, not from the last episode's idea.
-        ctl._current_arm_rads = ctl.mapper.hw_deg_to_sim_arm(deg[:5])
-        ctl._current_grip_rad = ctl.mapper.hw_deg_to_sim_grip(deg[5])
-        t0 = time.time()
+        self._sync_joint_state(deg)
+        t0 = time.monotonic()
         for i, leg in enumerate(legs):
             try:
                 res = ctl.move_guarded_and_verified(
@@ -271,11 +342,11 @@ class GraspService:
                     tol_deg=3.0, grip_is_hold=holding)
             except Exception as exc:
                 return {"ok": False, "reason": "exception: %s" % exc, "leg": i,
-                        "elapsed_s": round(time.time() - t0, 2)}
+                        "elapsed_s": round(time.monotonic() - t0, 2)}
             if not res.get("reached"):
                 return {"ok": False, "reason": res.get("reason"), "leg": i,
-                        "holding": holding, "elapsed_s": round(time.time() - t0, 2)}
-        return {"ok": True, "holding": holding, "elapsed_s": round(time.time() - t0, 2)}
+                        "holding": holding, "elapsed_s": round(time.monotonic() - t0, 2)}
+        return {"ok": True, "holding": holding, "elapsed_s": round(time.monotonic() - t0, 2)}
 
     def _to_e1_from_travel(self, deg):
         """None when the arm is at E1 (or got there); otherwise a refusal reply."""
@@ -300,6 +371,77 @@ class GraspService:
                     "hint": "only E1 -> travel is a checked path; run home first"}
         return self._move_legs([self._waypoint(), TRAVEL_DEG], "stow", deg)
 
+    def prepare_startup_pose(self, enabled: bool, readonly=False) -> dict:
+        """Opt-in boot parking, using the same guarded commands as the operator.
+
+        The chassis TCP listener is started only after this succeeds. A failed
+        boot leaves the diagnostic socket available, without an automatic retry
+        of a partly completed physical move. A closed jaw may hold an object:
+        never automatically open it after losing the controller's hold state.
+        """
+        if readonly:
+            # Recovery restarts must not repeat boot parking or open the jaw.
+            result = {'enabled':False,'ok':False,'reason':'recovery_unverified'}
+            try:
+                deg = self._arm_deg()
+                ch = self.chassis.status() if self.chassis else {}
+                age = ch.get('board_rx_age_s')
+                if self._near(deg,TRAVEL_DEG) and len(deg)==6 \
+                        and math.isfinite(deg[5]) and abs(deg[5]-TRAVEL_DEG[5]) <= 5 \
+                        and isinstance(age,(int,float)) \
+                        and math.isfinite(age) and 0 <= age <= 0.2:
+                    self._sync_joint_state(deg)
+                    self._sync_rate_limit(deg)
+                    result.update(ok=True,reason='recovery_travel_verified',servo_deg=deg)
+            except Exception as exc:
+                result['detail'] = str(exc)
+            self.startup_pose = result
+            return result
+        if not enabled:
+            self.startup_pose = {"enabled": False, "ok": True, "reason": "disabled"}
+            return self.startup_pose
+        result = {"enabled": True, "ok": False, "reason": "servo_read_failed"}
+        self.startup_pose = result
+        try:
+            deg = self._arm_deg()
+            if deg is None:
+                return result
+            if abs(deg[5] - self.controller.cfg.gripper_hw_open) > POSE_TOL_DEG:
+                result["reason"] = "jaw_not_open_at_boot"
+                return result
+            if self.chassis is not None:
+                ch = self.chassis.status()
+                if ch.get("moving") or ch.get("motors") != [0, 0, 0, 0]:
+                    result["reason"] = "chassis_not_stopped"
+                    return result
+                age = ch.get("board_rx_age_s")
+                if age is None or age > 0.5:
+                    result["reason"] = "board_feedback_stale"
+                    return result
+            if not self._near(deg, TRAVEL_DEG):
+                if not self._near(deg, self.controller.cfg.home_deg):
+                    res = self.run_arm_command(self.cmd_home)
+                    if not res.get("ok"):
+                        result.update(reason="startup_home_failed", detail=res)
+                        return result
+                res = self.run_arm_command(self.cmd_stow)
+                if not res.get("ok"):
+                    result.update(reason="startup_stow_failed", detail=res)
+                    return result
+            deg = self._arm_deg()
+            if not self._near(deg, TRAVEL_DEG):
+                result["reason"] = "startup_verification_failed"
+                return result
+            result.update(ok=True, reason="travel_verified", servo_deg=deg)
+            return result
+        except Exception as exc:
+            result.update(reason="startup_exception", detail=str(exc))
+            return result
+        finally:
+            if self.chassis is not None:
+                self.chassis.set_arm_pose("travel" if result["ok"] else "startup_failed")
+            print("[startup-pose] %s" % json.dumps(result), flush=True)
+
     def cmd_home(self) -> dict:
         """Park at the grasp home pose with the jaw open, releasing anything held.
 
@@ -313,13 +455,19 @@ class GraspService:
         ctl = self.controller
         cfg = ctl.cfg
         deg = self._arm_deg()
-        if deg is not None and self._near(deg, TRAVEL_DEG):
+        if deg is None:
+            return {"ok": False, "reason": "servo_read_failed"}
+        # A service restart leaves the controller at the configured E1 pose in
+        # software, even when the encoders report another pose. FloorGuard must
+        # start from the physical arm and jaw before the first home command.
+        self._sync_joint_state(deg)
+        if self._near(deg, TRAVEL_DEG):
             refused = self._to_e1_from_travel(deg)
             if refused is not None:
                 return refused
         arm = ctl.mapper.hw_deg_to_sim_arm(list(cfg.home_deg[:5]))
         grip = ctl.mapper.hw_deg_to_sim_grip(cfg.home_deg[5])
-        t0 = time.time()
+        t0 = time.monotonic()
         try:
             res = ctl.move_guarded_and_verified(
                 arm, grip, label="service-home", run_time_ms=400, settle_s=0.35,
@@ -329,10 +477,10 @@ class GraspService:
             # holds position while powered, so reporting and staying up is safer
             # than dying and leaving no way to ask what happened.
             return {"ok": False, "reason": "exception: %s" % exc,
-                    "elapsed_s": round(time.time() - t0, 2)}
+                    "elapsed_s": round(time.monotonic() - t0, 2)}
         ctl._grip_hold_rad = None     # nothing is held any more
         return {"ok": bool(res.get("reached")), "reason": res.get("reason"),
-                "iters": res.get("iters"), "elapsed_s": round(time.time() - t0, 2)}
+                "iters": res.get("iters"), "elapsed_s": round(time.monotonic() - t0, 2)}
 
     def cmd_release(self) -> dict:
         """Stage 3 on its own: reach forward, open over the bin, come home.
@@ -353,16 +501,16 @@ class GraspService:
         if refused is not None:
             refused["outcome"] = refused.get("reason")
             return refused
-        t0 = time.time()
+        t0 = time.monotonic()
         try:
             outcome = self.controller.run_release_only()
         except Exception as exc:
             return {"ok": False, "outcome": "exception: %s" % exc,
-                    "elapsed_s": round(time.time() - t0, 2)}
+                    "elapsed_s": round(time.monotonic() - t0, 2)}
         return {"ok": outcome == "released", "outcome": outcome,
                 "rim_cm": round(self.controller.cfg.bin_rim_height * 100, 1),
                 "clearance_cm": round(self.controller.cfg.release_clearance * 100, 1),
-                "elapsed_s": round(time.time() - t0, 2),
+                "elapsed_s": round(time.monotonic() - t0, 2),
                 "rss_mb": round(rss_mb(), 1)}
 
     def cmd_grasp(self, wait_s: float = 3.0) -> dict:
@@ -396,7 +544,7 @@ class GraspService:
                             "arm was not moved. Run graspscan.sh to search with "
                             "the three-pose scan." % wait_s,
                     "episodes": self.episodes}
-        t0 = time.time()
+        t0 = time.monotonic()
         self.episodes += 1
         try:
             confirmed = bool(self._run_episode(self.controller,
@@ -404,7 +552,7 @@ class GraspService:
             reason = getattr(self.controller, "_outcome", None)
         except Exception as exc:
             confirmed, reason = False, "exception: %s" % exc
-        elapsed = time.time() - t0
+        elapsed = time.monotonic() - t0
         self.last = {"confirmed": confirmed, "outcome": reason,
                      "elapsed_s": round(elapsed, 2)}
         # Printed as well as returned: the RSS trend across episodes is the
@@ -420,22 +568,43 @@ class GraspService:
         srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         srv.bind(self.sock_path)
         os.chmod(self.sock_path, 0o600)
-        srv.listen(1)
+        from health_server import HealthServer
+        health_path = '/tmp/grasp_health.sock' if self.sock_path == '/tmp/grasp_service.sock' \
+            else self.sock_path+'.health'
+        health_server = HealthServer(self.cmd_health,health_path)
+        health_server.start()
         try:
-            if self.chassis_server is not None:
-                self.chassis_server.start()
-                # R7 starts closed ("unknown") until the encoders say where the arm is.
-                self.chassis.set_arm_pose(self.arm_pose())
+            if self.chassis is not None:
+                # Initialize zero wheel commands before parking, without exposing
+                # the TCP listener until the startup pose has been verified.
+                self.chassis.stop()
             if self.odom_bridge is not None:
                 self.odom_bridge.start()
+            enabled = os.environ.get("GRASP_SERVICE_STARTUP_TRAVEL", "0") == "1"
+            recovery_start = restart_without_motion()
+            prepared = self.prepare_startup_pose(enabled,readonly=True) if recovery_start \
+                else self.prepare_startup_pose(enabled)
+            self.recovery_diagnostics_only = recovery_start and not prepared['ok']
+            if self.chassis_server is not None:
+                if prepared["ok"]:
+                    self.chassis.set_arm_pose(self.arm_pose())
+                    if os.environ.get("GRASP_SERVICE_BOOT_AUDIT_LOCK", "0") == "1":
+                        if not self.chassis.maintenance(True):
+                            raise RuntimeError("boot audit lock unavailable")
+                    self.chassis_server.start()
+                    self.chassis_tcp_ready = True
+                else:
+                    print("[startup-pose] chassis TCP remains disabled", flush=True)
             print("\n[service] ready on %s — startup cost is now paid.\n"
                   "[service] commands: grasp | release | home | stow | status | quit"
                   "   chassis: %s   odom: %s   (rss %.0f MB)\n"
                   % (self.sock_path,
-                     "TCP %d" % self.chassis_server.port if self.chassis_server
+                     "TCP %d" % self.chassis_server.port if self.chassis_tcp_ready
                      else "off",
                      "rosbridge %s:%d" % (self.odom_bridge.host, self.odom_bridge.port)
                      if self.odom_bridge else "off", rss_mb()), flush=True)
+            # Accept diagnostics only after startup arm motion has completed.
+            srv.listen(1)
             while not self.stop_requested:
                 conn, _ = srv.accept()
                 # A client that connects and never sends a line would otherwise
@@ -455,13 +624,27 @@ class GraspService:
                         return
                     if line == "status":
                         reply = self.cmd_status()
+                    elif line == "health":
+                        reply = self.cmd_health()
+                    elif line in ("maintenance-lock", "maintenance-unlock"):
+                        reply = {"ok": bool(self.chassis and self.chassis.maintenance(
+                            line == "maintenance-lock"))}
+                    elif line == 'restart-lock':
+                        reply = {'ok':bool(self.chassis and
+                            getattr(self.controller,'_grip_hold_rad',None) is None and
+                            self.chassis.restart_lock())}
                     elif line in ARM_COMMANDS:
-                        reply = self.run_arm_command(
-                            {"home": self.cmd_home, "release": self.cmd_release,
-                             "grasp": self.cmd_grasp, "stow": self.cmd_stow}[line])
+                        try:
+                            reply = self.run_arm_command(
+                                {"home": self.cmd_home, "release": self.cmd_release,
+                                 "grasp": self.cmd_grasp, "stow": self.cmd_stow}[line])
+                        except Exception as exc:
+                            reply = {'ok':False,'reason':'arm_command_exception','detail':str(exc)}
                     else:
                         reply = {"ok": False, "error": "unknown command %r" % line}
                     conn.sendall((json.dumps(reply) + "\n").encode())
+                except (BrokenPipeError, ConnectionResetError, socket.timeout):
+                    print("[service] client disconnected before reply", flush=True)
                 finally:
                     conn.close()
         except KeyboardInterrupt:
@@ -474,9 +657,22 @@ class GraspService:
                 self.chassis_server.close()
             if self.odom_bridge is not None:
                 self.odom_bridge.close()
+            health_server.close()
             srv.close()
             if os.path.exists(self.sock_path):
                 os.unlink(self.sock_path)
+
+
+def restart_without_motion(path='/tmp/v23_restart_no_motion.json',boot_id=None):
+    """A recovery marker stays active for this boot, including systemd retries."""
+    marker = Path(path)
+    if not marker.exists():return False
+    try:
+        value = json.loads(marker.read_text())
+        boot = boot_id if boot_id is not None else Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+        return value['boot_id'] == boot
+    except (OSError,ValueError,KeyError,TypeError):
+        return True  # damaged restart intent must never permit startup motion
 
 
 def install_sigterm_shutdown(service) -> None:
@@ -515,9 +711,17 @@ def build_chassis_server(controller, port_text: str):
     cs.install_write_lock(device, threading.Lock())
     rx = cs.install_rx_monitor(device)
     chassis = cs.Chassis(device, to_motor, max_motor=max_motor, watchdog_s=watchdog_s,
-                         log=lambda msg: print(msg, flush=True), rx_age=rx.age)
+                         log=lambda msg: print(msg, flush=True),
+                         rx_age=lambda: board_feedback_age(device,rx.age))
     return cs.ChassisServer(chassis, port=int(port_text),
                             log=lambda msg: print(msg, flush=True))
+
+
+def board_feedback_age(device, fallback):
+    transport = getattr(device,'__dict__',{}).get('_v23_transport')
+    if transport is None:return fallback()
+    age = transport.status()['motion_packet_age_s']
+    return age if age is not None else 1e9
 
 
 def build_odom_bridge(controller, target: str):
@@ -553,7 +757,8 @@ def build_odom_bridge(controller, target: str):
     rx = cs.install_rx_monitor(device)          # the same monitor the chassis uses
     return ob.OdomBridge(reader, ros_io, roslibpy, host=host, port=int(port),
                          log=lambda msg: print(msg, flush=True),
-                         feedback_age=rx.age, feedback_stale_s=cs.RX_STALE_S)
+                         feedback_age=lambda:board_feedback_age(device,rx.age),
+                         feedback_stale_s=cs.RX_STALE_S)
 
 
 def main() -> int:

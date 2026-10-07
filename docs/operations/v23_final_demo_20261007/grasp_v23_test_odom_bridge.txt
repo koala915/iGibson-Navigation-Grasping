@@ -1,0 +1,38 @@
+  [ok] feedback_odom and ros_io load from integration/
+  [ok] integration/ is searched after grasp/v23
+
+== startup before ROS ==
+  [ok] a missing rosbridge is logged, not raised
+  [ok] reconnect backoff capped at 5 s instead of roslibpy's hour
+
+== nothing is queued while rosbridge is down ==
+  [ok] no odom or TF handed to roslibpy while disconnected
+  [ok] but the pose kept integrating (x = 0.102 m)
+
+== publishing once connected ==
+  [ok] one odom and one TF per tick
+  [ok] odom and TF share one stamp
+  [ok] frames are odom -> base_footprint
+  [ok] topics /odom_setmotor and /tf
+  [ok] the first published pose continues from the outage, not from zero
+  [ok] the connection is logged once
+
+== bad feedback is never published ==
+  [ok] a failed read is skipped, not published as 'stopped'
+  [ok] publishing resumes once the feedback is good again
+
+== a silent board is never published as standing still ==
+  [ok] 2 s without a byte from the board: frozen feedback is not published
+  [ok] publishing resumes when the board talks again
+
+== losing rosbridge ==
+  [ok] the loss is logged
+  [ok] the client is never terminated (it would stop the process-wide reactor for good)
+
+== the service wiring ==
+  [ok] no GRASP_SERVICE_ODOM_ROSBRIDGE, no odometry
+  [ok] an address without a port is refused
+  [ok] status reports the odometry
+  [ok] and null when it is off
+
+all 22 checks passed — odometry integrates through rosbridge outages and is published only when it can be delivered fresh

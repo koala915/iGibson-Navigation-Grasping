@@ -7,7 +7,7 @@ name: tests
 
 on:
   push:
-    branches: [main, 'merge-**']
+    branches: [main, v23-grasp-test, 'merge-**']
   pull_request:
     branches: [main, v23-grasp-test]
   workflow_dispatch:
@@ -49,6 +49,19 @@ jobs:
 
       - name: V24 candidate artifact and release identity
         run: python grasp/v24/test_candidate_package.py
+
+      - name: V23 finalist resident stack
+        run: |
+          python grasp/v23/test_deploy_controller.py
+          python grasp/v23/test_servo_read.py
+          python grasp/v23/test_deploy_floor_guard.py
+          python grasp/v23/test_one_command_launcher.py
+          python grasp/v23/test_three_pose_scan.py
+          python grasp/v23/test_chassis_server.py
+          python grasp/v23/test_odom_bridge.py
+          python grasp/v23/test_travel_pose.py
+          python grasp/v23/test_startup_pose.py
+          python -m pytest tests/test_g2_safety_audit.py tests/test_g2_demo_supervisor.py tests/test_v23_demo.py tests/test_v23_recovery.py -q
 
       - name: Safety guards
         run: python tests/test_safety_guards.py
@@ -99,6 +112,9 @@ jobs:
 
       - name: Mission pipeline selftest
         run: python integration/mission_pipeline.py --selftest
+
+      - name: G2 navigation TCP safety client
+        run: python tests/test_g2_nav_client.py
 
       - name: Vision grasp pipeline selftest
         run: python integration/vision_grasp_pipeline.py --selftest

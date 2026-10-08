@@ -1,0 +1,8 @@
+{
+  "version": "v23",
+  "steps": [
+    {"action": "home"},
+    {"action": "grasp"},
+    {"action": "stow"}
+  ]
+}

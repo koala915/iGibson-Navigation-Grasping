@@ -134,6 +134,28 @@ class Tests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "not grasp-service"):
                 g2.check_one_serial_owner()
 
+    def test_brief_noise_waits_then_resumes_original_distance(self):
+        sensors = FakeSensors([0,0,.02,.02,.02,.02,.02,.04,.07,.10,.125,.15],
+                              [.70,.70,.31,.31,.70,.70,.70,.70,.70,.70,.70,.70])
+        sock = FakeSocket()
+        with patch.object(g2.socket,'create_connection',return_value=sock):
+            reason,distance = g2.run_straight(sensors,self.cfg,.15,recover_sensor_s=3)
+        self.assertEqual(reason,'distance_target')
+        self.assertGreaterEqual(distance,.15-g2.STOP_LEAD_M)
+        self.assertLessEqual(distance,.15)
+        actions=[m['action'] for m in sock.sent]
+        first_stop=actions.index('stop')
+        self.assertIn('velocity',actions[first_stop+1:])
+        self.assertEqual(actions[-3:],['stop']*3)
+
+    def test_persistent_noise_has_a_finite_wait(self):
+        sensors=FakeSensors([0,0,.02],[.70,.70,.31]);sock=FakeSocket()
+        with patch.object(g2.socket,'create_connection',return_value=sock):
+            reason,_=g2.run_straight(sensors,self.cfg,.15,recover_sensor_s=.2)
+        self.assertEqual(reason,'lidar_brake')
+        self.assertEqual(sum(m['action']=='velocity' for m in sock.sent),1)
+        self.assertTrue(sock.closed)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

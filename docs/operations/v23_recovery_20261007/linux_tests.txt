@@ -1,0 +1,41 @@
+/home/jetson/grasp_venv/bin/python3: No module named pytest
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30]}
+
+[service] ready on /tmp/tmpqbxbyvmf/service.sock — startup cost is now paid.
+[service] commands: grasp | release | home | stow | status | quit   chassis: TCP 7000   odom: off   (rss 18 MB)
+
+[startup-pose] {"enabled": true, "ok": false, "reason": "jaw_not_open_at_boot"}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30.0]}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_verification_failed"}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_home_failed", "detail": {"ok": false, "reason": "floor guard emergency_hold", "iters": null, "elapsed_s": 0.0}}
+[startup-pose] {"enabled": true, "ok": false, "reason": "servo_read_failed"}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30]}
+[startup-pose] {"enabled": true, "ok": false, "reason": "jaw_not_open_at_boot"}
+[startup-pose] chassis TCP remains disabled
+
+[service] ready on /tmp/tmps9c8j2eh/service.sock — startup cost is now paid.
+[service] commands: grasp | release | home | stow | status | quit   chassis: off   odom: off   (rss 18 MB)
+
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30]}
+
+[service] ready on /tmp/tmppbf9yzvx/service.sock — startup cost is now paid.
+[service] commands: grasp | release | home | stow | status | quit   chassis: TCP 7000   odom: off   (rss 18 MB)
+
+[startup-pose] {"enabled": true, "ok": false, "reason": "board_feedback_stale"}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_stow_failed", "detail": {"ok": false, "reason": "floor guard emergency_hold", "leg": 0, "holding": false, "elapsed_s": 0.0}}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30.0]}
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 0.619s
+
+OK
+Independent Linux health socket: PASS
+Traceback (most recent call last):
+  File "<string>", line 32, in <module>
+AssertionError: {'healthy': False, 'receiver_alive': True, 'packet_age_s': None, 'read_errors': 1, 'write_fault': '', 'rx_fault': "serial_receive_failed: 'Rosmaster' object has no attribute 'FUNC_REPORT_SPEED'"}
+Exception ignored in: <function Rosmaster.__del__ at 0x7f95069430>
+Traceback (most recent call last):
+  File "/home/jetson/Documents/deploy_jetson2/grasp/Rosmaster_Lib/Rosmaster_Lib.py", line 134, in __del__
+AttributeError: 'FakeSerial' object has no attribute 'close'
+Installed-driver speed packet parser: PASS (fake Serial, zero hardware writes)
+serial Close!

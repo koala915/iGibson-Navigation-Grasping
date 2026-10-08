@@ -265,10 +265,13 @@ class G2ChassisClient:
             self._socket.close()
 
 
-def run_straight(sensors, cfg, distance_m, *, host="127.0.0.1", port=7000):
+def run_straight(sensors, cfg, distance_m, *, host="127.0.0.1", port=7000,
+                 recover_sensor_s=0.0):
     """Bounded motor-30 probe; callers must do physical and service preflight."""
     if not 0.10 <= distance_m <= MAX_DISTANCE_M:
         raise ValueError("distance_m must be 0.10..0.25 m")
+    if not math.isfinite(recover_sensor_s) or not 0 <= recover_sensor_s <= 3:
+        raise ValueError('sensor recovery must be 0..3 seconds')
     scan, start, _, error = sensors.snapshot()
     reason, initial_front = health(scan, start, cfg)
     if error or reason:
@@ -279,14 +282,42 @@ def run_straight(sensors, cfg, distance_m, *, host="127.0.0.1", port=7000):
     begun = last_progress = time.monotonic()
     last_distance = 0.0
     reason = "unknown"
+    pause_started = None
+    pause_total = 0.0
+    stable = 0
     try:
         while True:
             now = time.monotonic()
             scan, odom, _, error = sensors.snapshot()
             sensor_reason, front = health(scan, odom, cfg)
             if error or sensor_reason:
+                if not error and recover_sensor_s and sensor_reason in (
+                        'lidar_brake','stale_arrival','stale_stamp','missing_sensor'):
+                    if pause_started is None:
+                        pause_started = now
+                    stable = 0
+                    client.stop()
+                    if pause_total+now-pause_started < recover_sensor_s:
+                        time.sleep(CONTROL_PERIOD_S)
+                        continue
                 reason = error or sensor_reason
                 break
+            if pause_started is not None:
+                client.stop()
+                if abs(odom.vx) > 0.01 or abs(odom.wz) > 0.01:
+                    stable = 0
+                else:stable += 1
+                if pause_total+now-pause_started >= recover_sensor_s:
+                    reason = 'sensor_recovery_exhausted'
+                    break
+                if stable < 3:
+                    time.sleep(CONTROL_PERIOD_S)
+                    continue
+                paused = now-pause_started
+                pause_total += paused
+                begun += paused  # keep original motion-time limit and odom origin
+                last_progress = now
+                pause_started = None
             moved = forward_distance(start, odom)
             lateral = -(odom.x - start.x) * math.sin(start.yaw) + \
                       (odom.y - start.y) * math.cos(start.yaw)
@@ -356,6 +387,7 @@ def main():
     mode.add_argument("--probe", action="store_true", help="read-only ROS/G2 check")
     mode.add_argument("--real", action="store_true", help="bounded straight probe")
     p.add_argument("--distance-m", type=float, default=0.15)
+    p.add_argument('--recover-sensor-seconds',type=float,default=0)
     p.add_argument("--ros-host", default="127.0.0.1")
     p.add_argument("--ros-port", type=int, default=9090)
     p.add_argument("--chassis-host", default="127.0.0.1")
@@ -407,7 +439,8 @@ def main():
             raise SystemExit("forward LiDAR coverage below 90%")
         stop_reason, final_m = run_straight(
             sensors, cfg, args.distance_m,
-            host=args.chassis_host, port=args.chassis_port)
+            host=args.chassis_host, port=args.chassis_port,
+            recover_sensor_s=args.recover_sensor_seconds)
         if stop_reason != "distance_target":
             raise SystemExit("[g2-nav] motion stopped by safety gate: " + stop_reason)
         if not math.isfinite(final_m) or abs(final_m - args.distance_m) > 0.04:

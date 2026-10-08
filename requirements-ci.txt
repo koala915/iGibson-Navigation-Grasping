@@ -12,6 +12,7 @@
 numpy
 pybullet
 pyyaml
+pytest
 stable-baselines3
 gymnasium
 

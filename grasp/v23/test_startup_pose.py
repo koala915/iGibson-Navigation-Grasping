@@ -82,6 +82,10 @@ class StartupTests(unittest.TestCase):
             chassis = cs.Chassis(Board(), lambda vx, wz: [0]*4,
                                  rx_age=lambda: 0, log=lambda msg: None)
             def start(self):
+                self.locked_at_start = self.chassis.status()['maintenance']
+                if self.locked_at_start:
+                    self.velocity_result = self.chassis.command(
+                        {'action':'velocity','vx':0.1,'wz':0})
                 self.started = True
             def close(self):
                 self.chassis.shutdown()
@@ -107,6 +111,15 @@ class StartupTests(unittest.TestCase):
         self.assertFalse(server.started)
         self.assertEqual(server.chassis.status()['arm_pose'], 'startup_failed')
         self.assertEqual(ctl.moves, [])
+
+    def test_boot_audit_keeps_tcp_locked_after_parking(self):
+        with patch.dict(gs.os.environ, {'GRASP_SERVICE_BOOT_AUDIT_LOCK': '1'}):
+            ctl, svc, server = self.run_serve(30)
+        self.assertTrue(svc.startup_pose['ok'])
+        self.assertTrue(server.chassis.status()['maintenance'])
+        self.assertTrue(server.locked_at_start)
+        self.assertEqual(server.velocity_result, 'maintenance')
+        self.assertTrue(all(v == (0,0,0,0) for v in server.chassis.device.calls))
 
 
 if __name__ == '__main__':

@@ -1,0 +1,98 @@
+[WARN] �S�������� VIRTUAL_ENV�C�Y�U���� import �ˬd���ѡA������ source ~/grasp_venv/bin/activate
+1. grasp mode passes the homography and none of the nav-home extrinsics
+  [ok]   --homography is passed
+  [ok]   with the given path
+  [ok]   --once: one detection, then YOLO's RAM comes back
+  [ok]   top-clipped detections stay fail-closed by default
+  [ok]   the explicit top-only clipping opt-in reaches the bridge
+  [ok]   --cam-x is not passed at the E1 grasp pose
+  [ok]   --cam-y is not passed at the E1 grasp pose
+  [ok]   --sign-y is not passed at the E1 grasp pose
+  [ok]   --i-accept-predicted-extrinsics is not passed at the E1 grasp pose
+  [ok]   not in calibration mode
+  [ok]   the two X corrections reach compatible bridge/controller files
+  [ok]   the conservative default correction is +5 mm
+
+1b. every E1-specific wire, because none of them fail loudly
+  [ok]   --pose is passed (the bridge's default is still C3)
+  [ok]   ...and names E1, not C3 (v23_e1_grasp_home)
+  [ok]   the name is a registered grasp-home pose, not a typo the bridge rejects
+  [ok]   the stamped pose [90.0, 74.2, 8.6, 8.6, 90.0] matches the controller's home [90.0, 74.2, 8.6, 8.6, 90.0]
+  [ok]   --policy-x-range/--policy-y-range are passed
+  [ok]   bridge x band (0.205, 0.28) equals the controller's (0.205, 0.28)
+  [ok]   bridge y band (-0.07, 0.065) equals the controller's (-0.07, 0.065)
+  [ok]   the default calibration path is not v21's (grasp_home_homography_e1.json)
+  [ok]   ...and says E1 in its name
+  [ok]   launcher model is the one manifest.json documents
+  [ok]   ...and its sha256 matches (model)
+  [ok]   launcher vecnorm is the one manifest.json documents
+  [ok]   ...and its sha256 matches (vecnorm)
+
+2. calibrate mode collects pixels and sends nothing
+  [ok]   --calibration-only
+  [ok]   --dry-run: the TCP socket is never opened
+  [ok]   sample count forwarded
+  [ok]   no homography required to produce one
+  [ok]   keeps running so several positions can be measured
+  [ok]   calibration records measured geometry without an operational correction
+  [ok]   calibration never relaxes the clipped-bbox gate
+
+3. --show is opt-in (a headless SSH session has no display)
+  [ok]   off by default
+  [ok]   on when asked
+
+3b. target correction is reversible and bounded
+  [ok]   --grasp-forward-offset-mm 0 disables the correction
+  [ok]   the 3/3 hardware defaults and hard upper bounds stay explicit
+
+4. the controller holds C3 long enough to measure from
+  [ok]   calibrate stretches --latch-wait to 1800s
+  [ok]   grasp mode keeps the operator's value
+  [ok]   the complete 3/3 hardware tuple reaches the controller
+  [ok]   manifest is still candidate
+
+5. the calibration gate matches the bridge's runtime gate
+  [ok]   6 points / 2 cm, as required by vision_grasp_bridge.resolve_pose
+[check] homography: C:\tmp\tmp4gyj653y\good.json (7 points, RMSE 0.19 cm, max 0.27 cm)
+  [ok]   a 7-point fit is accepted
+[FATAL] missing grasp-home homography: C:\tmp\tmp4gyj653y\absent.json
+        E1 �����@�w�n������ե��ɡAnav-home �� H/theta/offset ������N�C
+        ���ͤ覡�G���ɥ[ --calibrate�]�Ԩ��U�軡���P
+        docs/calibration/CALIBRATION_PLAN.md�ugrasp-home homography�v�^
+  [ok]   a missing file fails before the serial port is opened
+[FATAL] grasp-home homography rejected: calibration needs at least 6 fitted points
+        �ե��ɭn�L runtime ���P�@�D�h�G>= 6 �Ӥ��@�u���I�B�̤j�~�t < 2 cm�B���e�P���X���G�@�P�C
+        �� --calibrate ���s�q���A�A�� integration/grasp_home_homography.py ���ѡC
+  [ok]   the 4-point mathematical minimum is rejected: it fits anything
+[FATAL] grasp-home homography rejected: cannot load homography calibration C:\tmp\tmp4gyj653y\broken.json: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+        �ե��ɭn�L runtime ���P�@�D�h�G>= 6 �Ӥ��@�u���I�B�̤j�~�t < 2 cm�B���e�P���X���G�@�P�C
+        �� --calibrate ���s�q���A�A�� integration/grasp_home_homography.py ���ѡC
+  [ok]   an unparseable file is rejected
+[FATAL] grasp-home homography rejected: stored point reprojections do not match homography
+        �ե��ɭn�L runtime ���P�@�D�h�G>= 6 �Ӥ��@�u���I�B�̤j�~�t < 2 cm�B���e�P���X���G�@�P�C
+        �� --calibrate ���s�q���A�A�� integration/grasp_home_homography.py ���ѡC
+  [ok]   a matrix edited away from its own points is rejected
+
+6. preflight refuses to start when the camera is already open
+  [ok]   a free (or absent) device reports no holder
+
+7. the launcher stays parseable by the Jetson's system python3 (3.6.9)
+  [ok]   no `from __future__ import annotations` (3.6 cannot parse it)
+  [ok]   no walrus operator
+  [ok]   says which interpreter is needed rather than dying with a SyntaxError
+
+9. the vision bridge loads in parallel, but still looks only after E1
+  [ok]   the launcher asks the bridge to wait for a go signal (grasp mode)
+  [ok]   the launcher asks the bridge to wait for a go signal (calibrate mode)
+  [ok]   ...and the bridge actually offers that flag
+  [ok]   the bridge has a go gate, a model load and a camera open to order
+  [ok]   the model loads BEFORE the gate, so the slow import is what overlaps
+  [ok]   the gate is BEFORE the camera opens, so the first frame is taken after E1
+  [ok]   EOF on stdin aborts instead of detecting at an unverified arm pose
+  [ok]   the launcher has a bridge start, a home wait and a go signal to order
+  [ok]   the bridge is started BEFORE the wait for E1, or nothing overlaps
+  [ok]   the go signal is sent only after E1 is confirmed
+  [ok]   the launcher keeps the bridge's stdin so it can release it
+  [ok]   a bridge that dies while loading is noticed during the home wait
+
+all 62 checks passed �X the v23 launcher is wired to the bridge, the E1 pose and the weights the repo actually has

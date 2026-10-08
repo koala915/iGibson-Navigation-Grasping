@@ -1,0 +1,16 @@
+[Unit]
+Description=V23 passive demo health and bounded recovery monitor
+After=grasp-service.service x3plus-g2-rosbridge.service
+
+[Service]
+Type=simple
+User=jetson
+WorkingDirectory=/home/jetson/Documents/deploy_jetson2
+ExecStart=/home/jetson/grasp_venv/bin/python3 grasp/v23/demo.py monitor --restart-owner
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=10
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

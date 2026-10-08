@@ -18,14 +18,14 @@ DEFAULT_SOCKET = "/tmp/grasp_service.sock"
 # A grasp episode is ~10 s today; the cap is generous so a slow retry still
 # reports its own outcome rather than the client inventing a timeout.
 TIMEOUTS = {"grasp": 180.0, "release": 120.0, "home": 60.0, "stow": 60.0,
-            "status": 15.0, "quit": 15.0}
+            "status": 15.0, "health": 2.0, "quit": 15.0}
 
 
 def main(argv) -> int:
     cmd = argv[1] if len(argv) > 1 else "status"
     sock_path = argv[2] if len(argv) > 2 else DEFAULT_SOCKET
     if cmd not in TIMEOUTS:
-        print("usage: graspctl.py [grasp|release|home|stow|status|quit] [socket]",
+        print("usage: graspctl.py [grasp|release|home|stow|status|health|quit] [socket]",
               file=sys.stderr)
         return 2
 

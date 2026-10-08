@@ -1,0 +1,85 @@
+== wheel mapping is imported from the motor server, not copied ==
+  [ok] vx 0.15 m/s maps to 30 on all four wheels
+  [ok] zero velocity maps to zero
+  [ok] motor clamp 60, watchdog 0.5 s
+  [ok] integration/ is searched after grasp/v23, so it cannot shadow a grasp module
+
+== protocol: exactly the motor server's ==
+  [ok] velocity command drives the wheels
+  [ok] a repeated command does not rewrite the board
+  [ok] stop zeroes the wheels
+  [ok] a message without action is a stop, even when it carries a speed
+  [ok] old action/speed format is refused and stops the wheels
+  [ok] NaN vx is refused and stops the wheels
+  [ok] non-numeric vx is refused and stops the wheels
+  [ok] a JSON list is refused and stops the wheels
+
+== watchdog ==
+  [ok] 0.4 s of silence keeps driving
+  [ok] 0.6 s of silence stops the wheels
+  [ok] a stopped chassis is not rewritten
+
+== shutdown is final ==
+  [ok] a command that arrives after shutdown cannot restart the wheels
+
+== R1: no arm motion while the wheels turn or settle ==
+  [ok] a chassis that never moved lets the arm go at once
+  [ok] refused while the wheels turn, and the arm is not claimed
+  [ok] refused 0.3 s after the stop
+  [ok] allowed 0.6 s after the stop, zeros streaming meanwhile
+  [ok] two refusals counted
+  [ok] a watchdog stop starts the settle window too
+  [ok] and it ends 0.5 s after that stop
+
+== R2: velocity is dropped while the arm moves ==
+  [ok] velocity during the arm never reaches the board
+  [ok] stop is still accepted during the arm
+  [ok] the drop is counted
+  [ok] the wheels answer again once the arm is done
+
+== R3: one lock around every packet ==
+  [ok] the write runs with the lock held, once, after a double install
+  [ok] two threads writing 400 packets never interleave a byte
+
+== TCP front end (real sockets on localhost) ==
+  [ok] start() zeroes whatever speed the board held
+  [ok] a velocity line drives the wheels
+  [ok] status shows the client
+  [ok] a garbage line stops the wheels
+  [ok] the connection survives it, and a line split across packets still parses
+  [ok] the watchdog stops a client that goes quiet with the socket open
+  [ok] a disconnect stops the wheels
+  [ok] close() zeroes the wheels
+  [ok] and stops listening
+
+== R7: the wheels follow the arm pose ==
+  [ok] an unknown arm pose refuses velocity and never turns a wheel
+  [ok] the travel pose drives at full speed
+  [ok] at E1 forward speed is capped to the creep
+  [ok] and so is the turn rate
+  [ok] an arm left anywhere else stops the wheels at once
+
+== R8: the wheels need the board to be talking ==
+  [ok] a talking board drives
+  [ok] 0.6 s without a byte from the board stops wheels that were turning
+  [ok] and velocity is refused while it stays silent
+  [ok] the next byte from the board lets it drive again
+  [ok] installing the monitor twice keeps one
+  [ok] a byte read by the driver resets the silence
+  [ok] an empty read does not
+
+== grasp service: R1/R2 around the arm commands ==
+  [ok] grasp is refused while driving and the episode never starts
+[service] episode 1: confirmed=True outcome=grasped 0.00s  rss -1 MB
+  [ok] grasp runs once settled
+  [ok] a velocity command sent mid-grasp was dropped
+  [ok] the wheels are released after the grasp
+  [ok] an arm command that raises still releases the wheels
+  [ok] status reports the chassis
+  [ok] with the chassis off, arm commands and status are the arm-only service's
+  [ok] no GRASP_SERVICE_CHASSIS_PORT, no chassis
+
+== SIGTERM stops the wheels before the process exits ==
+  [skip] systemctl stop while driving (needs POSIX)
+
+all 58 checks passed �X one serial owner, wheels never move with the arm, and every exit path stops them

@@ -52,7 +52,7 @@ def main():
         # RLIMIT_AS limits virtual allocations; reserve monitor handles global RAM.
         # No preexec_fn: this process may later acquire ROS worker threads.
         children.append(subprocess.Popen([
-            'prlimit','--as=268435456','--', '/usr/bin/python3',
+            'prlimit','--as=268435456','--', '/usr/bin/python',
             str(Path(__file__).with_name('g2_mapping_filter.py'))],start_new_session=True))
         children.append(subprocess.Popen([
             'prlimit','--as=838860800','--','rosrun','gmapping','slam_gmapping',

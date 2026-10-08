@@ -167,6 +167,9 @@ const HUMAN = {
   RESUME: "回到路線繼續巡航。",
   COMPLETE: "任務完成。",
   PAUSED: "已暫停。排除原因後按「確認開始」重新檢查並繼續。",
+  WAITING: "已停輪等待資料恢復，驗證正常後接續。",
+  REPAIRING: "正在有限修復感測服務，不重播動作。",
+  DEGRADED: "已降低展示功能；可用功能與原因見下方，未知動作不重送。",
   FAULT: "發生無法自行恢復的錯誤，已停止。需要人工處理後重新啟動。",
   ESTOP: "已停止。這是軟停止 —— 真正的急停請按電源開關。",
 };
@@ -222,7 +225,8 @@ function applySnapshot(s) {
   if (s.status && s.status.state) applyStatus(s.status);
   applyProcess(s.process || {});
   applyMemory(s.memory);
-  if (!routeData) loadRoute("");
+  // The finalist arena route has not been accepted; never show the old
+  // corridor route as a verified demo route automatically.
   buildCmd();
 }
 
@@ -373,7 +377,11 @@ async function loadRoute(path) {
   el("scaleTok").textContent = `格線 ${step} m`;
   el("mapNote").textContent = `路線來源：${r.source}`;
 }
-el("reloadRoute").addEventListener("click", () => loadRoute(el("fRoute").value.trim()));
+el("reloadRoute").addEventListener("click", () => {
+  const path = el("fRoute").value.trim();
+  if (path) loadRoute(path);
+  else banner("新場地路線尚待驗收。", "warn");
+});
 
 function drawPose(pose) {
   // 路線沒載入時，用機器人自己走過的範圍撐出視野，仍然是真實座標。
@@ -466,12 +474,12 @@ el("confirmBtn").addEventListener("click", async () => {
   if (r.error) banner(r.error, "crit"); else banner(null);
 });
 
-/* ── 模式 A 設定與伺服器端驗證 ─────────────────────── */
+/* ── v23 demo 設定與伺服器端驗證 ───────────────────── */
 ["fRoute", "fClass", "fH", "fLaps", "fDeliver", "fReal", "unlockChk"]
   .forEach(id => el(id).addEventListener("input", buildCmd));
 
 const config = () => ({
-  mode: "A",
+  mode: "D",
   route: el("fRoute").value.trim(),
   cls: el("fClass").value.trim() || "sugarbox",
   height_cm: parseFloat(el("fH").value),

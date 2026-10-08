@@ -1,0 +1,11 @@
+[homography] points: 6
+[homography] RMSE:   0.000 cm
+[homography] mean:   0.000 cm
+[homography] max:    0.000 cm
+[homography] saved:  C:\tmp\tmpkkg2sf8b\result.json
+
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.125s
+
+OK

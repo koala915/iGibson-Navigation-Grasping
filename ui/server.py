@@ -75,6 +75,7 @@ MAX_LOG_LINES = 200
 MAX_SSE_CLIENTS = 4
 
 MODES = {
+    "D": "v23_demo.py",
     "A": "mission_pipeline.py",
     "B": "vision_grasp_bridge.py",
     "C": "nav_rl_grasp_pipeline.py",
@@ -458,6 +459,13 @@ class Console:
             return {"error": "驅動硬體前必須先在「任務設定」勾選安全確認。"}
         if real and self.args.simulate:
             return {"error": "模擬模式不能驅動硬體。"}
+        if mode == "D":
+            name = "demo_pick_place.json" if cfg.get("deliver",False) else "demo_grasp.json"
+            plan = ROOT / "grasp" / "v23" / name
+            argv = [sys.executable,str(ROOT/"grasp/v23/demo.py"),"--plan",str(plan),
+                    "--execute" if real else "--dry-run",
+                    "--status-udp",f"127.0.0.1:{self.args.status_port}"]
+            return {"argv":argv}
         if real:
             # The three children do not share a real-mode contract. Mode A
             # requires serial-owner and measured LiDAR/camera evidence, mode B

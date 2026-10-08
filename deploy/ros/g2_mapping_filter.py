@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """Mapping-only TG30 filter; raw /scan remains the motion safety source.
 
 Output /scan_mapping is dedicated to GMapping maxRange=3.0. Masked rays
@@ -9,6 +9,10 @@ import math
 import copy
 
 
+def finite(value):
+    return not math.isnan(value) and not math.isinf(value)
+
+
 def filter_ranges(ranges, angle_min, increment, range_min=0.1,
                   front_only=True, footprint=False, speckle=False):
     if not (0 < increment < 0.1 and len(ranges) <= 4096):
@@ -16,7 +20,7 @@ def filter_ranges(ranges, angle_min, increment, range_min=0.1,
     result = []
     for i, r in enumerate(ranges):
         angle = (angle_min+i*increment+math.pi+math.pi) % (2*math.pi)-math.pi
-        valid = math.isfinite(r) and range_min <= r <= 3.0
+        valid = finite(r) and range_min <= r <= 3.0
         if front_only and abs(angle) > math.pi/2:
             valid = False
         if valid and footprint:
@@ -26,7 +30,7 @@ def filter_ranges(ranges, angle_min, increment, range_min=0.1,
         if valid and speckle:
             # Mapping only. Thin real objects can also be removed; opt in.
             neighbors = ranges[max(0,i-1):i]+ranges[i+1:i+2]
-            if not any(math.isfinite(v) and abs(v-r) <= 0.05 for v in neighbors):
+            if not any(finite(v) and abs(v-r) <= 0.05 for v in neighbors):
                 valid = False
         result.append(float(r) if valid else 4.0)
     return result
@@ -35,16 +39,16 @@ def filter_ranges(ranges, angle_min, increment, range_min=0.1,
 def main():
     import rospy
     from sensor_msgs.msg import LaserScan
-    from pathlib import Path
     rospy.init_node('g2_mapping_filter')
     reserve = float(rospy.get_param('~min_available_mb', 768))
-    if not math.isfinite(reserve) or reserve < 768:
+    if not finite(reserve) or reserve < 768:
         raise ValueError('RAM reserve must be >=768 MB')
     publisher = rospy.Publisher('/scan_mapping', LaserScan, queue_size=1)
 
     def callback(scan):
         try:
-            fields = dict(line.split(':',1) for line in Path('/proc/meminfo').read_text().splitlines())
+            with open('/proc/meminfo') as stream:
+                fields = dict(line.split(':',1) for line in stream.read().splitlines())
             if int(fields['MemAvailable'].split()[0])/1024 < reserve:
                 rospy.signal_shutdown('RAM_pressure')
                 return
@@ -60,7 +64,7 @@ def main():
                                        rospy.get_param('~speckle', False))
             out.range_max = 3.0
             publisher.publish(out)
-        except (ValueError, KeyError, OSError):
+        except (ValueError, KeyError, OSError, IOError):
             rospy.signal_shutdown('invalid scan or memory telemetry')
 
     rospy.Subscriber('/scan', LaserScan, callback, queue_size=1)

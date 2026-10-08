@@ -1,0 +1,14 @@
+reason=distance_target initial_front_m=0.800 front_at_end_m=0.800 final_odom_m=0.150 final_vx_mps=0.000
+reason=lidar_brake initial_front_m=0.800 front_at_end_m=0.410 final_odom_m=0.020 final_vx_mps=0.000
+
+test_brake_and_freshness (__main__.Tests) ... ok
+test_distance_run_stops_and_closes (__main__.Tests) ... ok
+test_obstacle_during_motion_stops_and_reports_safety_reason (__main__.Tests) ... ok
+test_obstacle_refuses_connection (__main__.Tests) ... ok
+test_serial_owner_gate (__main__.Tests) ... ok
+test_tcp_protocol_and_stop_on_close (__main__.Tests) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 2.504s
+
+OK

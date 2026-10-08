@@ -1,0 +1,51 @@
+[startup-pose] {"enabled": true, "ok": false, "reason": "jaw_not_open_at_boot"}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30.0]}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_verification_failed"}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_home_failed", "detail": {"ok": false, "reason": "floor guard emergency_hold", "iters": null, "elapsed_s": 0.0}}
+[startup-pose] {"enabled": true, "ok": false, "reason": "servo_read_failed"}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30]}
+[startup-pose] {"enabled": true, "ok": false, "reason": "board_feedback_stale"}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_stow_failed", "detail": {"ok": false, "reason": "floor guard emergency_hold", "leg": 0, "holding": false, "elapsed_s": 0.0}}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30.0]}
+
+E.......EE...
+======================================================================
+ERROR: test_boot_audit_keeps_tcp_locked_after_parking (__main__.StartupTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "grasp/v23/test_startup_pose.py", line 117, in test_boot_audit_keeps_tcp_locked_after_parking
+    ctl, svc, server = self.run_serve(30)
+  File "grasp/v23/test_startup_pose.py", line 98, in run_serve
+    svc.serve()
+  File "C:\tmp\x3plus_audit_20261007\grasp\v23\grasp_service.py", line 514, in serve
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+AttributeError: module 'socket' has no attribute 'AF_UNIX'
+
+======================================================================
+ERROR: test_serve_never_starts_tcp_on_boot_failure (__main__.StartupTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "grasp/v23/test_startup_pose.py", line 109, in test_serve_never_starts_tcp_on_boot_failure
+    ctl, svc, server = self.run_serve(100)
+  File "grasp/v23/test_startup_pose.py", line 98, in run_serve
+    svc.serve()
+  File "C:\tmp\x3plus_audit_20261007\grasp\v23\grasp_service.py", line 514, in serve
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+AttributeError: module 'socket' has no attribute 'AF_UNIX'
+
+======================================================================
+ERROR: test_serve_zeros_before_boot_pose_and_then_starts_tcp (__main__.StartupTests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "grasp/v23/test_startup_pose.py", line 102, in test_serve_zeros_before_boot_pose_and_then_starts_tcp
+    ctl, svc, server = self.run_serve(30)
+  File "grasp/v23/test_startup_pose.py", line 98, in run_serve
+    svc.serve()
+  File "C:\tmp\x3plus_audit_20261007\grasp\v23\grasp_service.py", line 514, in serve
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+AttributeError: module 'socket' has no attribute 'AF_UNIX'
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.031s
+
+FAILED (errors=3)

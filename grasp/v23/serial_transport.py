@@ -13,6 +13,7 @@ class Transport:
         self.last_motion_packet = None
         self.read_errors = 0
         self.write_fault = ''
+        self._write_result = threading.local()
         self.rx_fault = ''
         self.ser.timeout = 0.1
         self.ser.write_timeout = 0.2
@@ -22,10 +23,12 @@ class Transport:
         self.ser._g2_write_lock = self.lock
 
     def write(self, data):
-        if self.write_fault:
-            raise OSError(self.write_fault)
+        # A latched health fault blocks motion at the controller/chassis gates,
+        # not here: stop packets must still reach a recovered serial port.
+        self._write_result.fault = ''
         if not self.lock.acquire(timeout=0.2):
             self.write_fault = 'serial_write_lock_timeout'
+            self._write_result.fault = self.write_fault
             raise OSError(self.write_fault)
         try:
             sent = self.raw_write(data)
@@ -34,14 +37,18 @@ class Transport:
             return sent
         except Exception as exc:
             self.write_fault = 'serial_write_failed: %s' % exc
+            self._write_result.fault = self.write_fault
             raise
         finally:
             self.lock.release()
 
     def require_write_ok(self):
-        # Driver methods catch their own exceptions: preserve the failure here.
-        if self.write_fault:
-            raise OSError(self.write_fault)
+        # Driver methods swallow exceptions. Check this caller's latest attempt,
+        # not historical health, so a delivered stop is recorded correctly.
+        # Another thread's successful write must not hide this caller's failure.
+        fault = getattr(self._write_result, 'fault', '')
+        if fault:
+            raise OSError(fault)
 
     def status(self):
         age = None if self.last_packet is None else self.clock()-self.last_packet

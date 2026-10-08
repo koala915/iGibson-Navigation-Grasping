@@ -454,3 +454,7 @@ python3 integration/vision_grasp_bridge.py --host 127.0.0.1 --show \
 - `--width-grip` 寬度→夾爪角公式：`close = 180 − (w/grip_max_object_width_m)×(180 − grip_min_close_deg)`
   （預設 `grip_max_object_width_m=0.06`、`grip_min_close_deg=120`，需依夾爪實測校正）
 </details>
+
+### v23 serial transport 停車重試契約（2026-10-08）
+
+`grasp/v23/serial_transport.py` 的 `write_fault` 是鎖存的健康故障：發生後，底盤及手臂健康閘繼續阻止新運動。但 transport 不因歷史故障拒絕後續所有寫入，零速命令仍須實際嘗試送出。`require_write_ok()` 檢查呼叫執行緒最近一次寫入結果，成功停車不能因歷史故障被誤判失敗，也不能由另一執行緒的成功掩蓋本執行緒失敗。鎖期限與寫入期限仍有界；不自動重開埠、重播運動或清除故障。離線證據與尚待實機驗證事項見 `docs/handoff/V23_SERIAL_STOP_REVIEW_2026-10-08.md`。

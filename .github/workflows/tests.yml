@@ -61,7 +61,7 @@ jobs:
           python grasp/v23/test_odom_bridge.py
           python grasp/v23/test_travel_pose.py
           python grasp/v23/test_startup_pose.py
-          python -m pytest tests/test_g2_safety_audit.py tests/test_g2_demo_supervisor.py tests/test_v23_demo.py tests/test_v23_recovery.py -q
+          python -m pytest tests/test_g2_safety_audit.py tests/test_g2_demo_supervisor.py tests/test_v23_demo.py tests/test_v23_recovery.py tests/test_serial_transport_stop.py -q
 
       - name: Safety guards
         run: python tests/test_safety_guards.py

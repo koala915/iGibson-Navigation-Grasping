@@ -137,7 +137,8 @@ def test_write_timeout_and_short_write_are_latched():
     with pytest.raises(OSError,match='short'):t.write(b'packet')
     with pytest.raises(OSError):t.require_write_ok()
     with pytest.raises(OSError):t.write(b'packet')
-    assert t.raw_write.call_count==1
+    assert t.raw_write.call_count==2
+    assert t.status()['write_fault']
     assert device.ser.timeout==.1 and device.ser.write_timeout==.2
 
 

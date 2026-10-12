@@ -284,11 +284,17 @@ def main():
     ch.set_arm_pose("travel")
     ch.command({"action": "velocity", "vx": 0.15, "wz": 0.0})
     ok(board.last == (30, 30, 30, 30), "the travel pose drives at full speed")
+    # Navigation only in the travel pose, grasping only in E1 (2026-10-05).
     ch.set_arm_pose("e1")
+    blocked = ch.pose_blocked
+    ok(ch.command({"action": "velocity", "vx": 0.05, "wz": 0.0}) == "arm_pose"
+       and board.last == (0, 0, 0, 0), "at E1 even a slow creep is refused")
+    ok(ch.command({"action": "velocity", "vx": 0.0, "wz": 1.0}) == "arm_pose"
+       and board.last == (0, 0, 0, 0), "and so is a turn in place")
+    ok(ch.command({"action": "velocity", "vx": 0.0, "wz": 0.0}) == "ok"
+       and ch.pose_blocked == blocked + 2, "a zero velocity at E1 is a plain stop, not a refusal")
+    ch.set_arm_pose("travel")
     ch.command({"action": "velocity", "vx": 0.15, "wz": 0.0})
-    ok(board.last == to_motor(cs.CREEP_VX, 0.0), "at E1 forward speed is capped to the creep")
-    ch.command({"action": "velocity", "vx": 0.0, "wz": 1.0})
-    ok(board.last == to_motor(0.0, cs.CREEP_WZ), "and so is the turn rate")
     ch.set_arm_pose("other")
     ok(board.last == (0, 0, 0, 0), "an arm left anywhere else stops the wheels at once")
 

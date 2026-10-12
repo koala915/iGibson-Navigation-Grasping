@@ -33,11 +33,14 @@ Safety rules, enforced here rather than trusted to clients:
       last value -- which odometry cannot tell from standing still. Every byte
       the driver reads is timestamped (install_rx_monitor); after RX_STALE_S of
       silence the wheels stop and velocity is refused.
-  R7  The wheels follow the arm pose the service last verified: full speed in the
-      travel pose, a creep (|vx| <= 0.10 m/s, |wz| <= 0.5 rad/s) at E1 for the
-      last centimetres into the 3 cm grasp window, and nothing anywhere else --
-      the braking corridor was measured with the arm in the travel pose, and an
-      arm frozen half-way through an aborted grasp is not something to drive with.
+  R7  The wheels move only in the travel pose, as the encoders last confirmed it.
+      Navigation and cruising happen in the travel pose and grasping in E1, never
+      the other way round (the team's rule, 2026-10-05): the braking corridor was
+      measured with the arm in the travel pose, the arm camera is only calibrated
+      at E1 standing still, and an arm frozen half-way through an aborted grasp is
+      not something to drive with. Until 2026-10-05 E1 allowed a 0.10 m/s creep
+      for the last centimetres into the grasp window; nothing uses it any more --
+      the approach stops in the travel pose and E1 refuses if it sees nothing.
 
 The wheel mapping is imported from sugarbox_rl_motor_server, never copied: two
 copies of motor constants is how the old RL server ended up with a mirrored yaw.
@@ -56,9 +59,7 @@ from pathlib import Path
 SETTLE_S = 0.5
 ZERO = (0, 0, 0, 0)
 MAX_LINE_BYTES = 4096
-CREEP_VX = 0.10
-CREEP_WZ = 0.5
-DRIVE_POSES = ("travel", "e1")
+DRIVE_POSES = ("travel",)
 RX_STALE_S = 0.5
 
 
@@ -218,16 +219,18 @@ class Chassis:
                     self._log("[chassis] velocity refused (%dx): no data from the board "
                               "for %.1fs" % (self.rx_blocked, self._rx_age()))
                 return "board_silent"
+            if vx == 0.0 and wz == 0.0:
+                # A zero velocity is a stop in any pose, not a refused drive.
+                self._write(ZERO)
+                return "ok"
             if self._arm_pose not in DRIVE_POSES:
                 self.pose_blocked += 1
                 self._write(ZERO)
                 if self.pose_blocked in (1, 10) or self.pose_blocked % 100 == 0:
-                    self._log("[chassis] velocity refused (%dx): arm pose is %s, "
-                              "stow or home it first" % (self.pose_blocked, self._arm_pose))
+                    self._log("[chassis] velocity refused (%dx): arm pose is %s; the wheels "
+                              "move only in the travel pose (graspctl stow)"
+                              % (self.pose_blocked, self._arm_pose))
                 return "arm_pose"
-            if self._arm_pose == "e1":
-                vx = max(-CREEP_VX, min(CREEP_VX, vx))
-                wz = max(-CREEP_WZ, min(CREEP_WZ, wz))
             self._write(self._to_motor(vx, wz))
             return "ok"
 

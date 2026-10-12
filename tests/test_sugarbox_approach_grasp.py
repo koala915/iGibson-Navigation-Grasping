@@ -90,6 +90,26 @@ class HandoffTests(unittest.TestCase):
             self.assertNotIn('grasp', commands)
             self.assertEqual(stopping.call_count, 2)
 
+    def test_no_progress_stop_is_reported_and_never_hands_off(self):
+        snapshot = copy.deepcopy(self.snapshot)
+        snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
+        snapshot['chassis']['arm_pose'] = 'travel'
+        commands = []
+        def read(host, cmd):
+            commands.append(cmd)
+            return snapshot if cmd == 'status' else {'ok': True}
+        with patch.object(runner, 'preflight', return_value=({}, [])), \
+             patch.object(runner, 'ctl', side_effect=read), \
+             patch.object(runner, 'stop'), \
+             patch.object(runner.time, 'sleep'), \
+             patch.object(runner.subprocess, 'run') as process, \
+             patch('builtins.print') as printed:
+            process.return_value.returncode = 4
+            self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 2)
+            self.assertNotIn('home', commands)
+            self.assertNotIn('grasp', commands)
+            self.assertIn('no progress', ' '.join(str(c.args[0]) for c in printed.call_args_list))
+
     def test_default_check_never_stows_or_starts_approach(self):
         snapshot = copy.deepcopy(self.snapshot)
         snapshot['servo_deg'] = [90, 74, 8, 9, 90, 30]
@@ -124,9 +144,41 @@ class HandoffTests(unittest.TestCase):
             return process.call_args.kwargs['env']
 
     def test_blind_stop_and_yolo_size_reach_the_approach(self):
-        env = self.launched_env(['--blind-stop-x', '0.30', '--yolo-imgsz', '1280'])
+        env = self.launched_env(['--approach', 'legacy', '--blind-stop-x', '0.30',
+                                 '--yolo-imgsz', '1280'])
         self.assertEqual(env['SUGARBOX_BLIND_STOP_X'], '0.3')
         self.assertEqual(env['SUGARBOX_YOLO_IMGSZ'], '1280')
+
+    def test_enoch_approach_is_the_default_and_never_drives_in_a_dry_run(self):
+        env = self.launched_env([])
+        self.assertEqual(env['SUGARBOX_TRAINING_CONTRACT'], '1')
+        self.assertEqual(env['SUGARBOX_TARGET_INITIAL_ONLY'], '1')
+        self.assertNotIn('SUGARBOX_CONTRACT_ALLOW_DRIVE', env)
+
+    def test_legacy_approach_sets_none_of_enochs_settings(self):
+        env = self.launched_env(['--approach', 'legacy'], {
+            'SUGARBOX_TRAINING_CONTRACT': '1', 'SUGARBOX_CONTRACT_ALLOW_DRIVE': '1',
+            'SUGARBOX_TARGET_INITIAL_ONLY': '1'})
+        for key in ('SUGARBOX_TRAINING_CONTRACT', 'SUGARBOX_CONTRACT_ALLOW_DRIVE',
+                    'SUGARBOX_TARGET_INITIAL_ONLY'):
+            self.assertNotIn(key, env)
+
+    def test_blind_finish_is_refused_with_enochs_approach(self):
+        with patch.object(runner, 'ctl') as read, patch('sys.stderr'),              self.assertRaises(SystemExit):
+            runner.main(['--blind-stop-x', '0.30'])
+        read.assert_not_called()
+
+    def test_real_enoch_run_opts_into_driving_then_hands_over_to_e1(self):
+        snapshot = copy.deepcopy(self.snapshot)
+        snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
+        snapshot['chassis']['arm_pose'] = 'travel'
+        with patch.dict(runner.os.environ, {}, clear=True),              patch.object(runner, 'preflight', return_value=({}, [])),              patch.object(runner, 'ctl', return_value=snapshot),              patch.object(runner, 'stop'),              patch.object(runner.time, 'sleep'),              patch.object(runner, 'handoff', return_value={'confirmed': True}) as grasp,              patch.object(runner.subprocess, 'run') as process:
+            process.return_value.returncode = 0
+            self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 0)
+            env = process.call_args.kwargs['env']
+            self.assertEqual(env['SUGARBOX_CONTRACT_ALLOW_DRIVE'], '1')
+            self.assertEqual(env['SUGARBOX_RUN_MODE'], 'DRIVE')
+            grasp.assert_called_once()
 
     def test_settings_left_in_the_shell_do_not_leak_into_a_run(self):
         env = self.launched_env([], {'SUGARBOX_BLIND_STOP_X': '0.5', 'SUGARBOX_YOLO_IMGSZ': '960'})

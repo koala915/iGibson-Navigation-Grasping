@@ -68,8 +68,11 @@ jobs:
       - name: Sugarbox approach to E1 handoff
         run: python tests/test_sugarbox_approach_grasp.py
 
-      - name: Sugarbox blind finish, final approach under occlusion, turn floor
+      - name: Sugarbox approach runtime (blind finish, turn safety, reverse, no progress, enoch's mode)
         run: python tests/test_sugarbox_blind_finish.py
+
+      - name: Sugarbox training-matched PPO inputs and shaping
+        run: python tests/test_sugarbox_training_contract.py
 
       - name: Vision bridge pose
         run: python tests/test_vision_grasp_bridge_pose.py

@@ -135,6 +135,13 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `mission_status.py` | 遙測發布器。`--status-udp` 每 tick 一個 JSON 封包（UDP），fire-and-forget，沒人聽也不影響任務 |
 | `README.md` | 兩種模式開啟流程、各檔用途、校正清單 |
 
+**2026-10-12 起總指揮預設 `--approach enoch`**：enoch 的訓練一致模式（`sugarbox_training_contract.py`，
+目標／LiDAR 以車體中心為原點、動作延遲 0、首次辨識即鎖定），PPO 自己開到盒子離車體中心
+0.45 m 就停，交給 E1 夾取；不置中、不搜尋、不盲走。只有這個模式允許倒車（≤0.08 m/s，
+使用者決定），其他路徑馬達層一律拒絕倒車。LiDAR 用團隊實測旋轉 180°（enoch 原版是鏡射）。
+尚未實車驗證，見 `docs/planning/DUAL_CAMERA_APPROACH_GRASP_DISCUSSION_2026-10-05.md` §10。
+以下描述的是 `--approach legacy`。
+
 `sugarbox_rl_approach_final2.py` 的最後接近與搜尋互斥：後相機連續確認置中後，
 `FinalApproachController` 維持零角速度並以輪速里程完成預設 0.15 m 的前進，最長 3.5 s。
 這段期間物體被夾爪遮住時不切回搜尋、不重設已累積距離；感測過期、急停及原有

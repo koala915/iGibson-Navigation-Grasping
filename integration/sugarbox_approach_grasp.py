@@ -161,9 +161,15 @@ def main(argv=None):
                              'hides the box; unset keeps the original search')
     parser.add_argument('--yolo-imgsz', type=int, default=None,
                         help='rear-camera YOLO input size (default 640 in the approach)')
+    parser.add_argument('--approach', choices=('enoch', 'legacy'), default='enoch',
+                        help="enoch: training-matched PPO drives to the box on its own and "
+                             "may reverse slowly (2026-10-12 primary); legacy: centring, "
+                             "fixed final 15 cm and optional blind finish")
     args = parser.parse_args(argv)
     if args.real and args.dry_run:
         parser.error('--real and --dry-run are mutually exclusive')
+    if args.approach == 'enoch' and args.blind_stop_x is not None:
+        parser.error('--blind-stop-x only applies to --approach legacy')
     if args.blind_stop_x is not None and not (
             math.isfinite(args.blind_stop_x) and 0.05 <= args.blind_stop_x <= 0.60):
         parser.error('--blind-stop-x must be 0.05..0.60 m')
@@ -197,14 +203,20 @@ def main(argv=None):
     env.update(ROUTE_B_IP=args.host, SUGARBOX_FINAL_TRAVEL_M=str(args.final_travel_m))
     # Explicit flags replace anything inherited from the shell, so a run's settings
     # are the ones on its own command line.
-    env.pop('SUGARBOX_BLIND_STOP_X', None)
-    env.pop('SUGARBOX_YOLO_IMGSZ', None)
+    for key in ('SUGARBOX_BLIND_STOP_X', 'SUGARBOX_YOLO_IMGSZ', 'SUGARBOX_TRAINING_CONTRACT',
+                'SUGARBOX_CONTRACT_ALLOW_DRIVE', 'SUGARBOX_TARGET_INITIAL_ONLY'):
+        env.pop(key, None)
     if args.blind_stop_x is not None:
         env['SUGARBOX_BLIND_STOP_X'] = str(args.blind_stop_x)
     if args.yolo_imgsz is not None:
         env['SUGARBOX_YOLO_IMGSZ'] = str(args.yolo_imgsz)
-    print('[config] blind_stop_x={} yolo_imgsz={} final_travel_m={}'.format(
-        args.blind_stop_x, args.yolo_imgsz or 640, args.final_travel_m))
+    if args.approach == 'enoch':
+        # enoch's best trial: training-matched inputs and shaping, first sighting locks.
+        env.update(SUGARBOX_TRAINING_CONTRACT='1', SUGARBOX_TARGET_INITIAL_ONLY='1')
+        if args.real:
+            env['SUGARBOX_CONTRACT_ALLOW_DRIVE'] = '1'
+    print('[config] approach={} blind_stop_x={} yolo_imgsz={} final_travel_m={}'.format(
+        args.approach, args.blind_stop_x, args.yolo_imgsz or 640, args.final_travel_m))
     if args.dry_run:
         env.update(SUGARBOX_RUN_MODE='DRY_RUN', SUGARBOX_EXIT_ON_ARRIVAL='0')
         return subprocess.run([sys.executable, '-u', str(APPROACH)], env=env).returncode
@@ -226,6 +238,9 @@ def main(argv=None):
             raise RuntimeError('travel pose not confirmed')
         result = subprocess.run([sys.executable, '-u', str(APPROACH)], env=env,
                                 timeout=args.approach_timeout)
+        if result.returncode == 4:
+            raise RuntimeError('approach stopped: no progress toward the box (the [STOPPED] '
+                               'line above says what held it); no E1/grasp')
         if result.returncode:
             raise RuntimeError('approach did not report stopped arrival; no E1/grasp')
         print(json.dumps(handoff(args.host), ensure_ascii=False))

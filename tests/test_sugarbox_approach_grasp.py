@@ -202,10 +202,10 @@ class HandoffTests(unittest.TestCase):
             self.assertEqual(env['SUGARBOX_RUN_MODE'], 'DRIVE')
             grasp.assert_called_once()
 
-    def test_enoch_hands_over_at_1m_and_stops_the_box_at_31cm_by_default(self):
+    def test_enoch_hands_over_at_1m_and_stops_the_box_at_30cm_by_default(self):
         env = self.launched_env([])
         self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
-                         ('1.0', '0.31'))
+                         ('1.0', '0.3'))
         env = self.launched_env(['--handoff-m', '1.0', '--final-x-m', '0.34'])
         self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
                          ('1.0', '0.34'))

@@ -488,8 +488,9 @@ CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M = 0.17
 # leaves 0.35 m of steering on live vision.
 CONTRACT_HANDOFF_CENTER_M = float(os.environ.get("SUGARBOX_CONTRACT_HANDOFF_M", "1.00"))
 # Where the box should end, ahead of the chassis centre. The user, 2026-10-12: the
-# run that stopped with it remembered at 0.336 m needed about 3 cm more.
-CONTRACT_FINAL_CENTER_X_M = float(os.environ.get("SUGARBOX_CONTRACT_FINAL_X_M", "0.31"))
+# run that stopped with it remembered at 0.336 m needed about 3 cm more, and the
+# one at 0.307 m about 1 cm more.
+CONTRACT_FINAL_CENTER_X_M = float(os.environ.get("SUGARBOX_CONTRACT_FINAL_X_M", "0.30"))
 if not (math.isfinite(CONTRACT_HANDOFF_CENTER_M) and math.isfinite(CONTRACT_FINAL_CENTER_X_M)
         and 0.60 <= CONTRACT_HANDOFF_CENTER_M <= 1.20
         and 0.25 <= CONTRACT_FINAL_CENTER_X_M <= 0.45

@@ -170,7 +170,7 @@ def main(argv=None):
     parser.add_argument('--handoff-m', type=float, default=1.00,
                         help='enoch: box distance from the chassis centre where the policy '
                              'hands over to the slow steer-in (m, 0.60..1.20)')
-    parser.add_argument('--final-x-m', type=float, default=0.31,
+    parser.add_argument('--final-x-m', type=float, default=0.30,
                         help='enoch: stop when the box is this far ahead of the chassis '
                              'centre (m, 0.25..0.45)')
     parser.add_argument('--obs-log', type=Path, default=None,

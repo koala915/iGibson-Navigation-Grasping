@@ -1,0 +1,125 @@
+[config] approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=0.8 final_x_m=0.31
+
+============================================================
+ SUGARBOX RL APPROACH - STANDALONE FINAL
+============================================================
+[MODE] DRIVE
+[CONTRACT] training-matched approach (enoch): target and rays from the chassis centre (+0.135 m), unsigned speed, action delay 0, training shaping, reverse <= 0.08 m/s; no centring, search or blind finish; hands over at 0.80 m from the centre, then creeps and steers the box to x=0.31 m, y=-0.016 m (no sideways motion); policy rays x1.15; forward brake only within +-0.17 m of the centre line. Target x/y below are centre-frame.
+[NET] Jetson = 10.151.238.252
+[CAM] RTP/H264 UDP :5600
+[CAM] GStreamer = C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\.venv-approach\Lib\site-packages\gstreamer_cli\bin\gst-launch-1.0.exe
+[PERF] camera_pipe=30 FPS (live async) | vision=5.0 Hz max | display=30.0 Hz | yolo imgsz=1280 conf=0.30
+
+[GROUND] Loading...
+[GROUND] Loaded
+[GROUND] rear_cam_to_front_m = 0.200
+[GROUND] H =
+[[  0.0019035   0.0017381     -7.1427]
+ [   0.010829  0.00037054     -3.4313]
+ [  0.0011327   -0.023368           1]]
+
+[MODEL] Loading YOLO...
+[MODEL] YOLO classes:
+{0: 'sugarbox'}
+
+[MODEL] Loading SAM2...
+[MODEL] SAM2 ready
+[RL] model:
+C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\nav_best_model\doorway_ft_final.zip
+[RL] VecNormalize:
+C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\nav_best_model\doorway_ft_final_vecnormalize.pkl
+[ROS] Connecting ws://10.151.238.252:9090
+[ROS] subscribed: /scan, /odom_setmotor
+[MOTOR] connecting 10.151.238.252:7000
+[MOTOR] connected
+
+[CAMERA] Opening rear camera...
+[CAMERA] GStreamer UDP/H264 receiver: port=5600
+[CAMERA] gst-launch = C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\.venv-approach\Lib\site-packages\gstreamer_cli\bin\gst-launch-1.0.exe
+[OBS_LOG] writing every policy observation to C:\Users\user\AppData\Local\Temp\claude\C--Users-user-Documents-repo-iGibson-Navigation-Grasping\a1a1081f-241b-4ba1-9978-a25f42d518ab\scratchpad\obs_1012e.jsonl
+
+[READY] Running
+[KEY] ESC   = exit
+[KEY] SPACE = emergency stop
+[KEY] R     = reset stop/arrival latch
+[KEY] C     = clear remembered target
+[SAFETY] front slow/block/hard = 0.55 / 0.30->0.36 / 0.18->0.22 m
+[FILTER] PPO temporal smoothing = OFF (no EMA / slew / deadzone)
+[AVOID] near-obstacle turn sign hold = 0.45->0.55m, switch_confirm=2 ticks
+[SIDE_SAFETY] external LiDAR coverage = -125..+125deg (PPO stays -90..+90deg) | turn_guard=0.20->0.24m | vx_cap<0.16m => 0.06m/s
+[PPO_LIDAR] 48-ray distance scale = x1.15 (external safety still uses raw meters)
+[RECOVERY] hard-stop = STOP -> wait 0.30s -> reverse 0.06m @ 0.08m/s -> settle 0.20s | one backup per hard-stop episode | NO rear LiDAR
+[CENTER_PIX] bbox-bottom>=374px | center_tol=簣30px | Kp=0.0045 | wz=0.50~0.78 | jump_reject>180px | confirm=2 frames
+[CENTER_PIX] mode = CONTINUOUS PIXEL P-CONTROL (YOLO bbox center)
+[FINAL] centered image -> forward by odom | vx=0.08m/s | travel=0.15m | timeout=3.5s
+[LATENCY] artificial UDP/H264 transport delay = 0.000s (disabled)
+[TARGET_MEMORY] acquire=3 frames | reacquire=3 frames | match=0.50~0.70m | search<=0.85m
+
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+'C:/Users/user/Documents/repo/iGibson-Navigation-Grasping/.venv-approach/Lib/site-packages/gstreamer_plugins_libs/lib/gio/modules\giolibproxy.dll': 找不到指定的模組。
+Failed to load module: C:/Users/user/Documents/repo/iGibson-Navigation-Grasping/.venv-approach/Lib/site-packages/gstreamer_plugins_libs/lib/gio/modules\giolibproxy.dll
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[RUN] mode=DRIVE | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[VISION_LAT] queue=6ms infer=1996ms stream_assumed=0ms total_est=2002ms odom_comp=1200ms coverage=PARTIAL bearing=+3.3deg->+3.3deg
+[RUN] mode=DRIVE | vision=TARGET_ACQUIRING 1/3 | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=2002ms | TARGET_NOT_LOCKED | TARGET_ACQUIRING 1/3
+[TARGET] memory locked at (1.250, +0.072) m
+[RUN] mode=DRIVE | vision=VALID | target=(1.250,+0.072) | dist=1.252 | bearing=+3.3deg | odom vx=+0.000 wz=+0.000 | a=(+0.894,+0.557) | des=(+0.150,+0.344) | cmd=(+0.150,+0.344) | front=1.623/min1.614 | lat=432ms | CONTRACT front=1.623m
+[VISION_LAT] queue=6ms infer=447ms stream_assumed=0ms total_est=453ms odom_comp=453ms coverage=OK bearing=+3.3deg->+2.8deg
+[RUN] mode=DRIVE | vision=VALID | target=(1.226,+0.059) | dist=1.227 | bearing=+2.8deg | odom vx=+0.108 wz=+0.046 | a=(+0.722,+0.442) | des=(+0.150,+0.337) | cmd=(+0.150,+0.337) | front=1.620/min1.611 | lat=453ms | CONTRACT front=1.620m
+[RUN] mode=DRIVE | vision=VALID | target=(1.164,+0.046) | dist=1.165 | bearing=+2.3deg | odom vx=+0.135 wz=-0.011 | a=(+0.710,-0.128) | des=(+0.150,-0.099) | cmd=(+0.150,-0.099) | front=1.573/min1.565 | lat=429ms | CONTRACT front=1.573m
+[RUN] mode=DRIVE | vision=VALID | target=(1.095,+0.041) | dist=1.096 | bearing=+2.1deg | odom vx=+0.142 wz=+0.023 | a=(+0.655,+0.212) | des=(+0.150,+0.178) | cmd=(+0.150,+0.178) | front=1.494/min1.489 | lat=459ms | CONTRACT front=1.494m
+[VISION_LAT] queue=30ms infer=421ms stream_assumed=0ms total_est=450ms odom_comp=450ms coverage=OK bearing=+2.3deg->+1.6deg
+[RUN] mode=DRIVE | vision=VALID | target=(1.016,+0.028) | dist=1.016 | bearing=+1.6deg | odom vx=+0.158 wz=+0.023 | a=(+0.657,-0.227) | des=(+0.150,-0.191) | cmd=(+0.150,-0.191) | front=1.422/min1.418 | lat=450ms | CONTRACT front=1.422m
+[RUN] mode=DRIVE | vision=VALID | target=(0.930,+0.049) | dist=0.931 | bearing=+3.0deg | odom vx=+0.155 wz=-0.011 | a=(+0.510,+0.105) | des=(+0.150,+0.113) | cmd=(+0.150,+0.113) | front=1.343/min1.336 | lat=423ms | CONTRACT front=1.343m
+[VISION_LAT] queue=20ms infer=412ms stream_assumed=0ms total_est=432ms odom_comp=432ms coverage=OK bearing=+3.0deg->+3.4deg
+[RUN] mode=DRIVE | vision=VALID | target=(0.851,+0.047) | dist=0.852 | bearing=+3.1deg | odom vx=+0.137 wz=+0.070 | a=(+0.701,-0.336) | des=(+0.150,-0.264) | cmd=(+0.150,-0.264) | front=1.275/min1.271 | lat=432ms | CONTRACT front=1.275m
+[HANDOFF] HANDOFF centre_dist=0.794m bearing=+3.4deg y=+0.048m
+[PURSUIT] to x=0.31 m, y=-0.016 m ahead of the centre | vx=0.08 m/s | turn 1.5 x bearing error, <= 0.35 rad/s
+[RUN] mode=DRIVE | vision=VALID | target=(0.778,+0.051) | dist=0.780 | bearing=+3.7deg | odom vx=+0.145 wz=-0.058 | a=(+0.000,+0.000) | des=(+0.080,+0.120) | cmd=(+0.080,+0.120) | front=1.209/min1.200 | lat=435ms | PURSUIT x=0.792 y=+0.048 err=+4.6deg | CONTRACT front=1.209m
+[RUN] mode=DRIVE | vision=VALID | target=(0.715,+0.050) | dist=0.716 | bearing=+4.0deg | odom vx=+0.098 wz=+0.023 | a=(+0.000,+0.000) | des=(+0.080,+0.137) | cmd=(+0.080,+0.137) | front=1.128/min1.123 | lat=416ms | PURSUIT x=0.724 y=+0.050 err=+5.2deg | CONTRACT front=1.128m
+[VISION_LAT] queue=15ms infer=431ms stream_assumed=0ms total_est=446ms odom_comp=446ms coverage=OK bearing=+4.2deg->+4.1deg
+[RUN] mode=DRIVE | vision=VALID | target=(0.671,+0.048) | dist=0.673 | bearing=+4.1deg | odom vx=+0.076 wz=-0.011 | a=(+0.000,+0.000) | des=(+0.080,+0.141) | cmd=(+0.080,+0.141) | front=1.076/min1.072 | lat=446ms | PURSUIT x=0.678 y=+0.048 err=+5.4deg | CONTRACT front=1.076m
+[RUN] mode=DRIVE | vision=OUTSIDE_CALIBRATION | target=(0.642,+0.048) | dist=0.643 | bearing=+4.3deg | odom vx=+0.054 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.080,+0.146) | cmd=(+0.080,+0.146) | front=1.040/min1.035 | lat=470ms | PURSUIT x=0.647 y=+0.047 err=+5.6deg | CONTRACT front=1.040m
+[VISION_LAT] queue=3ms infer=411ms stream_assumed=0ms total_est=414ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRIVE | vision=OUTSIDE_CALIBRATION | target=(0.613,+0.039) | dist=0.614 | bearing=+3.6deg | odom vx=+0.066 wz=+0.058 | a=(+0.000,+0.000) | des=(+0.080,+0.137) | cmd=(+0.080,+0.137) | front=1.010/min1.004 | lat=414ms | PURSUIT x=0.618 y=+0.041 err=+5.2deg | CONTRACT front=1.010m
+[RUN] mode=DRIVE | vision=OUTSIDE_CALIBRATION | target=(0.584,+0.033) | dist=0.585 | bearing=+3.2deg | odom vx=+0.056 wz=+0.034 | a=(+0.000,+0.000) | des=(+0.080,+0.127) | cmd=(+0.080,+0.127) | front=0.977/min0.968 | lat=446ms | PURSUIT x=0.589 y=+0.034 err=+4.9deg | CONTRACT front=0.977m
+[RUN] mode=DRIVE | vision=OUTSIDE_CALIBRATION | target=(0.551,+0.033) | dist=0.552 | bearing=+3.4deg | odom vx=+0.069 wz=+0.023 | a=(+0.000,+0.000) | des=(+0.080,+0.132) | cmd=(+0.080,+0.132) | front=0.943/min0.939 | lat=421ms | PURSUIT x=0.557 y=+0.033 err=+5.0deg | CONTRACT front=0.943m
+[VISION_LAT] queue=26ms infer=434ms stream_assumed=0ms total_est=460ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRIVE | vision=OUTSIDE_CALIBRATION | target=(0.514,+0.028) | dist=0.515 | bearing=+3.1deg | odom vx=+0.076 wz=+0.011 | a=(+0.000,+0.000) | des=(+0.080,+0.130) | cmd=(+0.080,+0.130) | front=0.911/min0.909 | lat=460ms | PURSUIT x=0.520 y=+0.029 err=+5.0deg | CONTRACT front=0.911m
+[RUN] mode=DRIVE | vision=OUTSIDE_CALIBRATION | target=(0.476,+0.028) | dist=0.476 | bearing=+3.4deg | odom vx=+0.071 wz=-0.034 | a=(+0.000,+0.000) | des=(+0.080,+0.137) | cmd=(+0.080,+0.137) | front=0.870/min0.864 | lat=449ms | PURSUIT x=0.481 y=+0.028 err=+5.2deg | CONTRACT front=0.870m
+[VISION_LAT] queue=15ms infer=411ms stream_assumed=0ms total_est=426ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRIVE | vision=OUTSIDE_CALIBRATION | target=(0.439,+0.028) | dist=0.440 | bearing=+3.6deg | odom vx=+0.066 wz=+0.011 | a=(+0.000,+0.000) | des=(+0.080,+0.149) | cmd=(+0.080,+0.149) | front=0.834/min0.828 | lat=426ms | PURSUIT x=0.444 y=+0.028 err=+5.7deg | CONTRACT front=0.834m
+[RUN] mode=DRIVE | vision=NO_YOLO | target=(0.407,+0.026) | dist=0.407 | bearing=+3.7deg | odom vx=+0.061 wz=+0.011 | a=(+0.000,+0.000) | des=(+0.080,+0.156) | cmd=(+0.080,+0.156) | front=0.796/min0.788 | lat=54ms | PURSUIT x=0.411 y=+0.027 err=+5.9deg | CONTRACT front=0.796m
+[VISION_LAT] queue=25ms infer=38ms stream_assumed=0ms total_est=63ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRIVE | vision=NO_YOLO | target=(0.374,+0.024) | dist=0.374 | bearing=+3.7deg | odom vx=+0.066 wz=+0.034 | a=(+0.000,+0.000) | des=(+0.080,+0.163) | cmd=(+0.080,+0.163) | front=0.764/min0.757 | lat=63ms | PURSUIT x=0.379 y=+0.025 err=+6.2deg | CONTRACT front=0.764m
+[RUN] mode=DRIVE | vision=NO_YOLO | target=(0.339,+0.022) | dist=0.340 | bearing=+3.8deg | odom vx=+0.066 wz=+0.011 | a=(+0.000,+0.000) | des=(+0.080,+0.168) | cmd=(+0.080,+0.168) | front=0.725/min0.718 | lat=66ms | PURSUIT x=0.344 y=+0.023 err=+6.4deg | CONTRACT front=0.725m
+[VISION_LAT] queue=29ms infer=36ms stream_assumed=0ms total_est=66ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[ARRIVED] ARRIVED_CONTRACT PURSUIT_DONE x=0.309 y=+0.021
+[INFO] stopping safely...
+[INFO] ended
+[STOP] no stable fresh E1 target; stopped without grasp or blind creep

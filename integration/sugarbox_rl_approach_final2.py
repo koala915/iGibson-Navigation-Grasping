@@ -495,8 +495,12 @@ if not (math.isfinite(CONTRACT_HANDOFF_CENTER_M) and math.isfinite(CONTRACT_FINA
         and 0.25 <= CONTRACT_FINAL_CENTER_X_M <= 0.45
         and CONTRACT_HANDOFF_CENTER_M >= CONTRACT_FINAL_CENTER_X_M + 0.15):
     raise ValueError("handoff must be 0.60-1.20 m, final x 0.25-0.45 m, at least 0.15 m apart")
-# Middle of the E1 grasp area at x 0.264 m, which spans y -0.049..+0.017 m.
-CONTRACT_AIM_Y_M = -0.016
+# Aim for the middle of the E1 grasp area (y -0.049..+0.017 m at x 0.264 m),
+# moved into the rear camera's frame: the two cameras' centre lines differ. On
+# 2026-10-12 a box the rear camera put at y -0.011 m was measured by E1 at
+# +0.0175 m (and x 0.267 m for a remembered 0.307 m -- exactly right), missing
+# the grasp area by 1 mm. E1 y = rear y + 0.028 m, so -0.016 - 0.028:
+CONTRACT_AIM_Y_M = -0.044
 PURSUIT_VX = 0.08                # FINAL_APPROACH_VX: slow enough to stop on the mark
 # At this speed a small turn does nothing: on 2026-10-12 wz 0.12-0.17 became
 # motors 12/20 and the chassis turned ~0.015 rad/s, leaving the box 4-6 cm left.

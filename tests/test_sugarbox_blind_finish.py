@@ -682,7 +682,8 @@ class ContractModeTests(unittest.TestCase):
                 self.assertTrue(reason.startswith('PURSUIT_DONE'), reason)
                 self.assertLessEqual(target.x, 0.31)
                 self.assertGreater(target.x, 0.29)
-                self.assertAlmostEqual(target.y, -0.016, delta=0.01)
+                # E1's middle (-0.016 m) seen from the rear camera, 2.8 cm apart.
+                self.assertAlmostEqual(target.y, -0.044, delta=0.01)
                 self.assertTrue(all(vx > 0 and abs(wz) <= 0.60 for vx, wz in commands))
                 # 2026-10-12: smaller turns did not move the chassis at this speed.
                 self.assertTrue(all(wz == 0 or abs(wz) >= 0.30 for _, wz in commands))

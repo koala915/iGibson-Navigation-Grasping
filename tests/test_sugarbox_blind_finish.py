@@ -16,7 +16,8 @@ SOURCE = Path(__file__).resolve().parents[1] / 'integration/sugarbox_rl_approach
 def runtime(env=None):
     tree = ast.parse(SOURCE.read_text(encoding='utf-8'))
     classes = {'BlindFinishController', 'TargetState', 'MotorClient', 'AntiJitterSafetyFilter',
-               'ProgressWatchdog', 'ObsLogger', 'FinalApproachController'}
+               'ProgressWatchdog', 'ObsLogger', 'FinalApproachController',
+               'PursuitController'}
     names = {'_blind', 'YOLO_IMGSZ', 'BLIND_STOP_X', 'MOTOR_SEND_INTERVAL'}
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and node.name in classes:
@@ -337,7 +338,7 @@ class TurnSafetyTests(unittest.TestCase):
     def test_every_moving_wheel_command_goes_through_a_safety_filter(self):
         parents = {child: node for node in ast.walk(self.main)
                    for child in ast.iter_child_nodes(node)}
-        filters = {'apply', 'apply_center_turn', 'apply_final_approach'}
+        filters = {'apply', 'apply_center_turn', 'apply_final_approach', 'apply_contract'}
         sends = [n for n in ast.walk(self.main) if isinstance(n, ast.Call)
                  and isinstance(n.func, ast.Attribute) and n.func.attr == 'send_velocity']
         checked = 0
@@ -355,7 +356,7 @@ class TurnSafetyTests(unittest.TestCase):
             with self.subTest(line=call.lineno):
                 self.assertTrue(used & filters, 'wheel command without a safety filter')
             checked += 1
-        self.assertEqual(checked, 5)              # blind, search, centering, final, avoidance
+        self.assertEqual(checked, 6)   # blind, search, centering, steer-in, final, avoidance
 
     def test_stale_scan_or_odometry_stops_every_branch(self):
         gate = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
@@ -619,38 +620,29 @@ class ContractModeTests(unittest.TestCase):
         return next(ast.literal_eval(n.value) for n in self.rt['tree'].body
                     if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == name)
 
-    def arrival(self, contract=True, dist=0.44, stop=False, forward=None, active=False):
+    def handoff(self, contract=True, dist=0.79, stop=False, active=False):
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
-                     and 'CONTRACT_ARRIVAL_CENTER_M' in ast.unparse(n.test))
+                     and 'CONTRACT_HANDOFF_CENTER_M' in ast.unparse(n.test))
         started = []
-        final = SimpleNamespace(active=active,
-                                start=lambda target, now, travel_m=None: started.append(travel_m))
+        pursuit = SimpleNamespace(active=active, start=lambda now: started.append(now))
         scope = dict(TRAINING_CONTRACT=contract, should_stop=stop, arrived_latched=False,
-                     safety_reason='', CONTRACT_ARRIVAL_CENTER_M=self.constant('CONTRACT_ARRIVAL_CENTER_M'),
-                     CONTRACT_FINAL_FORWARD_M=(0.10 if forward is None else forward),
-                     final_approach=final, now=5.0,
+                     safety_reason='', CONTRACT_HANDOFF_CENTER_M=0.80, pursuit=pursuit, now=5.0,
                      contract_action=SimpleNamespace(reset=lambda: None),
-                     anti_jitter=SimpleNamespace(reset_motion=lambda: None),
-                     math=math, target=SimpleNamespace(has_memory=lambda: True, dist=dist, bearing=.05))
+                     anti_jitter=SimpleNamespace(reset_motion=lambda: None), math=math,
+                     target=SimpleNamespace(has_memory=lambda: True, dist=dist, bearing=.05, y=.04))
         exec(compile(ast.Module(body=[block], type_ignores=[]), str(SOURCE), 'exec'), scope)
         scope['started'] = started
         return scope
 
-    def test_arrival_drives_the_last_10cm_straight_before_e1(self):
-        # The user, 2026-10-12: it stopped about 10 cm short of the grasp area.
-        scope = self.arrival()
-        self.assertEqual(scope['started'], [0.10])
+    def test_policy_hands_over_to_the_steer_in_at_80cm(self):
+        scope = self.handoff()
+        self.assertEqual(scope['started'], [5.0])
         self.assertFalse(scope['arrived_latched'] or scope['should_stop'])
-        self.assertTrue(scope['safety_reason'].startswith('ARRIVED_CONTRACT'))
-        self.assertEqual(self.arrival(active=True)['started'], [])        # not twice
-        self.assertEqual(self.arrival(dist=0.46)['started'], [])
-        self.assertEqual(self.arrival(contract=False)['started'], [])
-        self.assertEqual(self.arrival(stop=True)['started'], [])          # never over a stop
-
-    def test_without_the_straight_finish_arrival_hands_over_at_once(self):
-        scope = self.arrival(forward=0.0)
-        self.assertTrue(scope['arrived_latched'] and scope['should_stop'])
-        self.assertEqual(scope['started'], [])
+        self.assertTrue(scope['safety_reason'].startswith('HANDOFF'))
+        self.assertEqual(self.handoff(active=True)['started'], [])        # not twice
+        self.assertEqual(self.handoff(dist=0.81)['started'], [])
+        self.assertEqual(self.handoff(contract=False)['started'], [])
+        self.assertEqual(self.handoff(stop=True)['started'], [])          # never over a stop
 
     def test_after_arrival_it_never_returns_to_the_policy(self):
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
@@ -659,9 +651,50 @@ class ContractModeTests(unittest.TestCase):
         exec(compile(ast.Module(body=[block], type_ignores=[]), str(SOURCE), 'exec'), scope)
         self.assertTrue(scope['should_stop'])
 
-    def test_straight_finish_ends_in_arrival_even_when_it_times_out(self):
-        source = ast.unparse(self.main)
-        self.assertIn("elif TRAINING_CONTRACT and final_reason.startswith('FINAL_TIMEOUT'):", source)
+    def steer_in(self, box_x, box_y, moving=True, seconds=20.0):
+        """Drive a unicycle on the controller's commands; box fixed on the floor."""
+        pursuit = self.rt['PursuitController']()
+        pursuit.start(0.0)
+        px = py = th = 0.0
+        t, dt, commands = 0.0, 0.1, []
+        target = SimpleNamespace(x=box_x, y=box_y)
+        while t < seconds:
+            dx, dy = box_x - px, box_y - py
+            target.x = math.cos(th) * dx + math.sin(th) * dy
+            target.y = -math.sin(th) * dx + math.cos(th) * dy
+            vx, wz, done, reason = pursuit.command(target, t)
+            if done:
+                return target, reason, commands
+            commands.append((vx, wz))
+            if moving:
+                px += vx * math.cos(th) * dt
+                py += vx * math.sin(th) * dt
+                th += wz * dt
+            t += dt
+        self.fail('never finished')
+
+    def test_steer_in_puts_an_offset_box_on_the_e1_line(self):
+        # 2026-10-12: the policy kept an 8 cm offset all the way in. The E1 grasp
+        # area at x 0.264 m spans y -0.049..+0.017 m; aim at its middle.
+        for box_y in (+0.08, -0.10, 0.0):
+            with self.subTest(box_y=box_y):
+                target, reason, commands = self.steer_in(0.80, box_y)
+                self.assertTrue(reason.startswith('PURSUIT_DONE'), reason)
+                self.assertLessEqual(target.x, 0.31)
+                self.assertGreater(target.x, 0.29)
+                self.assertAlmostEqual(target.y, -0.016, delta=0.01)
+                self.assertTrue(all(vx > 0 and abs(wz) <= 0.35 for vx, wz in commands))
+
+    def test_steer_in_gives_up_to_e1_when_it_cannot_close_in(self):
+        target, reason, _ = self.steer_in(0.80, 0.05, moving=False)
+        self.assertTrue(reason.startswith('PURSUIT_TIMEOUT'), reason)
+
+    def test_steer_in_branch_keeps_the_safety_essentials_and_latches_arrival(self):
+        branch = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
+                      and ast.unparse(n.test) == 'pursuit.active')
+        code = ast.unparse(branch.body)
+        self.assertIn('anti_jitter.apply_contract(', code)
+        self.assertIn('arrived_latched = True', code)
 
     def test_final_forward_stops_after_its_own_distance(self):
         final = self.rt['FinalApproachController']()

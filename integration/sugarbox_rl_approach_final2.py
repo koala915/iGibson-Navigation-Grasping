@@ -478,18 +478,31 @@ CONTRACT_DISTANCE_SCALE = 1.15
 # measured footprint corridor (nav_rl): a side wall must not read as "ahead".
 # 12 cm chassis half width (measured 2026-09-27) plus 5 cm.
 CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M = 0.17
-# After arrival, straight ahead at FINAL_APPROACH_VX before E1 (the user,
-# 2026-10-12: it stopped about 10 cm short of the grasp area).
-CONTRACT_FINAL_FORWARD_M = float(os.environ.get("SUGARBOX_CONTRACT_FINAL_FORWARD_M", "0.10"))
-if not math.isfinite(CONTRACT_FINAL_FORWARD_M) or not 0.0 <= CONTRACT_FINAL_FORWARD_M <= 0.20:
-    raise ValueError("SUGARBOX_CONTRACT_FINAL_FORWARD_M must be in [0, 0.20]")
+# The last stretch is not the policy's. It brings the box to
+# CONTRACT_HANDOFF_CENTER_M and hands over: it was never trained to line up a few
+# cm (2026-10-12: it alternated left and right turns, net zero, and kept an 8 cm
+# offset all the way in). PursuitController then creeps at the box and steers it
+# onto the E1 line -- forward and turn only, the policy's own two actions, no
+# sideways motion. At the handoff the rear camera still sees the box (its
+# calibration starts 0.70 m from the centre); odometry carries it after that.
+CONTRACT_HANDOFF_CENTER_M = float(os.environ.get("SUGARBOX_CONTRACT_HANDOFF_M", "0.80"))
+# Where the box should end, ahead of the chassis centre. The user, 2026-10-12: the
+# run that stopped with it remembered at 0.336 m needed about 3 cm more.
+CONTRACT_FINAL_CENTER_X_M = float(os.environ.get("SUGARBOX_CONTRACT_FINAL_X_M", "0.31"))
+if not (math.isfinite(CONTRACT_HANDOFF_CENTER_M) and math.isfinite(CONTRACT_FINAL_CENTER_X_M)
+        and 0.60 <= CONTRACT_HANDOFF_CENTER_M <= 1.20
+        and 0.25 <= CONTRACT_FINAL_CENTER_X_M <= 0.45
+        and CONTRACT_HANDOFF_CENTER_M >= CONTRACT_FINAL_CENTER_X_M + 0.15):
+    raise ValueError("handoff must be 0.60-1.20 m, final x 0.25-0.45 m, at least 0.15 m apart")
+# Middle of the E1 grasp area at x 0.264 m, which spans y -0.049..+0.017 m.
+CONTRACT_AIM_Y_M = -0.016
+PURSUIT_VX = 0.08                # FINAL_APPROACH_VX: slow enough to stop on the mark
+PURSUIT_K = 1.5                  # rad/s of turn per rad of bearing error
+PURSUIT_MAX_WZ = 0.35            # turning while moving needs no in-place minimum
 # The user allowed this policy to reverse (2026-10-12): it reverses as part of
 # avoiding. Nothing watches behind the car, so it stays slow and bounded, and
 # only in this mode. Every other path keeps ALLOW_REVERSE = False.
 CONTRACT_REVERSE_MAX_MPS = 0.08
-# Arrival is measured from the chassis centre: 0.45 m there is 0.315 m ahead of
-# the E1 origin, just short of the E1 window (0.249-0.279 m) before coasting.
-CONTRACT_ARRIVAL_CENTER_M = 0.45
 # Opt-in: one JSON line per policy tick with the exact observation and action, so
 # a real run can be replayed offline. 2026-10-12 needed it: the policy drove
 # straight past a box 14 cm to its left, and offline probes could not say why.
@@ -3528,6 +3541,52 @@ class FinalApproachController:
         )
 
 
+class PursuitController:
+    """enoch mode's last stretch: creep at the box, steering it onto the E1 line.
+
+    Runs on the target memory, which the rear camera corrects while it sees the
+    box and odometry carries after the gripper hides it. Ends when the box is
+    CONTRACT_FINAL_CENTER_X_M ahead of the centre, or on a timeout; either way E1
+    judges the result, so a miss never becomes a grasp.
+    """
+
+    def __init__(self):
+        self.active = False
+        self.start_time = 0.0
+
+    def reset(self):
+        self.active = False
+        self.start_time = 0.0
+
+    def start(self, now):
+        if self.active:
+            return False
+        self.active = True
+        self.start_time = now
+        print("[PURSUIT] to x={:.2f} m, y={:+.3f} m ahead of the centre | vx={:.2f} m/s "
+              "| turn {:.1f} x bearing error, <= {:.2f} rad/s".format(
+                  CONTRACT_FINAL_CENTER_X_M, CONTRACT_AIM_Y_M, PURSUIT_VX,
+                  PURSUIT_K, PURSUIT_MAX_WZ))
+        return True
+
+    def command(self, target, now):
+        """-> (vx, wz, done, reason)."""
+        if not self.active:
+            return 0.0, 0.0, True, "PURSUIT_IDLE"
+        x, y = float(target.x), float(target.y)
+        if x <= CONTRACT_FINAL_CENTER_X_M:
+            self.active = False
+            return 0.0, 0.0, True, "PURSUIT_DONE x={:.3f} y={:+.3f}".format(x, y)
+        timeout = (CONTRACT_HANDOFF_CENTER_M - CONTRACT_FINAL_CENTER_X_M) / PURSUIT_VX + 4.0
+        if now - self.start_time > timeout:
+            self.active = False
+            return 0.0, 0.0, True, "PURSUIT_TIMEOUT x={:.3f} y={:+.3f}".format(x, y)
+        error = math.atan2(y, x) - math.atan2(CONTRACT_AIM_Y_M, x)
+        wz = clamp(PURSUIT_K * error, -PURSUIT_MAX_WZ, PURSUIT_MAX_WZ)
+        return PURSUIT_VX, wz, False, "PURSUIT x={:.3f} y={:+.3f} err={:+.1f}deg".format(
+            x, y, math.degrees(error))
+
+
 class BlindFinishController:
     """Straight creep on the remembered box after the gripper hides it (see BLIND_STOP_X)."""
 
@@ -5277,9 +5336,9 @@ def main():
               f"chassis centre (+{training_contract.GOAL_ORIGIN_OFFSET_X_M:.3f} m), unsigned "
               f"speed, action delay {CONTRACT_ACTION_DELAY_STEPS}, training shaping, "
               f"reverse <= {CONTRACT_REVERSE_MAX_MPS:.2f} m/s; no centring, search or blind "
-              f"finish; arrives at {CONTRACT_ARRIVAL_CENTER_M:.2f} m from the centre "
-              f"({CONTRACT_ARRIVAL_CENTER_M - training_contract.GOAL_ORIGIN_OFFSET_X_M:.3f} m "
-              f"ahead of E1), then {CONTRACT_FINAL_FORWARD_M:.2f} m straight; policy rays "
+              f"finish; hands over at {CONTRACT_HANDOFF_CENTER_M:.2f} m from the centre, "
+              f"then creeps and steers the box to x={CONTRACT_FINAL_CENTER_X_M:.2f} m, "
+              f"y={CONTRACT_AIM_Y_M:+.3f} m (no sideways motion); policy rays "
               f"x{CONTRACT_DISTANCE_SCALE:.2f}; forward brake only within "
               f"+-{CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M:.2f} m of the centre line. "
               "Target x/y below are centre-frame.")
@@ -5578,6 +5637,7 @@ def main():
     anti_jitter = AntiJitterSafetyFilter()
     center_controller = BottomCenterController()
     final_approach = FinalApproachController()
+    pursuit = PursuitController()
     blind_finish = BlindFinishController()
 
 
@@ -6262,9 +6322,9 @@ def main():
 
 
                 # ------------------------------------------------
-                # Training-matched arrival: the box is within reach of the E1
-                # handoff, measured from the chassis centre (see
-                # CONTRACT_ARRIVAL_CENTER_M). E1 decides whether it can grasp.
+                # Training-matched handoff: the policy has brought the box to
+                # CONTRACT_HANDOFF_CENTER_M; PursuitController lines it up for
+                # E1 from here. E1 decides whether it can grasp.
                 # ------------------------------------------------
 
                 if TRAINING_CONTRACT and arrived_latched:
@@ -6273,23 +6333,17 @@ def main():
                 if (
                     TRAINING_CONTRACT
                     and not should_stop
-                    and not final_approach.active
+                    and not pursuit.active
                     and target.has_memory()
-                    and target.dist <= CONTRACT_ARRIVAL_CENTER_M
+                    and target.dist <= CONTRACT_HANDOFF_CENTER_M
                 ):
                     safety_reason = (
-                        "ARRIVED_CONTRACT centre_dist={:.3f}m bearing={:+.1f}deg".format(
-                            target.dist, math.degrees(target.bearing)))
-                    print("[ARRIVED] " + safety_reason)
-                    if CONTRACT_FINAL_FORWARD_M > 0.0:
-                        # The last few cm straight ahead, outside the policy's
-                        # training (its episodes end at this distance).
-                        contract_action.reset()
-                        anti_jitter.reset_motion()
-                        final_approach.start(target, now, travel_m=CONTRACT_FINAL_FORWARD_M)
-                    else:
-                        arrived_latched = True
-                        should_stop = True
+                        "HANDOFF centre_dist={:.3f}m bearing={:+.1f}deg y={:+.3f}m".format(
+                            target.dist, math.degrees(target.bearing), target.y))
+                    print("[HANDOFF] " + safety_reason)
+                    contract_action.reset()
+                    anti_jitter.reset_motion()
+                    pursuit.start(now)
 
 
                 # ------------------------------------------------
@@ -6301,6 +6355,7 @@ def main():
                     contract_action.reset()
                     center_controller.reset()
                     final_approach.reset()
+                    pursuit.reset()
                     blind_finish.reset()
 
                     last_raw_action[:] = 0.0
@@ -6565,6 +6620,55 @@ def main():
 
 
                 # ------------------------------------------------
+                # enoch mode's last stretch (PursuitController)
+                # ------------------------------------------------
+
+                elif pursuit.active:
+
+                    last_raw_action[:] = 0.0
+                    prev_raw_action = np.zeros(2, dtype=np.float32)
+
+                    (
+                        pursuit_vx,
+                        pursuit_wz,
+                        pursuit_done,
+                        pursuit_reason
+                    ) = pursuit.command(target, now)
+
+                    last_desired_vx = float(pursuit_vx)
+                    last_desired_wz = float(pursuit_wz)
+
+                    if pursuit_done:
+                        anti_jitter.reset_motion()
+                        vx_cmd = 0.0
+                        wz_cmd = 0.0
+                        arrived_latched = True
+                        safety_reason = "ARRIVED_CONTRACT " + pursuit_reason
+                        print("[ARRIVED] " + safety_reason)
+                    else:
+                        # Same essentials as the policy: hard stop, front block
+                        # (turn kept), side guard on turns.
+                        vx_cmd, wz_cmd, pursuit_safety = anti_jitter.apply_contract(
+                            pursuit_vx, pursuit_wz, front_robust, front_min,
+                            right_robust=right_side_robust,
+                            left_robust=left_side_robust)
+                        safety_reason = pursuit_reason + " | " + pursuit_safety
+
+                    last_cmd_vx = float(vx_cmd)
+                    last_cmd_wz = float(wz_cmd)
+
+                    if RUN_MODE == "DRIVE":
+                        motor.send_velocity(
+                            last_cmd_vx,
+                            last_cmd_wz,
+                            force=pursuit_done
+                        )
+                        if EXIT_ON_ARRIVAL and arrived_latched:
+                            motor.stop(repeat=5)
+                            break
+
+
+                # ------------------------------------------------
                 # Final straight approach after centering
                 # ------------------------------------------------
 
@@ -6638,13 +6742,7 @@ def main():
 
                         if final_reason.startswith("FINAL_DONE_TRAVEL"):
                             arrived_latched = True
-                            safety_reason = ("ARRIVED_CONTRACT_FINAL " + final_reason
-                                             if TRAINING_CONTRACT else "ARRIVED_AFTER_15CM")
-                        elif TRAINING_CONTRACT and final_reason.startswith("FINAL_TIMEOUT"):
-                            # Blocked or slipping: stop here and let E1 judge,
-                            # rather than restart the policy inside its goal radius.
-                            arrived_latched = True
-                            safety_reason = "ARRIVED_CONTRACT_FINAL " + final_reason
+                            safety_reason = "ARRIVED_AFTER_15CM"
 
                     last_cmd_vx = float(vx_cmd)
                     last_cmd_wz = float(wz_cmd)

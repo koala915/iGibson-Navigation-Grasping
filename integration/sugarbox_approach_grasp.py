@@ -167,8 +167,12 @@ def main(argv=None):
     parser.add_argument('--yolo-imgsz', type=int, default=None,
                         help='rear-camera YOLO input size (default 1280 with --approach enoch, '
                              '640 with legacy)')
-    parser.add_argument('--final-forward-m', type=float, default=0.10,
-                        help='enoch: straight ahead after arrival, before E1 (m, 0..0.20)')
+    parser.add_argument('--handoff-m', type=float, default=0.80,
+                        help='enoch: box distance from the chassis centre where the policy '
+                             'hands over to the slow steer-in (m, 0.60..1.20)')
+    parser.add_argument('--final-x-m', type=float, default=0.31,
+                        help='enoch: stop when the box is this far ahead of the chassis '
+                             'centre (m, 0.25..0.45)')
     parser.add_argument('--obs-log', type=Path, default=None,
                         help='append every policy observation/action as JSON lines '
                              '(for replaying a run offline)')
@@ -184,8 +188,10 @@ def main(argv=None):
     if args.blind_stop_x is not None and not (
             math.isfinite(args.blind_stop_x) and 0.05 <= args.blind_stop_x <= 0.60):
         parser.error('--blind-stop-x must be 0.05..0.60 m')
-    if not (math.isfinite(args.final_forward_m) and 0.0 <= args.final_forward_m <= 0.20):
-        parser.error('--final-forward-m must be 0..0.20 m')
+    if not (math.isfinite(args.handoff_m) and math.isfinite(args.final_x_m)
+            and 0.60 <= args.handoff_m <= 1.20 and 0.25 <= args.final_x_m <= 0.45
+            and args.handoff_m >= args.final_x_m + 0.15):
+        parser.error('--handoff-m 0.60..1.20 and --final-x-m 0.25..0.45, at least 0.15 m apart')
     if args.yolo_imgsz is not None and (args.yolo_imgsz % 32 or not 320 <= args.yolo_imgsz <= 1920):
         parser.error('--yolo-imgsz must be a multiple of 32 in 320..1920')
     ipaddress.IPv4Address(args.host)  # fixed-format SSH target, no shell interpolation
@@ -218,7 +224,8 @@ def main(argv=None):
     # are the ones on its own command line.
     for key in ('SUGARBOX_BLIND_STOP_X', 'SUGARBOX_YOLO_IMGSZ', 'SUGARBOX_TRAINING_CONTRACT',
                 'SUGARBOX_CONTRACT_ALLOW_DRIVE', 'SUGARBOX_TARGET_INITIAL_ONLY',
-                'SUGARBOX_OBS_LOG', 'SUGARBOX_CONTRACT_FINAL_FORWARD_M'):
+                'SUGARBOX_OBS_LOG', 'SUGARBOX_CONTRACT_HANDOFF_M',
+                'SUGARBOX_CONTRACT_FINAL_X_M'):
         env.pop(key, None)
     if args.blind_stop_x is not None:
         env['SUGARBOX_BLIND_STOP_X'] = str(args.blind_stop_x)
@@ -233,12 +240,14 @@ def main(argv=None):
         # not cure the oscillation, and it leaves odometry slip uncorrected (11 cm of
         # sideways error on 2026-10-12). The box is re-measured while visible.
         env['SUGARBOX_TRAINING_CONTRACT'] = '1'
-        env['SUGARBOX_CONTRACT_FINAL_FORWARD_M'] = str(args.final_forward_m)
+        env['SUGARBOX_CONTRACT_HANDOFF_M'] = str(args.handoff_m)
+        env['SUGARBOX_CONTRACT_FINAL_X_M'] = str(args.final_x_m)
         if args.real:
             env['SUGARBOX_CONTRACT_ALLOW_DRIVE'] = '1'
     print('[config] approach={} blind_stop_x={} yolo_imgsz={} final_travel_m={} '
-          'final_forward_m={}'.format(args.approach, args.blind_stop_x, yolo_imgsz,
-                                      args.final_travel_m, args.final_forward_m))
+          'handoff_m={} final_x_m={}'.format(args.approach, args.blind_stop_x, yolo_imgsz,
+                                             args.final_travel_m, args.handoff_m,
+                                             args.final_x_m))
     if args.dry_run:
         env.update(SUGARBOX_RUN_MODE='DRY_RUN', SUGARBOX_EXIT_ON_ARRIVAL='0')
         return subprocess.run([sys.executable, '-u', str(APPROACH)], env=env).returncode

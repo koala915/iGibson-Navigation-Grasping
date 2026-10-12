@@ -202,12 +202,16 @@ class HandoffTests(unittest.TestCase):
             self.assertEqual(env['SUGARBOX_RUN_MODE'], 'DRIVE')
             grasp.assert_called_once()
 
-    def test_enoch_approach_drives_10cm_straight_after_arrival_by_default(self):
-        self.assertEqual(self.launched_env([])['SUGARBOX_CONTRACT_FINAL_FORWARD_M'], '0.1')
-        env = self.launched_env(['--final-forward-m', '0.05'])
-        self.assertEqual(env['SUGARBOX_CONTRACT_FINAL_FORWARD_M'], '0.05')
-        self.assertNotIn('SUGARBOX_CONTRACT_FINAL_FORWARD_M',
-                         self.launched_env(['--approach', 'legacy']))
+    def test_enoch_hands_over_at_80cm_and_stops_the_box_at_31cm_by_default(self):
+        env = self.launched_env([])
+        self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
+                         ('0.8', '0.31'))
+        env = self.launched_env(['--handoff-m', '1.0', '--final-x-m', '0.34'])
+        self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
+                         ('1.0', '0.34'))
+        legacy = self.launched_env(['--approach', 'legacy'])
+        self.assertNotIn('SUGARBOX_CONTRACT_HANDOFF_M', legacy)
+        self.assertNotIn('SUGARBOX_CONTRACT_FINAL_X_M', legacy)
 
     def test_obs_log_reaches_the_approach_only_when_asked(self):
         self.assertNotIn('SUGARBOX_OBS_LOG', self.launched_env([], {'SUGARBOX_OBS_LOG': 'old.jsonl'}))
@@ -221,7 +225,8 @@ class HandoffTests(unittest.TestCase):
 
     def test_out_of_range_settings_are_refused_before_anything_runs(self):
         for argv in (['--blind-stop-x', '0.9'], ['--blind-stop-x', 'nan'],
-                     ['--final-forward-m', '0.3'], ['--final-forward-m', '-0.01'],
+                     ['--final-x-m', '0.5'], ['--handoff-m', '0.4'],
+                     ['--handoff-m', '0.6', '--final-x-m', '0.5'],
                      ['--yolo-imgsz', '1000'], ['--yolo-imgsz', '64']):
             with self.subTest(argv=argv), \
                  patch.object(runner, 'ctl') as read, \

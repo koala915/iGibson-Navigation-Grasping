@@ -620,13 +620,13 @@ class ContractModeTests(unittest.TestCase):
         return next(ast.literal_eval(n.value) for n in self.rt['tree'].body
                     if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == name)
 
-    def handoff(self, contract=True, dist=0.79, stop=False, active=False):
+    def handoff(self, contract=True, dist=0.99, stop=False, active=False):
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
                      and 'CONTRACT_HANDOFF_CENTER_M' in ast.unparse(n.test))
         started = []
         pursuit = SimpleNamespace(active=active, start=lambda now: started.append(now))
         scope = dict(TRAINING_CONTRACT=contract, should_stop=stop, arrived_latched=False,
-                     safety_reason='', CONTRACT_HANDOFF_CENTER_M=0.80, pursuit=pursuit, now=5.0,
+                     safety_reason='', CONTRACT_HANDOFF_CENTER_M=1.00, pursuit=pursuit, now=5.0,
                      contract_action=SimpleNamespace(reset=lambda: None),
                      anti_jitter=SimpleNamespace(reset_motion=lambda: None), math=math,
                      target=SimpleNamespace(has_memory=lambda: True, dist=dist, bearing=.05, y=.04))
@@ -634,13 +634,13 @@ class ContractModeTests(unittest.TestCase):
         scope['started'] = started
         return scope
 
-    def test_policy_hands_over_to_the_steer_in_at_80cm(self):
+    def test_policy_hands_over_to_the_steer_in_at_1m(self):
         scope = self.handoff()
         self.assertEqual(scope['started'], [5.0])
         self.assertFalse(scope['arrived_latched'] or scope['should_stop'])
         self.assertTrue(scope['safety_reason'].startswith('HANDOFF'))
         self.assertEqual(self.handoff(active=True)['started'], [])        # not twice
-        self.assertEqual(self.handoff(dist=0.81)['started'], [])
+        self.assertEqual(self.handoff(dist=1.01)['started'], [])
         self.assertEqual(self.handoff(contract=False)['started'], [])
         self.assertEqual(self.handoff(stop=True)['started'], [])          # never over a stop
 
@@ -678,15 +678,17 @@ class ContractModeTests(unittest.TestCase):
         # area at x 0.264 m spans y -0.049..+0.017 m; aim at its middle.
         for box_y in (+0.08, -0.10, 0.0):
             with self.subTest(box_y=box_y):
-                target, reason, commands = self.steer_in(0.80, box_y)
+                target, reason, commands = self.steer_in(1.00, box_y)
                 self.assertTrue(reason.startswith('PURSUIT_DONE'), reason)
                 self.assertLessEqual(target.x, 0.31)
                 self.assertGreater(target.x, 0.29)
                 self.assertAlmostEqual(target.y, -0.016, delta=0.01)
-                self.assertTrue(all(vx > 0 and abs(wz) <= 0.35 for vx, wz in commands))
+                self.assertTrue(all(vx > 0 and abs(wz) <= 0.60 for vx, wz in commands))
+                # 2026-10-12: smaller turns did not move the chassis at this speed.
+                self.assertTrue(all(wz == 0 or abs(wz) >= 0.30 for _, wz in commands))
 
     def test_steer_in_gives_up_to_e1_when_it_cannot_close_in(self):
-        target, reason, _ = self.steer_in(0.80, 0.05, moving=False)
+        target, reason, _ = self.steer_in(1.00, 0.05, moving=False)
         self.assertTrue(reason.startswith('PURSUIT_TIMEOUT'), reason)
 
     def test_steer_in_branch_keeps_the_safety_essentials_and_latches_arrival(self):

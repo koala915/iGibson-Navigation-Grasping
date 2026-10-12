@@ -483,9 +483,10 @@ CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M = 0.17
 # cm (2026-10-12: it alternated left and right turns, net zero, and kept an 8 cm
 # offset all the way in). PursuitController then creeps at the box and steers it
 # onto the E1 line -- forward and turn only, the policy's own two actions, no
-# sideways motion. At the handoff the rear camera still sees the box (its
-# calibration starts 0.70 m from the centre); odometry carries it after that.
-CONTRACT_HANDOFF_CENTER_M = float(os.environ.get("SUGARBOX_CONTRACT_HANDOFF_M", "0.80"))
+# sideways motion. The rear camera corrects the box until about 0.64 m from the
+# centre (its calibration edge); odometry carries it after that, so the handoff
+# leaves 0.35 m of steering on live vision.
+CONTRACT_HANDOFF_CENTER_M = float(os.environ.get("SUGARBOX_CONTRACT_HANDOFF_M", "1.00"))
 # Where the box should end, ahead of the chassis centre. The user, 2026-10-12: the
 # run that stopped with it remembered at 0.336 m needed about 3 cm more.
 CONTRACT_FINAL_CENTER_X_M = float(os.environ.get("SUGARBOX_CONTRACT_FINAL_X_M", "0.31"))
@@ -497,8 +498,14 @@ if not (math.isfinite(CONTRACT_HANDOFF_CENTER_M) and math.isfinite(CONTRACT_FINA
 # Middle of the E1 grasp area at x 0.264 m, which spans y -0.049..+0.017 m.
 CONTRACT_AIM_Y_M = -0.016
 PURSUIT_VX = 0.08                # FINAL_APPROACH_VX: slow enough to stop on the mark
-PURSUIT_K = 1.5                  # rad/s of turn per rad of bearing error
-PURSUIT_MAX_WZ = 0.35            # turning while moving needs no in-place minimum
+# At this speed a small turn does nothing: on 2026-10-12 wz 0.12-0.17 became
+# motors 12/20 and the chassis turned ~0.015 rad/s, leaving the box 4-6 cm left.
+# Any correction is therefore at least PURSUIT_MIN_WZ, and none inside the
+# deadband, where the box is already within ~0.5 cm of the line at the stop.
+PURSUIT_K = 4.0                  # rad/s of turn per rad of bearing error
+PURSUIT_MIN_WZ = 0.30
+PURSUIT_MAX_WZ = 0.60
+PURSUIT_DEADBAND_DEG = 1.0
 # The user allowed this policy to reverse (2026-10-12): it reverses as part of
 # avoiding. Nothing watches behind the car, so it stays slow and bounded, and
 # only in this mode. Every other path keeps ALLOW_REVERSE = False.
@@ -3564,9 +3571,9 @@ class PursuitController:
         self.active = True
         self.start_time = now
         print("[PURSUIT] to x={:.2f} m, y={:+.3f} m ahead of the centre | vx={:.2f} m/s "
-              "| turn {:.1f} x bearing error, <= {:.2f} rad/s".format(
-                  CONTRACT_FINAL_CENTER_X_M, CONTRACT_AIM_Y_M, PURSUIT_VX,
-                  PURSUIT_K, PURSUIT_MAX_WZ))
+              "| turn {:.1f} x bearing error, {:.2f}..{:.2f} rad/s, none within {:.1f} deg".format(
+                  CONTRACT_FINAL_CENTER_X_M, CONTRACT_AIM_Y_M, PURSUIT_VX, PURSUIT_K,
+                  PURSUIT_MIN_WZ, PURSUIT_MAX_WZ, PURSUIT_DEADBAND_DEG))
         return True
 
     def command(self, target, now):
@@ -3582,7 +3589,11 @@ class PursuitController:
             self.active = False
             return 0.0, 0.0, True, "PURSUIT_TIMEOUT x={:.3f} y={:+.3f}".format(x, y)
         error = math.atan2(y, x) - math.atan2(CONTRACT_AIM_Y_M, x)
-        wz = clamp(PURSUIT_K * error, -PURSUIT_MAX_WZ, PURSUIT_MAX_WZ)
+        if abs(error) < math.radians(PURSUIT_DEADBAND_DEG):
+            wz = 0.0
+        else:
+            wz = math.copysign(clamp(PURSUIT_K * abs(error), PURSUIT_MIN_WZ, PURSUIT_MAX_WZ),
+                               error)
         return PURSUIT_VX, wz, False, "PURSUIT x={:.3f} y={:+.3f} err={:+.1f}deg".format(
             x, y, math.degrees(error))
 

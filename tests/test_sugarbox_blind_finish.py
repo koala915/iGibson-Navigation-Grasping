@@ -16,7 +16,7 @@ SOURCE = Path(__file__).resolve().parents[1] / 'integration/sugarbox_rl_approach
 def runtime(env=None):
     tree = ast.parse(SOURCE.read_text(encoding='utf-8'))
     classes = {'BlindFinishController', 'TargetState', 'MotorClient', 'AntiJitterSafetyFilter',
-               'ProgressWatchdog', 'ObsLogger'}
+               'ProgressWatchdog', 'ObsLogger', 'FinalApproachController'}
     names = {'_blind', 'YOLO_IMGSZ', 'BLIND_STOP_X', 'MOTOR_SEND_INTERVAL'}
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and node.name in classes:
@@ -619,22 +619,64 @@ class ContractModeTests(unittest.TestCase):
         return next(ast.literal_eval(n.value) for n in self.rt['tree'].body
                     if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == name)
 
-    def arrival(self, contract=True, dist=0.44, stop=False):
+    def arrival(self, contract=True, dist=0.44, stop=False, forward=None, active=False):
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
                      and 'CONTRACT_ARRIVAL_CENTER_M' in ast.unparse(n.test))
+        started = []
+        final = SimpleNamespace(active=active,
+                                start=lambda target, now, travel_m=None: started.append(travel_m))
         scope = dict(TRAINING_CONTRACT=contract, should_stop=stop, arrived_latched=False,
                      safety_reason='', CONTRACT_ARRIVAL_CENTER_M=self.constant('CONTRACT_ARRIVAL_CENTER_M'),
+                     CONTRACT_FINAL_FORWARD_M=(0.10 if forward is None else forward),
+                     final_approach=final, now=5.0,
+                     contract_action=SimpleNamespace(reset=lambda: None),
+                     anti_jitter=SimpleNamespace(reset_motion=lambda: None),
                      math=math, target=SimpleNamespace(has_memory=lambda: True, dist=dist, bearing=.05))
         exec(compile(ast.Module(body=[block], type_ignores=[]), str(SOURCE), 'exec'), scope)
+        scope['started'] = started
         return scope
 
-    def test_arrival_hands_over_at_the_centre_distance(self):
+    def test_arrival_drives_the_last_10cm_straight_before_e1(self):
+        # The user, 2026-10-12: it stopped about 10 cm short of the grasp area.
         scope = self.arrival()
-        self.assertTrue(scope['arrived_latched'] and scope['should_stop'])
+        self.assertEqual(scope['started'], [0.10])
+        self.assertFalse(scope['arrived_latched'] or scope['should_stop'])
         self.assertTrue(scope['safety_reason'].startswith('ARRIVED_CONTRACT'))
-        self.assertFalse(self.arrival(dist=0.46)['arrived_latched'])
-        self.assertFalse(self.arrival(contract=False)['arrived_latched'])
-        self.assertFalse(self.arrival(stop=True)['arrived_latched'])   # never over a stop
+        self.assertEqual(self.arrival(active=True)['started'], [])        # not twice
+        self.assertEqual(self.arrival(dist=0.46)['started'], [])
+        self.assertEqual(self.arrival(contract=False)['started'], [])
+        self.assertEqual(self.arrival(stop=True)['started'], [])          # never over a stop
+
+    def test_without_the_straight_finish_arrival_hands_over_at_once(self):
+        scope = self.arrival(forward=0.0)
+        self.assertTrue(scope['arrived_latched'] and scope['should_stop'])
+        self.assertEqual(scope['started'], [])
+
+    def test_after_arrival_it_never_returns_to_the_policy(self):
+        block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
+                     and ast.unparse(n.test) == 'TRAINING_CONTRACT and arrived_latched')
+        scope = dict(TRAINING_CONTRACT=True, arrived_latched=True, should_stop=False)
+        exec(compile(ast.Module(body=[block], type_ignores=[]), str(SOURCE), 'exec'), scope)
+        self.assertTrue(scope['should_stop'])
+
+    def test_straight_finish_ends_in_arrival_even_when_it_times_out(self):
+        source = ast.unparse(self.main)
+        self.assertIn("elif TRAINING_CONTRACT and final_reason.startswith('FINAL_TIMEOUT'):", source)
+
+    def test_final_forward_stops_after_its_own_distance(self):
+        final = self.rt['FinalApproachController']()
+        final.start(None, 0.0, travel_m=0.10)
+        t, done = 0.0, None
+        while t < 3.0 and done is None:
+            t += 0.1
+            _, vx, _, reason = final.command(None, 0.08, t)
+            if reason.startswith('FINAL_DONE'):
+                done = t
+        self.assertAlmostEqual(done, 1.3, delta=0.11)                    # 0.10 m at 0.08 m/s
+
+    def test_policy_sees_obstacles_15_percent_further(self):
+        self.assertEqual(self.constant('CONTRACT_DISTANCE_SCALE'), 1.15)
+        self.assertEqual(self.constant('CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M'), 0.17)
 
     def test_driving_this_mode_needs_its_own_opt_in(self):
         checks = [n for n in self.main.body[:4] if isinstance(n, ast.If)]

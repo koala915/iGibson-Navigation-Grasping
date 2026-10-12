@@ -468,7 +468,21 @@ CONTRACT_ALLOW_DRIVE = os.environ.get("SUGARBOX_CONTRACT_ALLOW_DRIVE", "0") == "
 # trial). The rear camera loses the box near the gripper anyway.
 TARGET_INITIAL_ONLY = os.environ.get("SUGARBOX_TARGET_INITIAL_ONLY", "0") == "1"
 CONTRACT_ACTION_DELAY_STEPS = 0       # training used 2; 0 removed the twitching
-CONTRACT_DISTANCE_SCALE = 1.0         # not the legacy 1.15
+# The policy sees obstacles 15% further away than they are (the legacy mode's
+# value). In the walled arena on 2026-10-12, at 1.0 walls 20-35 cm away kept it
+# driving straight past a box 11 cm to its left; replaying that run's logged
+# observations at 1.15 it turns toward the box. Training shaping and the raw
+# safety layer still use real metres.
+CONTRACT_DISTANCE_SCALE = 1.15
+# Forward braking counts only returns in the robot's own path, like the cruise's
+# measured footprint corridor (nav_rl): a side wall must not read as "ahead".
+# 12 cm chassis half width (measured 2026-09-27) plus 5 cm.
+CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M = 0.17
+# After arrival, straight ahead at FINAL_APPROACH_VX before E1 (the user,
+# 2026-10-12: it stopped about 10 cm short of the grasp area).
+CONTRACT_FINAL_FORWARD_M = float(os.environ.get("SUGARBOX_CONTRACT_FINAL_FORWARD_M", "0.10"))
+if not math.isfinite(CONTRACT_FINAL_FORWARD_M) or not 0.0 <= CONTRACT_FINAL_FORWARD_M <= 0.20:
+    raise ValueError("SUGARBOX_CONTRACT_FINAL_FORWARD_M must be in [0, 0.20]")
 # The user allowed this policy to reverse (2026-10-12): it reverses as part of
 # avoiding. Nothing watches behind the car, so it stays slow and bounded, and
 # only in this mode. Every other path keeps ALLOW_REVERSE = False.
@@ -2396,6 +2410,34 @@ def raw_front_metrics(scan):
     return robust_distance, strict_min, int(arr.size)
 
 
+def raw_front_corridor_metrics(scan, half_width_m):
+    """Forward distance from the sensor to returns in the robot's own path.
+
+    Anything dead ahead reads exactly as in raw_front_metrics, so the measured
+    thresholds keep their meaning. A return off to the side counts only within
+    half_width_m of the centre line, and then by its forward distance, which is
+    never more than its range. Side walls beyond that are the side guard's job.
+    """
+    if scan.ranges is None or len(scan.ranges) == 0:
+        return float("inf"), float("inf"), 0
+    values = []
+    for sample in robot_scan_samples(
+            scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY):
+        if sample.sensor_range_m is None:
+            continue
+        forward = sample.sensor_range_m * math.cos(sample.sensor_angle_rad)
+        lateral = sample.sensor_range_m * math.sin(sample.sensor_angle_rad)
+        if forward > 0.0 and abs(lateral) <= half_width_m:
+            values.append(forward)
+    if not values:
+        return float("inf"), float("inf"), 0
+    arr = np.asarray(values, dtype=np.float32)
+    strict_min = float(np.min(arr))
+    robust_distance = (strict_min if arr.size < FRONT_ROBUST_MIN_POINTS
+                       else float(np.percentile(arr, FRONT_ROBUST_PERCENTILE)))
+    return robust_distance, strict_min, int(arr.size)
+
+
 def raw_side_metrics(scan):
     """Yaw-corrected sensor-origin side sectors and original measured ranges."""
     if scan.ranges is None or len(scan.ranges) == 0:
@@ -3404,6 +3446,7 @@ class FinalApproachController:
         self.start_time = 0.0
         self.last_update_time = 0.0
         self.travelled_m = 0.0
+        self.travel_m = FINAL_APPROACH_TRAVEL_M
 
 
     def reset(self):
@@ -3413,7 +3456,7 @@ class FinalApproachController:
         self.travelled_m = 0.0
 
 
-    def start(self, target, now):
+    def start(self, target, now, travel_m=None):
         if self.active:
             return False
 
@@ -3421,11 +3464,12 @@ class FinalApproachController:
         self.start_time = now
         self.last_update_time = now
         self.travelled_m = 0.0
+        self.travel_m = FINAL_APPROACH_TRAVEL_M if travel_m is None else float(travel_m)
 
         print(
-            "[FINAL] visual-centered -> forward 15cm | "
+            "[FINAL] straight forward | "
             f"vx={FINAL_APPROACH_VX:.3f}m/s | "
-            f"travel={FINAL_APPROACH_TRAVEL_M:.2f}m | "
+            f"travel={self.travel_m:.2f}m | "
             f"timeout={FINAL_APPROACH_MAX_DURATION_S:.1f}s"
         )
 
@@ -3446,7 +3490,7 @@ class FinalApproachController:
 
         elapsed = now - self.start_time
 
-        if self.travelled_m >= FINAL_APPROACH_TRAVEL_M:
+        if self.travelled_m >= self.travel_m:
             self.active = False
             return (
                 True,
@@ -3477,7 +3521,7 @@ class FinalApproachController:
             (
                 "FINAL_FORWARD "
                 f"travel={self.travelled_m:.3f}/"
-                f"{FINAL_APPROACH_TRAVEL_M:.3f}m "
+                f"{self.travel_m:.3f}m "
                 f"t={elapsed:.2f}s "
                 f"vx={FINAL_APPROACH_VX:.3f}"
             )
@@ -5235,7 +5279,10 @@ def main():
               f"reverse <= {CONTRACT_REVERSE_MAX_MPS:.2f} m/s; no centring, search or blind "
               f"finish; arrives at {CONTRACT_ARRIVAL_CENTER_M:.2f} m from the centre "
               f"({CONTRACT_ARRIVAL_CENTER_M - training_contract.GOAL_ORIGIN_OFFSET_X_M:.3f} m "
-              "ahead of E1). Target x/y below are centre-frame.")
+              f"ahead of E1), then {CONTRACT_FINAL_FORWARD_M:.2f} m straight; policy rays "
+              f"x{CONTRACT_DISTANCE_SCALE:.2f}; forward brake only within "
+              f"+-{CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M:.2f} m of the centre line. "
+              "Target x/y below are centre-frame.")
     if TARGET_INITIAL_ONLY:
         print("[TARGET_INITIAL_ONLY] the first valid detection locks the target; "
               "odometry alone moves it after that")
@@ -6038,8 +6085,11 @@ def main():
                         front_robust,
                         front_min,
                         front_samples
-                    ) = raw_front_metrics(
-                        scan
+                    ) = (
+                        raw_front_corridor_metrics(
+                            scan, CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M)
+                        if TRAINING_CONTRACT
+                        else raw_front_metrics(scan)
                     )
 
                     (
@@ -6217,18 +6267,29 @@ def main():
                 # CONTRACT_ARRIVAL_CENTER_M). E1 decides whether it can grasp.
                 # ------------------------------------------------
 
+                if TRAINING_CONTRACT and arrived_latched:
+                    should_stop = True   # E1's turn now; never back to the PPO
+
                 if (
                     TRAINING_CONTRACT
                     and not should_stop
+                    and not final_approach.active
                     and target.has_memory()
                     and target.dist <= CONTRACT_ARRIVAL_CENTER_M
                 ):
-                    arrived_latched = True
-                    should_stop = True
                     safety_reason = (
                         "ARRIVED_CONTRACT centre_dist={:.3f}m bearing={:+.1f}deg".format(
                             target.dist, math.degrees(target.bearing)))
                     print("[ARRIVED] " + safety_reason)
+                    if CONTRACT_FINAL_FORWARD_M > 0.0:
+                        # The last few cm straight ahead, outside the policy's
+                        # training (its episodes end at this distance).
+                        contract_action.reset()
+                        anti_jitter.reset_motion()
+                        final_approach.start(target, now, travel_m=CONTRACT_FINAL_FORWARD_M)
+                    else:
+                        arrived_latched = True
+                        should_stop = True
 
 
                 # ------------------------------------------------
@@ -6577,7 +6638,13 @@ def main():
 
                         if final_reason.startswith("FINAL_DONE_TRAVEL"):
                             arrived_latched = True
-                            safety_reason = "ARRIVED_AFTER_15CM"
+                            safety_reason = ("ARRIVED_CONTRACT_FINAL " + final_reason
+                                             if TRAINING_CONTRACT else "ARRIVED_AFTER_15CM")
+                        elif TRAINING_CONTRACT and final_reason.startswith("FINAL_TIMEOUT"):
+                            # Blocked or slipping: stop here and let E1 judge,
+                            # rather than restart the policy inside its goal radius.
+                            arrived_latched = True
+                            safety_reason = "ARRIVED_CONTRACT_FINAL " + final_reason
 
                     last_cmd_vx = float(vx_cmd)
                     last_cmd_wz = float(wz_cmd)

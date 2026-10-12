@@ -27,6 +27,7 @@ def runtime_geometry_functions():
         'SIDE_SAFETY_MAX_ANGLE_DEG', 'SIDE_SAFETY_FRONT_EXCLUDE_DEG',
         'SIDE_ROBUST_MIN_POINTS', 'SIDE_ROBUST_PERCENTILE',
         'scan_to_policy_rays', 'raw_front_metrics', 'raw_side_metrics',
+        'raw_front_corridor_metrics', 'CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M',
         'clamp', 'AntiJitterSafetyFilter',
     }
     source = ROOT / 'integration/sugarbox_rl_approach_final2.py'
@@ -164,6 +165,28 @@ class SugarboxLidarGeometryTests(unittest.TestCase):
                     self.assertIn('HARD_STOP_HOLD', reason)
                 else:
                     self.assertIn('FWD_BLOCK_HOLD', reason)
+
+    def one_return(self, sensor_deg, distance):
+        return SimpleNamespace(ranges=[distance], angle_min=wrap_angle(math.radians(sensor_deg) - math.pi),
+                               angle_increment=0.01)
+
+    def test_enoch_mode_brakes_only_for_returns_in_its_own_path(self):
+        # 2026-10-12, walled arena: a side wall 20 cm off the centre line read as
+        # "0.53 m ahead" in the +-22 deg sector for the whole run.
+        corridor = lambda scan: self.runtime['raw_front_corridor_metrics'](
+            scan, self.runtime['CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M'])
+        wall = self.one_return(20.0, 0.58)                  # 0.20 m to the side, 0.55 m ahead
+        self.assertAlmostEqual(self.runtime['raw_front_metrics'](wall)[1], 0.58, places=6)
+        self.assertEqual(corridor(wall), (float('inf'), float('inf'), 0))
+        ahead = self.one_return(0.0, 0.25)                   # dead ahead: unchanged distance
+        self.assertAlmostEqual(corridor(ahead)[1], 0.25, places=6)
+        self.assertAlmostEqual(self.runtime['raw_front_metrics'](ahead)[1], 0.25, places=6)
+        corner = self.one_return(40.0, 0.22)                 # in the path, outside the old sector
+        self.assertEqual(self.runtime['raw_front_metrics'](corner)[2], 0)
+        self.assertAlmostEqual(corridor(corner)[1], 0.22 * math.cos(math.radians(40)), places=6)
+        self.assertLess(corridor(corner)[1], 0.18)           # the hard-stop distance
+        beside = self.one_return(95.0, 0.15)                 # beside the sensor: the side guard's
+        self.assertEqual(corridor(beside), (float('inf'), float('inf'), 0))
 
     def test_invalid_returns_have_no_safety_or_policy_range(self):
         samples = robot_scan_samples([0.0, float('inf'), float('nan'), -1.0],

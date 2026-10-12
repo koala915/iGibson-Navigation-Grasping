@@ -136,10 +136,15 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `README.md` | 兩種模式開啟流程、各檔用途、校正清單 |
 
 **2026-10-12 起總指揮預設 `--approach enoch`**：enoch 的訓練一致模式（`sugarbox_training_contract.py`，
-目標／LiDAR 以車體中心為原點、動作延遲 0、首次辨識即鎖定），PPO 自己開到盒子離車體中心
+目標／LiDAR 以車體中心為原點、動作延遲 0），PPO 自己開到盒子離車體中心
 0.45 m 就停，交給 E1 夾取；不置中、不搜尋、不盲走。只有這個模式允許倒車（≤0.08 m/s，
-使用者決定），其他路徑馬達層一律拒絕倒車。LiDAR 用團隊實測旋轉 180°（enoch 原版是鏡射）。
-尚未實車驗證，見 `docs/planning/DUAL_CAMERA_APPROACH_GRASP_DISCUSSION_2026-10-05.md` §10。
+使用者決定），其他路徑馬達層一律拒絕倒車。LiDAR 用團隊實測旋轉 180°（enoch 原版是鏡射），
+車體正側的障礙由感測器後半圈光束補上（車身回波以 ±15 cm 方框濾掉）。
+enoch 的「首次辨識即鎖定」**刻意不開**：那是他排除抖動原因的一次性診斷，會讓里程計打滑
+無法被畫面修正；盒子看得到時持續更新，看不到才靠里程計。後相機 YOLO 預設 1280。
+後相機校正 2026-10-12 重做：前輪線前 0.55–1.40 m、±0.20 m，誤差約 1 cm。
+2026-10-12 實車一次：停車距離大致對、盒子偏左約 11 cm 未夾，見
+`docs/planning/DUAL_CAMERA_APPROACH_GRASP_DISCUSSION_2026-10-05.md` §10.6–10.8。
 以下描述的是 `--approach legacy`。
 
 `sugarbox_rl_approach_final2.py` 的最後接近與搜尋互斥：後相機連續確認置中後，

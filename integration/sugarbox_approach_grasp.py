@@ -139,9 +139,14 @@ def find_gstreamer():
     supplied = os.environ.get('GSTREAMER_LAUNCH_EXE') or shutil.which('gst-launch-1.0')
     if supplied:
         return Path(supplied)
-    # The official wheel's Scripts launcher also sets its DLL/plugin paths.
-    bundled = Path(sys.prefix) / 'Scripts/gst-launch-1.0.exe'
-    return bundled if bundled.is_file() else None
+    # The wheel's own binary, not its Scripts launcher: on 2026-10-12 not one UDP
+    # byte reached a pipeline started through the launcher, while the binary
+    # received and decoded the rear stream (plugins found) on the same port.
+    for candidate in (Path(sys.prefix) / 'Lib/site-packages/gstreamer_cli/bin/gst-launch-1.0.exe',
+                      Path(sys.prefix) / 'Scripts/gst-launch-1.0.exe'):
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def main(argv=None):
@@ -160,7 +165,8 @@ def main(argv=None):
                         help='finish blind to this remembered forward x (m) when the gripper '
                              'hides the box; unset keeps the original search')
     parser.add_argument('--yolo-imgsz', type=int, default=None,
-                        help='rear-camera YOLO input size (default 640 in the approach)')
+                        help='rear-camera YOLO input size (default 1280 with --approach enoch, '
+                             '640 with legacy)')
     parser.add_argument('--approach', choices=('enoch', 'legacy'), default='enoch',
                         help="enoch: training-matched PPO drives to the box on its own and "
                              "may reverse slowly (2026-10-12 primary); legacy: centring, "
@@ -208,15 +214,19 @@ def main(argv=None):
         env.pop(key, None)
     if args.blind_stop_x is not None:
         env['SUGARBOX_BLIND_STOP_X'] = str(args.blind_stop_x)
-    if args.yolo_imgsz is not None:
-        env['SUGARBOX_YOLO_IMGSZ'] = str(args.yolo_imgsz)
+    # The 2026-10-12 rear calibration reaches 1.40 m; 640 misses the box beyond ~1 m.
+    yolo_imgsz = args.yolo_imgsz or (1280 if args.approach == 'enoch' else 640)
+    env['SUGARBOX_YOLO_IMGSZ'] = str(yolo_imgsz)
     if args.approach == 'enoch':
-        # enoch's best trial: training-matched inputs and shaping, first sighting locks.
-        env.update(SUGARBOX_TRAINING_CONTRACT='1', SUGARBOX_TARGET_INITIAL_ONLY='1')
+        # enoch's training-matched inputs and shaping. His "first sighting locks the
+        # target" switch is deliberately left off: it was a one-off diagnostic that did
+        # not cure the oscillation, and it leaves odometry slip uncorrected (11 cm of
+        # sideways error on 2026-10-12). The box is re-measured while visible.
+        env['SUGARBOX_TRAINING_CONTRACT'] = '1'
         if args.real:
             env['SUGARBOX_CONTRACT_ALLOW_DRIVE'] = '1'
     print('[config] approach={} blind_stop_x={} yolo_imgsz={} final_travel_m={}'.format(
-        args.approach, args.blind_stop_x, args.yolo_imgsz or 640, args.final_travel_m))
+        args.approach, args.blind_stop_x, yolo_imgsz, args.final_travel_m))
     if args.dry_run:
         env.update(SUGARBOX_RUN_MODE='DRY_RUN', SUGARBOX_EXIT_ON_ARRIVAL='0')
         return subprocess.run([sys.executable, '-u', str(APPROACH)], env=env).returncode

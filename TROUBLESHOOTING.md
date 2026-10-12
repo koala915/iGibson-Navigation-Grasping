@@ -185,3 +185,21 @@
   照著做就一定踩到。
 
 ---
+
+## 硬體 / 伺服機
+
+### 16. 六顆伺服機全部讀不到，但底盤和里程計都正常（✅ 已解 2026-10-12）
+- **症狀**：手臂停在 E1、使用者在夾爪下方擺盒子之後，`graspctl status` 一直是
+  `servo_read_reason: unreadable: S1, S2, S3, S4, S5, S6 (after 3 attempts)`，
+  service log 印 `get_uart_servo_angle_array keeps returning nothing usable`。
+  同時 `board_rx_age_s` 只有 0.01 s、odom 每秒約 30 筆照常增加，dmesg 沒有 ch341／USB 錯誤。
+  重開 grasp-service（重新打開序列埠）之後一樣讀不到，開機歸位停在 `servo_read_failed`。
+- **原因**：擴充板到手臂的伺服機排線鬆脫。板子本身照常回報底盤資料，所以序列埠是好的，
+  只有伺服機匯流排沒有回應。斷訊那段時間手臂相機畫面跟 E1 一致，代表伺服機還停在原位；
+  插回之後讀到的卻是 (90, 90, 36, 8)，不是 E1 —— 處理排線的過程中手臂被推動或短暫掉電。
+- **解法**：把排線插回 → 先 `graspctl status` 確認六顆都讀得到 → **手離開手臂**後
+  重開 grasp-service，讓開機歸位（E1 → 巡航）把手臂收好，再看 `/run/x3plus/g2_boot_audit.json`
+  的 `ready: true`。
+- **教訓**：「伺服機全讀不到」先看底盤資料還有沒有在進來。有 → 問題在伺服機排線／電源，
+  重開服務沒用，要人去看線；沒有 → 是序列埠或 USB hub（見記憶裡的 hub 1-2.4 共用問題）。
+  插回線之後**不要假設手臂還在原姿勢**，先讀角度再決定怎麼收。

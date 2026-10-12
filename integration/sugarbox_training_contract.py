@@ -30,6 +30,11 @@ GOAL_ORIGIN_OFFSET_X_M = 0.135
 RAY_FLOOR_M = 0.33          # training rays start on a 0.33 m radius
 RAY_NO_HIT_M = 4.0
 POLICY_RAY_COUNT = 48
+# Chassis footprint around the centre (30 cm wheel span, about 26 cm wide, plus a
+# margin). Beams behind the sensor that end inside it hit the robot itself: on
+# 2026-10-12 the mast, arm base and wiring answered at |y| <= 0.14 m.
+CHASSIS_HALF_LENGTH_M = 0.15
+CHASSIS_HALF_WIDTH_M = 0.15
 
 
 def planar_speed(vx, vy):
@@ -49,8 +54,13 @@ def center_rays(samples):
     """48 training rays (right -90 deg .. left +90 deg) from robot-frame samples.
 
     `samples` are sugarbox_lidar_geometry.RobotScanSample: already rotated and
-    translated into the chassis frame. Only beams in the sensor's front half
-    count (the body hides the rear; rear returns are chassis echoes).
+    translated into the chassis frame.
+
+    Beams behind the sensor count too, unless they end on the chassis. The
+    sensor sits 0.10 m ahead of the centre, so whatever is beside the robot
+    between the two (centre rays near +-90 deg) is only seen by those beams.
+    Dropping all of them (the first version) showed a wall 35 cm to the right
+    as "nothing there" on 2026-10-12, and the policy steered toward it.
 
     A ray from the centre stops at the first surface in its direction, so each
     ray takes the CLOSEST hit within half a ray spacing of it, or 4 m if none.
@@ -60,10 +70,16 @@ def center_rays(samples):
     random (tests/test_sugarbox_training_contract.py shows one at 0.56 m).
     """
     half_spacing = math.pi / (POLICY_RAY_COUNT - 1) / 2
-    hits = [(s.angle_rad, float(s.range_m)) for s in samples
-            if s.range_m is not None and math.isfinite(s.range_m)
-            and s.sensor_angle_rad is not None
-            and abs(s.sensor_angle_rad) <= math.pi / 2 + 1e-9]
+
+    def counts(s):
+        if s.range_m is None or not math.isfinite(s.range_m) or s.sensor_angle_rad is None:
+            return False
+        if abs(s.sensor_angle_rad) <= math.pi / 2 + 1e-9:
+            return True
+        x, y = s.range_m * math.cos(s.angle_rad), s.range_m * math.sin(s.angle_rad)
+        return abs(x) > CHASSIS_HALF_LENGTH_M or abs(y) > CHASSIS_HALF_WIDTH_M
+
+    hits = [(s.angle_rad, float(s.range_m)) for s in samples if counts(s)]
     rays = np.full(POLICY_RAY_COUNT, RAY_NO_HIT_M, dtype=np.float32)
     if not hits:
         return rays

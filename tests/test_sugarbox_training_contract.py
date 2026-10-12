@@ -30,6 +30,20 @@ def scan_with(robot_hits=(), rear=None):
     return robot_scan_samples(ranges, angle_min, step, GEOMETRY)
 
 
+def side_wall_scan(y_wall, x_from=-0.30, x_to=2.0):
+    """A straight wall parallel to the robot, y_wall from the centre line (left +)."""
+    angle_min, step = -math.pi, 2 * math.pi / BEAMS
+    raw = angle_min + np.arange(BEAMS) * step
+    robot = raw + math.pi                       # beam direction from the sensor
+    ranges = np.full(BEAMS, np.inf)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        t = y_wall / np.sin(robot)
+    x = GEOMETRY.forward_offset_m + t * np.cos(robot)
+    hit = (t > 0) & (x >= x_from) & (x <= x_to)
+    ranges[hit] = t[hit]
+    return robot_scan_samples(ranges, angle_min, step, GEOMETRY)
+
+
 def ray_index(deg):
     return int(round((deg + 90.0) / 180.0 * 47))
 
@@ -58,6 +72,19 @@ class GeometryTests(unittest.TestCase):
 
     def test_rear_echoes_never_become_policy_hits(self):
         rays = tc.center_rays(scan_with(rear=0.05))
+        np.testing.assert_array_equal(rays, np.full(48, 4.0, dtype=np.float32))
+
+    def test_wall_beside_the_robot_reaches_the_side_rays(self):
+        # 2026-10-12: a wall 35 cm to the right read as "nothing" at -90..-78 deg,
+        # because only beams ahead of the sensor counted.
+        rays = tc.center_rays(side_wall_scan(-0.35))
+        for deg in (-90.0, -86.0, -82.0, -78.0):
+            self.assertLess(rays[ray_index(deg)], 0.40, deg)
+        self.assertEqual(rays[ray_index(80.0)], 4.0)
+
+    def test_robot_body_behind_the_sensor_is_not_an_obstacle(self):
+        # Mast and arm-base echoes measured on 2026-10-12, inside the footprint.
+        rays = tc.center_rays(scan_with([(135.0, 0.14), (-135.0, 0.14), (180.0, 0.10)]))
         np.testing.assert_array_equal(rays, np.full(48, 4.0, dtype=np.float32))
 
     def test_near_hits_are_floored_like_training_rays(self):

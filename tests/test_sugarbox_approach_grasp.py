@@ -152,8 +152,14 @@ class HandoffTests(unittest.TestCase):
     def test_enoch_approach_is_the_default_and_never_drives_in_a_dry_run(self):
         env = self.launched_env([])
         self.assertEqual(env['SUGARBOX_TRAINING_CONTRACT'], '1')
-        self.assertEqual(env['SUGARBOX_TARGET_INITIAL_ONLY'], '1')
         self.assertNotIn('SUGARBOX_CONTRACT_ALLOW_DRIVE', env)
+
+    def test_enoch_approach_keeps_measuring_the_box_and_sees_far(self):
+        # The first-sighting lock left 11 cm of odometry slip uncorrected (2026-10-12);
+        # the 1.40 m rear calibration needs 1280 to find the box past ~1 m.
+        env = self.launched_env([], {'SUGARBOX_TARGET_INITIAL_ONLY': '1'})
+        self.assertNotIn('SUGARBOX_TARGET_INITIAL_ONLY', env)
+        self.assertEqual(env['SUGARBOX_YOLO_IMGSZ'], '1280')
 
     def test_legacy_approach_sets_none_of_enochs_settings(self):
         env = self.launched_env(['--approach', 'legacy'], {
@@ -162,6 +168,22 @@ class HandoffTests(unittest.TestCase):
         for key in ('SUGARBOX_TRAINING_CONTRACT', 'SUGARBOX_CONTRACT_ALLOW_DRIVE',
                     'SUGARBOX_TARGET_INITIAL_ONLY'):
             self.assertNotIn(key, env)
+        self.assertEqual(env['SUGARBOX_YOLO_IMGSZ'], '640')
+
+    def test_gstreamer_prefers_the_bundled_binary_over_the_launcher(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder)
+            binary = prefix / 'Lib/site-packages/gstreamer_cli/bin/gst-launch-1.0.exe'
+            launcher = prefix / 'Scripts/gst-launch-1.0.exe'
+            for path in (binary, launcher):
+                path.parent.mkdir(parents=True)
+                path.write_bytes(b'')
+            with patch.dict(runner.os.environ, {}, clear=True), \
+                 patch.object(runner.shutil, 'which', return_value=None), \
+                 patch.object(runner.sys, 'prefix', str(prefix)):
+                self.assertEqual(runner.find_gstreamer(), binary)
+                binary.unlink()
+                self.assertEqual(runner.find_gstreamer(), launcher)
 
     def test_blind_finish_is_refused_with_enochs_approach(self):
         with patch.object(runner, 'ctl') as read, patch('sys.stderr'),              self.assertRaises(SystemExit):
@@ -183,7 +205,7 @@ class HandoffTests(unittest.TestCase):
     def test_settings_left_in_the_shell_do_not_leak_into_a_run(self):
         env = self.launched_env([], {'SUGARBOX_BLIND_STOP_X': '0.5', 'SUGARBOX_YOLO_IMGSZ': '960'})
         self.assertNotIn('SUGARBOX_BLIND_STOP_X', env)
-        self.assertNotIn('SUGARBOX_YOLO_IMGSZ', env)
+        self.assertEqual(env['SUGARBOX_YOLO_IMGSZ'], '1280')
 
     def test_out_of_range_settings_are_refused_before_anything_runs(self):
         for argv in (['--blind-stop-x', '0.9'], ['--blind-stop-x', 'nan'],

@@ -202,6 +202,11 @@ class HandoffTests(unittest.TestCase):
             self.assertEqual(env['SUGARBOX_RUN_MODE'], 'DRIVE')
             grasp.assert_called_once()
 
+    def test_obs_log_reaches_the_approach_only_when_asked(self):
+        self.assertNotIn('SUGARBOX_OBS_LOG', self.launched_env([], {'SUGARBOX_OBS_LOG': 'old.jsonl'}))
+        env = self.launched_env(['--obs-log', 'run.jsonl'])
+        self.assertEqual(Path(env['SUGARBOX_OBS_LOG']), Path('run.jsonl').resolve())
+
     def test_settings_left_in_the_shell_do_not_leak_into_a_run(self):
         env = self.launched_env([], {'SUGARBOX_BLIND_STOP_X': '0.5', 'SUGARBOX_YOLO_IMGSZ': '960'})
         self.assertNotIn('SUGARBOX_BLIND_STOP_X', env)

@@ -167,6 +167,9 @@ def main(argv=None):
     parser.add_argument('--yolo-imgsz', type=int, default=None,
                         help='rear-camera YOLO input size (default 1280 with --approach enoch, '
                              '640 with legacy)')
+    parser.add_argument('--obs-log', type=Path, default=None,
+                        help='append every policy observation/action as JSON lines '
+                             '(for replaying a run offline)')
     parser.add_argument('--approach', choices=('enoch', 'legacy'), default='enoch',
                         help="enoch: training-matched PPO drives to the box on its own and "
                              "may reverse slowly (2026-10-12 primary); legacy: centring, "
@@ -210,10 +213,13 @@ def main(argv=None):
     # Explicit flags replace anything inherited from the shell, so a run's settings
     # are the ones on its own command line.
     for key in ('SUGARBOX_BLIND_STOP_X', 'SUGARBOX_YOLO_IMGSZ', 'SUGARBOX_TRAINING_CONTRACT',
-                'SUGARBOX_CONTRACT_ALLOW_DRIVE', 'SUGARBOX_TARGET_INITIAL_ONLY'):
+                'SUGARBOX_CONTRACT_ALLOW_DRIVE', 'SUGARBOX_TARGET_INITIAL_ONLY',
+                'SUGARBOX_OBS_LOG'):
         env.pop(key, None)
     if args.blind_stop_x is not None:
         env['SUGARBOX_BLIND_STOP_X'] = str(args.blind_stop_x)
+    if args.obs_log is not None:
+        env['SUGARBOX_OBS_LOG'] = str(args.obs_log.resolve())
     # The 2026-10-12 rear calibration reaches 1.40 m; 640 misses the box beyond ~1 m.
     yolo_imgsz = args.yolo_imgsz or (1280 if args.approach == 'enoch' else 640)
     env['SUGARBOX_YOLO_IMGSZ'] = str(yolo_imgsz)

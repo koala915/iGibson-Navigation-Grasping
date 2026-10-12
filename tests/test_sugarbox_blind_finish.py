@@ -16,7 +16,7 @@ SOURCE = Path(__file__).resolve().parents[1] / 'integration/sugarbox_rl_approach
 def runtime(env=None):
     tree = ast.parse(SOURCE.read_text(encoding='utf-8'))
     classes = {'BlindFinishController', 'TargetState', 'MotorClient', 'AntiJitterSafetyFilter',
-               'ProgressWatchdog'}
+               'ProgressWatchdog', 'ObsLogger'}
     names = {'_blind', 'YOLO_IMGSZ', 'BLIND_STOP_X', 'MOTOR_SEND_INTERVAL'}
     for node in tree.body:
         if isinstance(node, ast.ClassDef) and node.name in classes:
@@ -647,6 +647,35 @@ class ContractModeTests(unittest.TestCase):
         exec(code, dict(base, RUN_MODE='DRY_RUN'))
         with self.assertRaises(SystemExit):
             exec(code, dict(base, TRAINING_CONTRACT=False, TARGET_INITIAL_ONLY=True))
+
+
+class ObsLogTests(unittest.TestCase):
+    """2026-10-12: a real run could not be replayed, so why the policy drove
+    straight past a box 14 cm to its left stayed a guess."""
+
+    def test_each_policy_tick_is_one_replayable_line(self):
+        import tempfile
+        rt = runtime()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'obs.jsonl'
+            log = rt['ObsLogger'](str(path))
+            target = SimpleNamespace(x=1.186, y=0.118)
+            log.write(100.0, np.arange(55, dtype=np.float32) / 10, np.array([0.5, -0.25]), target)
+            log.write(100.2, np.zeros(55, dtype=np.float32), np.array([1.0, 0.0]), target)
+            log.close()
+            rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(len(rows[0]['obs']), 55)
+        self.assertAlmostEqual(rows[0]['obs'][54], 5.4, places=4)
+        self.assertEqual(rows[0]['action'], [0.5, -0.25])
+        self.assertEqual(rows[0]['target'], [1.186, 0.118])
+
+    def test_off_by_default_and_writes_nothing(self):
+        rt = runtime()
+        log = rt['ObsLogger']('')
+        log.write(100.0, np.zeros(55), np.zeros(2), SimpleNamespace(x=0.0, y=0.0))
+        log.close()
+        self.assertIsNone(log.file)
 
 
 if __name__ == '__main__':

@@ -476,6 +476,31 @@ CONTRACT_REVERSE_MAX_MPS = 0.08
 # Arrival is measured from the chassis centre: 0.45 m there is 0.315 m ahead of
 # the E1 origin, just short of the E1 window (0.249-0.279 m) before coasting.
 CONTRACT_ARRIVAL_CENTER_M = 0.45
+# Opt-in: one JSON line per policy tick with the exact observation and action, so
+# a real run can be replayed offline. 2026-10-12 needed it: the policy drove
+# straight past a box 14 cm to its left, and offline probes could not say why.
+OBS_LOG_PATH = os.environ.get("SUGARBOX_OBS_LOG", "")
+
+
+class ObsLogger:
+    def __init__(self, path):
+        self.file = open(path, "a", encoding="utf-8") if path else None
+
+    def write(self, now, raw_obs, raw_action, target):
+        if self.file is None:
+            return
+        self.file.write(json.dumps({
+            "t": round(float(now), 3),
+            "target": [round(float(target.x), 4), round(float(target.y), 4)],
+            "obs": [round(float(v), 4) for v in np.asarray(raw_obs).reshape(-1)],
+            "action": [round(float(v), 4) for v in np.asarray(raw_action).reshape(-1)],
+        }) + "\n")
+        self.file.flush()
+
+    def close(self):
+        if self.file is not None:
+            self.file.close()
+            self.file = None
 
 
 # ============================================================
@@ -5406,6 +5431,10 @@ def main():
 
     target = TargetState(freeze_visual_updates=TARGET_INITIAL_ONLY)
 
+    obs_logger = ObsLogger(OBS_LOG_PATH)
+    if OBS_LOG_PATH:
+        print("[OBS_LOG] writing every policy observation to " + OBS_LOG_PATH)
+
     prev_raw_action = np.zeros(
 
         2,
@@ -6601,6 +6630,8 @@ def main():
                         raw_obs
                     )
 
+                    obs_logger.write(now, raw_obs, raw_action, target)
+
 
                     last_raw_action = (
                         raw_action.copy()
@@ -7158,6 +7189,8 @@ def main():
             pass
 
         reader.release()
+
+        obs_logger.close()
 
         cv2.destroyAllWindows()
 

@@ -1,0 +1,15 @@
+b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,152]:
+URDF file 'D:\OneDrive - 國立中央大學\桌面\Slam\0920\repo_v23_grasp_test\grasp\v21\..\x3plus\yahboomcar_deploy.urdf' not found
+
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+Traceback (most recent call last):
+  File "grasp/v21/test_deploy_floor_guard.py", line 171, in <module>
+    sys.exit(main())
+  File "grasp/v21/test_deploy_floor_guard.py", line 49, in main
+    fk = FKComputer(cfg.urdf_path)
+  File "D:\OneDrive - ��ߤ����j��\�ୱ\Slam\0920\repo_v23_grasp_test\grasp\v21\x3plus_real_grasp.py", line 1028, in __init__
+    self.body_id = p.loadURDF(
+pybullet.error: Cannot load URDF file.

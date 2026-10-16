@@ -1,0 +1,31 @@
+[
+  {
+    "test": "grasp/v23/test_deploy_controller.py",
+    "exit": 0
+  },
+  {
+    "test": "grasp/v23/test_servo_read.py",
+    "exit": 0
+  },
+  {
+    "test": "grasp/v23/test_deploy_floor_guard.py",
+    "exit": 0
+  },
+  {
+    "test": "grasp/v23/test_travel_pose.py",
+    "exit": 0
+  },
+  {
+    "test": "grasp/v23/test_odom_bridge.py",
+    "exit": 0
+  },
+  {
+    "test": "ui/test_server.py",
+    "exit": 0,
+    "note": "Retried against current UI files; original ASCII snapshot had outdated UI tests."
+  },
+  {
+    "test": "tests/test_g2_nav_client.py",
+    "exit": 0
+  }
+]

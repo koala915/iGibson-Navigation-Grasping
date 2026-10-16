@@ -1,0 +1,40 @@
+{
+  "elapsed_s": 92.90021538100063,
+  "samples": 45,
+  "min_available_mb": 1731.0234375,
+  "first_rss_mb": {
+    "grasp-service": 507.37109375,
+    "grasp-vision": 303.140625
+  },
+  "last_rss_mb": {
+    "grasp-service": 507.37109375,
+    "grasp-vision": 301.546875
+  },
+  "topics": {
+    "/scan_raw": {
+      "count": 185,
+      "stamp": 1792163731.749082,
+      "arrival_age_s": 0.42898606499966263,
+      "max_gap_s": 0.6389908750006725
+    },
+    "/scan": {
+      "count": 185,
+      "stamp": 1792163731.849316,
+      "arrival_age_s": 0.2817850430001272,
+      "max_gap_s": 0.680914890999702
+    },
+    "/odom_setmotor": {
+      "count": 460,
+      "stamp": 1792163732.286347,
+      "arrival_age_s": 0.14148154299982707,
+      "max_gap_s": 0.2684439510003358
+    },
+    "odom_tf": {
+      "count": 1819,
+      "stamp": 1792163732.386625,
+      "arrival_age_s": 0.04793004200018913,
+      "max_gap_s": 0.14629355300075986
+    }
+  },
+  "complete": false
+}

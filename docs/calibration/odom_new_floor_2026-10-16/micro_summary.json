@@ -1,0 +1,49 @@
+{
+  "trials": [
+    {
+      "trial": "micro01",
+      "pulse_s_requested": 0.08,
+      "pulse_s_until_stop_call": 0.10452385200005665,
+      "odom_forward_m": 0.012019973241311927,
+      "measured_actual_m": 0.01,
+      "measured_actual_interval_m": null,
+      "settled": true
+    },
+    {
+      "trial": "micro02",
+      "pulse_s_requested": 0.08,
+      "pulse_s_until_stop_call": 0.08523902100000669,
+      "odom_forward_m": 0.007563535669527149,
+      "measured_actual_m": 0.006,
+      "measured_actual_interval_m": null,
+      "settled": true
+    },
+    {
+      "trial": "micro03",
+      "pulse_s_requested": 0.08,
+      "pulse_s_until_stop_call": 0.0814019009999356,
+      "odom_forward_m": 0.007558200919521772,
+      "measured_actual_m": null,
+      "measured_actual_interval_m": [
+        0.007,
+        0.008
+      ],
+      "settled": true
+    }
+  ],
+  "measured_actual_range_m": [
+    0.006,
+    0.01
+  ],
+  "actual_pulse_range_s": [
+    0.0814019009999356,
+    0.10452385200005665
+  ],
+  "conclusion": "Observed sub-5cm forward nudges in three trials on current floor only; not calibrated exact-1cm motion. Do not alter global odom scale from these micro readings.",
+  "remaining": [
+    "left/right yaw calibration",
+    "3cm and 5cm distance-controlled validation",
+    "normal-drive stop lead recalibration",
+    "production micro-controller integration"
+  ]
+}

@@ -1,0 +1,286 @@
+{
+  "target_accumulated_deg": 90,
+  "pulses": [
+    {
+      "duration_s": 0.08,
+      "commands": 2,
+      "before_deg": 84.76709121082182,
+      "after_deg": 85.96348442971231,
+      "odom": {
+        "x": 1.009098643322854,
+        "y": 0.05077285728391012,
+        "yaw": 1.5521807986307097,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6235.711953902,
+        "stamp": 1792162417.1903176,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.08,
+      "commands": 2,
+      "before_deg": 85.96348442971231,
+      "after_deg": 87.915003066609,
+      "odom": {
+        "x": 1.007495122202127,
+        "y": 0.05033438848359814,
+        "yaw": 1.5862412242585886,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6236.62839378,
+        "stamp": 1792162418.1431022,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.06,
+      "commands": 1,
+      "before_deg": 87.915003066609,
+      "after_deg": 88.78993194771144,
+      "odom": {
+        "x": 1.0074822426684005,
+        "y": 0.050771875135443,
+        "yaw": 1.6015116139546155,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6237.49440305,
+        "stamp": 1792162418.9956234,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.06,
+      "commands": 1,
+      "before_deg": 88.78993194771144,
+      "after_deg": 88.92583817198017,
+      "odom": {
+        "x": 1.0074758974781377,
+        "y": 0.05096562809822814,
+        "yaw": 1.6038836250420596,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6238.290128159,
+        "stamp": 1792162419.7978845,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.06,
+      "commands": 2,
+      "before_deg": 88.92583817198017,
+      "after_deg": 89.93649097110469,
+      "odom": {
+        "x": 1.0075879332153386,
+        "y": 0.051360132411146224,
+        "yaw": 1.6215228439812783,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6239.179298878,
+        "stamp": 1792162420.700678,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    }
+  ],
+  "ok": true,
+  "reference_odom": {
+    "x": 1.027549738934793,
+    "y": 0.02585295838574679,
+    "yaw": 0.05183495884534972,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 5393.277704238,
+    "stamp": 1792161574.7980454,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "real": true,
+  "operator_confirmed_self_returns": true,
+  "swept_gate_observations": 12,
+  "initial_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 34.91,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 107192,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0095,
+        0.0516,
+        1.5313
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 5384.4
+  },
+  "start_odom": {
+    "x": 1.0095393545978522,
+    "y": 0.05159344768612747,
+    "yaw": 1.5312997978125367,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 6233.898415734,
+    "stamp": 1792162415.381213,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "initial_accumulated_deg": 84.76709121082182,
+  "final_odom": {
+    "x": 1.0075879332153386,
+    "y": 0.051360132411146224,
+    "yaw": 1.6215228439812783,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 6239.297100316,
+    "stamp": 1792162420.800962,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "final_accumulated_deg": 89.93649097110469,
+  "lock": {
+    "ok": true
+  },
+  "final_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 0.83,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 107324,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0076,
+        0.0514,
+        1.6215
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 5391.0
+  }
+}

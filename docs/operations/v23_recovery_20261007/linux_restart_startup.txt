@@ -1,0 +1,30 @@
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30]}
+
+[service] ready on /tmp/tmpoaulz9p_/service.sock — startup cost is now paid.
+[service] commands: grasp | release | home | stow | status | quit   chassis: TCP 7000   odom: off   (rss 18 MB)
+
+[startup-pose] {"enabled": true, "ok": false, "reason": "jaw_not_open_at_boot"}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30.0]}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_verification_failed"}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_home_failed", "detail": {"ok": false, "reason": "floor guard emergency_hold", "iters": null, "elapsed_s": 0.0}}
+[startup-pose] {"enabled": true, "ok": false, "reason": "servo_read_failed"}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30]}
+[startup-pose] {"enabled": true, "ok": false, "reason": "jaw_not_open_at_boot"}
+[startup-pose] chassis TCP remains disabled
+
+[service] ready on /tmp/tmpxzjtp5qt/service.sock — startup cost is now paid.
+[service] commands: grasp | release | home | stow | status | quit   chassis: off   odom: off   (rss 18 MB)
+
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30]}
+
+[service] ready on /tmp/tmpyzm9vxxe/service.sock — startup cost is now paid.
+[service] commands: grasp | release | home | stow | status | quit   chassis: TCP 7000   odom: off   (rss 18 MB)
+
+[startup-pose] {"enabled": true, "ok": false, "reason": "board_feedback_stale"}
+[startup-pose] {"enabled": true, "ok": false, "reason": "startup_stow_failed", "detail": {"ok": false, "reason": "floor guard emergency_hold", "leg": 0, "holding": false, "elapsed_s": 0.0}}
+[startup-pose] {"enabled": true, "ok": true, "reason": "travel_verified", "servo_deg": [90.0, 140.0, 0.0, 0.0, 90.0, 30.0]}
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 0.619s
+
+OK

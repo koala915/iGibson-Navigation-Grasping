@@ -1,0 +1,109 @@
+{
+  "trial": "02",
+  "floor": "new_board_user_2026-10-16",
+  "target_m": 0.25,
+  "speed_mps": 0.15,
+  "stop_reason": "distance_target",
+  "odom_forward_m": 0.29596184146134785,
+  "odom_cumulative_from_trial01_m": 0.5875122641767974,
+  "measured_actual_m": 0.295,
+  "measured_cumulative_actual_m": null,
+  "original_start": {
+    "x": 0.0,
+    "y": 0.0,
+    "yaw": 0.0
+  },
+  "start": {
+    "x": 0.2916413428247282,
+    "y": 0.0040806043210021995,
+    "yaw": 0.023485576439798986
+  },
+  "final": {
+    "x": 0.5875122641767974,
+    "y": 0.011426786416840452,
+    "yaw": 0.020713083460343732
+  },
+  "yaw_delta_deg": -0.15885214645243695,
+  "old_linear_scale": 0.966309414,
+  "status_after": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": 1.13,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 5579,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.5875,
+        0.0114,
+        0.0207
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 506.0,
+    "uptime_s": 280.3
+  },
+  "memory_available_mb_before": 2046.0234375,
+  "measurement_note": "User clarified approximate 29.5 cm refers to trial02 segment only, not cumulative distance.",
+  "measurement_precision": "approximate; no exact uncertainty supplied",
+  "candidate_scale_from_this_trial_only": 0.9631690211227063
+}

@@ -1,0 +1,20 @@
+[Unit]
+Description=X3Plus bounded boot readiness audit
+Wants=grasp-vision.service
+After=grasp-service.service grasp-vision.service x3plus-g2-rosbridge.service x3plus-g2-lidar.service
+PartOf=grasp-service.service
+
+[Service]
+Type=oneshot
+User=jetson
+Group=jetson
+RuntimeDirectory=x3plus
+RuntimeDirectoryPreserve=yes
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/jetson/grasp_venv/bin/python3 /home/jetson/Documents/deploy_jetson2/integration/g2_safety_audit.py --seconds 90 --boot-gate --repair-ros --vision-health-file /tmp/x3plus_vision_health.json --output /run/x3plus/g2_boot_audit.json
+TimeoutStartSec=120
+RemainAfterExit=yes
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

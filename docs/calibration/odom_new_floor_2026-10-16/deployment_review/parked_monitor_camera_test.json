@@ -1,0 +1,224 @@
+{
+  "observations": [
+    {
+      "state": "parked",
+      "monotonic": 8556.114388848,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "reason": "maintenance lock retained; no automatic unlock"
+    },
+    {
+      "state": "parked",
+      "monotonic": 8556.114388848,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "reason": "maintenance lock retained; no automatic unlock"
+    },
+    {
+      "state": "repairing",
+      "monotonic": 8557.148781568,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8558.771613749,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8559.790750571,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8560.811932749,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8561.836802561,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8562.856510023,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8563.87606368,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8564.896052296,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8565.914654893,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8566.933135405,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ]
+    },
+    {
+      "state": "parked",
+      "monotonic": 8567.959355982,
+      "pid": 14742,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "serial": null,
+      "reason": "maintenance lock retained; no automatic unlock"
+    }
+  ],
+  "owner_before": 2518,
+  "vision_pid_before": 7347,
+  "ok": true,
+  "vision_pid_after": 15802,
+  "elapsed_s": 12.237754208001206,
+  "final_monitor": {
+    "state": "parked",
+    "monotonic": 8567.959355982,
+    "pid": 14742,
+    "scope": "control_vision",
+    "owner_restart_enabled": false,
+    "serial": null,
+    "reason": "maintenance lock retained; no automatic unlock"
+  },
+  "final_health": {
+    "ok": true,
+    "serial": null,
+    "stack_version": "v23",
+    "service_pid": 2518,
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip",
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+    "holding": false,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 8391,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 503.9,
+    "uptime_s": 421.8,
+    "capabilities": {
+      "independent_health": true,
+      "owner_restart": false,
+      "serial_transport_diagnostics": false
+    }
+  },
+  "owner_after": 2518
+}

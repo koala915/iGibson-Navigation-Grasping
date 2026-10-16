@@ -807,6 +807,8 @@ class ServoController:
         if not dry_run and _ROSMASTER_AVAILABLE:
             try:
                 self._device = _RosmasterCls(com=cfg.serial_port)
+                from serial_transport import install
+                install(self._device)
                 self._device.create_receive_threading()
                 self._has_servo = True
                 print(f"[INFO] Rosmaster_Lib ready on {cfg.serial_port}.")
@@ -923,6 +925,9 @@ class ServoController:
 
         try:
             # run_time unit: milliseconds (verified against Rosmaster_Lib docs)
+            transport = getattr(self._device, '__dict__', {}).get('_v23_transport')
+            if transport is not None and not transport.status()['healthy']:
+                raise OSError('serial_feedback_unhealthy')
             self._device.set_uart_servo_angle_array(
                 angle_s=[
                     safe_deg[0], safe_deg[1], safe_deg[2],
@@ -930,6 +935,8 @@ class ServoController:
                 ],
                 run_time=run_time_ms,
             )
+            if transport is not None:
+                transport.require_write_ok()
         except Exception as e:
             # Do NOT advance _last_deg: the command never left, so the arm is still
             # wherever it was, and the rate limiter must keep working from there.
@@ -937,7 +944,7 @@ class ServoController:
             return False
         # Stamp even though the write succeeded logically: the bytes are still going
         # out on the shared line, and read_degrees waits out that window.
-        self._last_write_t = time.time()
+        self._last_write_t = time.monotonic()
         self._last_deg = safe_deg[:]
         return True
 
@@ -963,7 +970,7 @@ class ServoController:
         # the driver returns -1 after its 30 ms timeout. Give the bus a quiet window
         # first. (Evidence: the startup walk to C3 reads after a 0.35 s settle and
         # succeeds; the first policy step reads with settle 0.0 and S1 came back -1.)
-        quiet = self.cfg.bus_quiet_s - (time.time() - self._last_write_t)
+        quiet = self.cfg.bus_quiet_s - (time.monotonic() - self._last_write_t)
         if quiet > 0:
             time.sleep(quiet)
 
@@ -1948,9 +1955,9 @@ class GraspController:
                   f"{self._latched_obj.tolist()}")
             return
 
-        deadline = time.time() + self.cfg.latch_wait_sec
+        deadline = time.monotonic() + self.cfg.latch_wait_sec
         pos, height, fresh, stamp = self.detection.snapshot()
-        while not fresh and time.time() < deadline:
+        while not fresh and time.monotonic() < deadline:
             time.sleep(0.05)
             pos, height, fresh, stamp = self.detection.snapshot()
 
@@ -3045,7 +3052,7 @@ class GraspController:
         print(f"[Start] Running for up to {max_steps} steps at {self.cfg.control_hz} Hz\n")
 
         for step in range(max_steps):
-            t0 = time.time()
+            t0 = time.monotonic()
 
             obj_pos = self._get_obj_pos()
             obj_height = self._get_obj_height(obj_pos)
@@ -3275,7 +3282,7 @@ class GraspController:
                   f"S1-6={[round(d,1) for d in meas]}",
                   end="", flush=True)
 
-            elapsed = time.time() - t0
+            elapsed = time.monotonic() - t0
             sleep_t = dt - elapsed
             if sleep_t > 0:
                 time.sleep(sleep_t)

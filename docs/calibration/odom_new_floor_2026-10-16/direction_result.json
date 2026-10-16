@@ -1,0 +1,26 @@
+{
+  "operator_reference": "standing behind robot, facing forward",
+  "physical_left_front_board_present_left_inner_counts": [
+    280,
+    281,
+    282
+  ],
+  "physical_left_front_board_removed_left_inner_counts": [
+    1,
+    0,
+    0
+  ],
+  "fixed_right_wall_present_right_inner_counts": [
+    522,
+    515,
+    519
+  ],
+  "fixed_right_wall_removed_right_inner_counts": [
+    522,
+    525,
+    523
+  ],
+  "robot_pose_unchanged": true,
+  "conclusion": "Physical left-board A/B agrees with current left/right transform; do not flip scan. Old side probe suppresses external returns inside 0.35m.",
+  "not_verified": "No full four-direction recalibration, turning swept envelope, or map/AMCL validation."
+}

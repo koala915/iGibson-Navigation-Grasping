@@ -1,0 +1,106 @@
+{
+  "target_accumulated_deg": 90,
+  "pulses": [],
+  "ok": false,
+  "reference_odom": {
+    "x": 1.027549738934793,
+    "y": 0.02585295838574679,
+    "yaw": 0.05183495884534972,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 5393.277704238,
+    "stamp": 1792161574.7980454,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "real": false,
+  "initial_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 723.25,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 104890,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0249,
+        0.0327,
+        0.3089
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 5268.8
+  },
+  "start_odom": {
+    "x": 1.0249085014683046,
+    "y": 0.032669180627039135,
+    "yaw": 0.3089052041888544,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 6118.430810076,
+    "stamp": 1792162299.9252026,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "error": "stationary/swept-envelope preflight"
+}

@@ -1,0 +1,115 @@
+{
+  "trial": "03",
+  "floor": "new_board_user_2026-10-16",
+  "target_m": 0.25,
+  "speed_mps": 0.15,
+  "stop_reason": "distance_target",
+  "stop_lead_m": 0.06,
+  "stop_command_observation": {
+    "monotonic": 1541.275698804,
+    "odom_forward_m": 0.2013170903322088,
+    "vx_mps": 0.22128485580600002,
+    "odom_stamp": 1792157722.713327,
+    "odom_arrival_age_s": 0.03436337700009062,
+    "sensor_error": ""
+  },
+  "odom_forward_m": 0.300849961114788,
+  "post_stop_odom_displacement_m": 0.09953287078257922,
+  "measured_actual_m": null,
+  "start": {
+    "x": 0.5820280938167803,
+    "y": 0.011060711545096646,
+    "yaw": 0.028190071332937276
+  },
+  "final": {
+    "x": 0.8827226370933975,
+    "y": 0.020813234779328,
+    "yaw": 0.03047007854474737
+  },
+  "yaw_delta_deg": 0.13063479049610896,
+  "old_linear_scale": 0.966309414,
+  "status_after": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": 1.16,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 13816,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.8827,
+        0.0208,
+        0.0305
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 506.0,
+    "uptime_s": 694.1
+  },
+  "memory_available_mb_before": 2045.7421875,
+  "note": "Post-stop odom displacement includes scan/odom/command latency; not pure mechanical coasting.",
+  "measured_actual_interval_m": [
+    0.305,
+    0.31
+  ],
+  "measurement_note": "User ruler reading approximately 30.5-31 cm for trial03 segment."
+}

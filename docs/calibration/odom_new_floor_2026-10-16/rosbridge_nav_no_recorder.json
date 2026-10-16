@@ -1,0 +1,738 @@
+{
+  "samples": 104,
+  "unique_scans": 80,
+  "fault_samples": 0,
+  "reasons": [],
+  "max_scan_stamp_age_s": 0.35973358154296875,
+  "max_scan_arrival_age_s": 0.13725141800023266,
+  "rows": [
+    {
+      "scan_stamp": 1792163734.135104,
+      "scan_arrival_age_s": 0.018887846000325226,
+      "scan_stamp_age_s": 0.2562401294708252,
+      "odom_arrival_age_s": 0.016063210000538675,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.135104,
+      "scan_arrival_age_s": 0.10495483600061561,
+      "scan_stamp_age_s": 0.34230709075927734,
+      "odom_arrival_age_s": 0.053825150999728066,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.235642,
+      "scan_arrival_age_s": 0.08034323999982007,
+      "scan_stamp_age_s": 0.32472801208496094,
+      "odom_arrival_age_s": 0.07860023900047963,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.33398,
+      "scan_arrival_age_s": 0.08722711500013247,
+      "scan_stamp_age_s": 0.31627488136291504,
+      "odom_arrival_age_s": 0.08361949699974502,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.433456,
+      "scan_arrival_age_s": 0.050663375000112865,
+      "scan_stamp_age_s": 0.2802579402923584,
+      "odom_arrival_age_s": 0.042157436999332276,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.532738,
+      "scan_arrival_age_s": 0.01572127700001147,
+      "scan_stamp_age_s": 0.24798154830932617,
+      "odom_arrival_age_s": 0.10916298499978438,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.532738,
+      "scan_arrival_age_s": 0.10241879900058848,
+      "scan_stamp_age_s": 0.33467888832092285,
+      "odom_arrival_age_s": 0.09443396599999687,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.632065,
+      "scan_arrival_age_s": 0.05811215700032335,
+      "scan_stamp_age_s": 0.3141627311706543,
+      "odom_arrival_age_s": 0.054324325999914436,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.731499,
+      "scan_arrival_age_s": 0.04204405000018596,
+      "scan_stamp_age_s": 0.2769145965576172,
+      "odom_arrival_age_s": 0.02262239299943758,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.833093,
+      "scan_arrival_age_s": 0.027394302999709907,
+      "scan_stamp_age_s": 0.24038314819335938,
+      "odom_arrival_age_s": 0.024472218000482826,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.833093,
+      "scan_arrival_age_s": 0.10219556699939858,
+      "scan_stamp_age_s": 0.3151834011077881,
+      "odom_arrival_age_s": 0.07336305999979231,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163734.93013,
+      "scan_arrival_age_s": 0.05974572800005262,
+      "scan_stamp_age_s": 0.29042482376098633,
+      "odom_arrival_age_s": 0.05602310800077248,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.02961,
+      "scan_arrival_age_s": 0.04036026900030265,
+      "scan_stamp_age_s": 0.2575957775115967,
+      "odom_arrival_age_s": 0.015543356999842217,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.02961,
+      "scan_arrival_age_s": 0.12585021799986862,
+      "scan_stamp_age_s": 0.34308528900146484,
+      "odom_arrival_age_s": 0.10103335799976776,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.129081,
+      "scan_arrival_age_s": 0.0787474819999261,
+      "scan_stamp_age_s": 0.3415982723236084,
+      "odom_arrival_age_s": 0.07591727299950435,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.228955,
+      "scan_arrival_age_s": 0.0885306820000551,
+      "scan_stamp_age_s": 0.32108139991760254,
+      "odom_arrival_age_s": 0.07800788499935152,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.327987,
+      "scan_arrival_age_s": 0.0827719300004901,
+      "scan_stamp_age_s": 0.30280303955078125,
+      "odom_arrival_age_s": 0.0636164240004291,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.429416,
+      "scan_arrival_age_s": 0.038981181000053766,
+      "scan_stamp_age_s": 0.26592302322387695,
+      "odom_arrival_age_s": 0.01767876099984278,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.429416,
+      "scan_arrival_age_s": 0.12806572699992103,
+      "scan_stamp_age_s": 0.3550074100494385,
+      "odom_arrival_age_s": 0.10676346299987927,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.526782,
+      "scan_arrival_age_s": 0.0848081660005846,
+      "scan_stamp_age_s": 0.3262779712677002,
+      "odom_arrival_age_s": 0.06727211599991278,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.626232,
+      "scan_arrival_age_s": 0.08215400199969736,
+      "scan_stamp_age_s": 0.3101224899291992,
+      "odom_arrival_age_s": 0.06633553600022424,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.725671,
+      "scan_arrival_age_s": 0.03524934300003224,
+      "scan_stamp_age_s": 0.2766120433807373,
+      "odom_arrival_age_s": 0.03086254400022881,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.825096,
+      "scan_arrival_age_s": 0.038489246000608546,
+      "scan_stamp_age_s": 0.2509727478027344,
+      "odom_arrival_age_s": 0.03668072299933556,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.825096,
+      "scan_arrival_age_s": 0.11204064400044444,
+      "scan_stamp_age_s": 0.3245244026184082,
+      "odom_arrival_age_s": 0.07222059199921205,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163735.924648,
+      "scan_arrival_age_s": 0.08484728199982783,
+      "scan_stamp_age_s": 0.3187217712402344,
+      "odom_arrival_age_s": 0.06951991799996904,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.024015,
+      "scan_arrival_age_s": 0.03573773700009042,
+      "scan_stamp_age_s": 0.28519153594970703,
+      "odom_arrival_age_s": 0.03287299699968571,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.123588,
+      "scan_arrival_age_s": 0.037067084000227624,
+      "scan_stamp_age_s": 0.26814985275268555,
+      "odom_arrival_age_s": 0.03532960499978799,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.222944,
+      "scan_arrival_age_s": 0.03542273200037016,
+      "scan_stamp_age_s": 0.24996256828308105,
+      "odom_arrival_age_s": 0.03373483599989413,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.222944,
+      "scan_arrival_age_s": 0.13725141800023266,
+      "scan_stamp_age_s": 0.3517913818359375,
+      "odom_arrival_age_s": 0.09855279300063557,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.322372,
+      "scan_arrival_age_s": 0.09047462400030781,
+      "scan_stamp_age_s": 0.33644533157348633,
+      "odom_arrival_age_s": 0.08275469199998042,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.421944,
+      "scan_arrival_age_s": 0.08858360000067478,
+      "scan_stamp_age_s": 0.33011293411254883,
+      "odom_arrival_age_s": 0.08680205700056831,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.521348,
+      "scan_arrival_age_s": 0.07798189599998295,
+      "scan_stamp_age_s": 0.31250619888305664,
+      "odom_arrival_age_s": 0.05785085000024992,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.620796,
+      "scan_arrival_age_s": 0.0472507599997698,
+      "scan_stamp_age_s": 0.2770192623138428,
+      "odom_arrival_age_s": 0.025182023000525078,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.720369,
+      "scan_arrival_age_s": 0.0357381539997732,
+      "scan_stamp_age_s": 0.2527761459350586,
+      "odom_arrival_age_s": 0.033951662000617944,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.720369,
+      "scan_arrival_age_s": 0.1305554620003022,
+      "scan_stamp_age_s": 0.3475933074951172,
+      "odom_arrival_age_s": 0.09352582599967718,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.819901,
+      "scan_arrival_age_s": 0.059960889999274514,
+      "scan_stamp_age_s": 0.3237762451171875,
+      "odom_arrival_age_s": 0.057124379000015324,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163736.920675,
+      "scan_arrival_age_s": 0.05584597000051872,
+      "scan_stamp_age_s": 0.28995633125305176,
+      "odom_arrival_age_s": 0.025130981000074826,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.023668,
+      "scan_arrival_age_s": 0.0340195290000338,
+      "scan_stamp_age_s": 0.2584037780761719,
+      "odom_arrival_age_s": 0.03226022600028955,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.118055,
+      "scan_arrival_age_s": 0.019810676000815874,
+      "scan_stamp_age_s": 0.23303985595703125,
+      "odom_arrival_age_s": 0.01399358900016523,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.118055,
+      "scan_arrival_age_s": 0.10637710400078504,
+      "scan_stamp_age_s": 0.31960630416870117,
+      "odom_arrival_age_s": 0.0528268529997149,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.219275,
+      "scan_arrival_age_s": 0.06748618300025555,
+      "scan_stamp_age_s": 0.30428242683410645,
+      "odom_arrival_age_s": 0.06575109900040843,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.317005,
+      "scan_arrival_age_s": 0.03384275499956857,
+      "scan_stamp_age_s": 0.27443504333496094,
+      "odom_arrival_age_s": 0.03006862300026114,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.317005,
+      "scan_arrival_age_s": 0.11914098299985199,
+      "scan_stamp_age_s": 0.35973358154296875,
+      "odom_arrival_age_s": 0.08274646300014865,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.416703,
+      "scan_arrival_age_s": 0.10340059099962673,
+      "scan_stamp_age_s": 0.35476040840148926,
+      "odom_arrival_age_s": 0.09023816199987778,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.615077,
+      "scan_arrival_age_s": 0.012980446000256052,
+      "scan_stamp_age_s": 0.22164535522460938,
+      "odom_arrival_age_s": 0.06890766800006531,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.615077,
+      "scan_arrival_age_s": 0.08042136800031585,
+      "scan_stamp_age_s": 0.28908658027648926,
+      "odom_arrival_age_s": 0.019350822999513184,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.71468,
+      "scan_arrival_age_s": 0.04045933399993373,
+      "scan_stamp_age_s": 0.26793909072875977,
+      "odom_arrival_age_s": 0.038569090999772015,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.71468,
+      "scan_arrival_age_s": 0.10850604900042526,
+      "scan_stamp_age_s": 0.3359856605529785,
+      "odom_arrival_age_s": 0.06571443199936766,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.814016,
+      "scan_arrival_age_s": 0.07397489600043627,
+      "scan_stamp_age_s": 0.3184847831726074,
+      "odom_arrival_age_s": 0.07217725999998947,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163737.915471,
+      "scan_arrival_age_s": 0.08494462799990288,
+      "scan_stamp_age_s": 0.3107032775878906,
+      "odom_arrival_age_s": 0.08204509600000165,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.020067,
+      "scan_arrival_age_s": 0.051043122000010044,
+      "scan_stamp_age_s": 0.27195239067077637,
+      "odom_arrival_age_s": 0.04781295900011173,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.112266,
+      "scan_arrival_age_s": 0.020725327999571164,
+      "scan_stamp_age_s": 0.24262380599975586,
+      "odom_arrival_age_s": 0.012676274000114063,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.112266,
+      "scan_arrival_age_s": 0.1028516229998786,
+      "scan_stamp_age_s": 0.3247497081756592,
+      "odom_arrival_age_s": 0.09480210099991382,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.211675,
+      "scan_arrival_age_s": 0.05392546700022649,
+      "scan_stamp_age_s": 0.290128231048584,
+      "odom_arrival_age_s": 0.05061957199995959,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.31093,
+      "scan_arrival_age_s": 0.02338756400058628,
+      "scan_stamp_age_s": 0.25337743759155273,
+      "odom_arrival_age_s": 0.060967887000515475,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.31093,
+      "scan_arrival_age_s": 0.10302199099987774,
+      "scan_stamp_age_s": 0.3330116271972656,
+      "odom_arrival_age_s": 0.0781681500002378,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.410629,
+      "scan_arrival_age_s": 0.08640074900085892,
+      "scan_stamp_age_s": 0.33751773834228516,
+      "odom_arrival_age_s": 0.08333261999996466,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.509944,
+      "scan_arrival_age_s": 0.07031123499928071,
+      "scan_stamp_age_s": 0.30678892135620117,
+      "odom_arrival_age_s": 0.06534327900044445,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.609393,
+      "scan_arrival_age_s": 0.04299370300032024,
+      "scan_stamp_age_s": 0.2728908061981201,
+      "odom_arrival_age_s": 0.029182512999796018,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.708861,
+      "scan_arrival_age_s": 0.03325904600023932,
+      "scan_stamp_age_s": 0.2436988353729248,
+      "odom_arrival_age_s": 0.03127911400042649,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.708861,
+      "scan_arrival_age_s": 0.12439613199967425,
+      "scan_stamp_age_s": 0.3348360061645508,
+      "odom_arrival_age_s": 0.08980195699950855,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.808188,
+      "scan_arrival_age_s": 0.07360077600060322,
+      "scan_stamp_age_s": 0.3015592098236084,
+      "odom_arrival_age_s": 0.06462727799953427,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163738.907725,
+      "scan_arrival_age_s": 0.034585737000270456,
+      "scan_stamp_age_s": 0.27911853790283203,
+      "odom_arrival_age_s": 0.03274169299947971,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.006957,
+      "scan_arrival_age_s": 0.03885977399932017,
+      "scan_stamp_age_s": 0.25272083282470703,
+      "odom_arrival_age_s": 0.03690281099989079,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.006957,
+      "scan_arrival_age_s": 0.11292430799949216,
+      "scan_stamp_age_s": 0.3267853260040283,
+      "odom_arrival_age_s": 0.07645572399997036,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.106471,
+      "scan_arrival_age_s": 0.06457180699999299,
+      "scan_stamp_age_s": 0.29547715187072754,
+      "odom_arrival_age_s": 0.055913627999871096,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.205805,
+      "scan_arrival_age_s": 0.042778179999913846,
+      "scan_stamp_age_s": 0.2630338668823242,
+      "odom_arrival_age_s": 0.04104403299970727,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.305045,
+      "scan_arrival_age_s": 0.02967090800029837,
+      "scan_stamp_age_s": 0.24759650230407715,
+      "odom_arrival_age_s": 0.08118659199953981,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.305045,
+      "scan_arrival_age_s": 0.09875441300027887,
+      "scan_stamp_age_s": 0.3165092468261719,
+      "odom_arrival_age_s": 0.06980330999977014,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.404371,
+      "scan_arrival_age_s": 0.08333366200076853,
+      "scan_stamp_age_s": 0.3143577575683594,
+      "odom_arrival_age_s": 0.0691209019996677,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.503803,
+      "scan_arrival_age_s": 0.03656004500044219,
+      "scan_stamp_age_s": 0.280362606048584,
+      "odom_arrival_age_s": 0.03291221800009225,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.603122,
+      "scan_arrival_age_s": 0.06018959199991514,
+      "scan_stamp_age_s": 0.275310754776001,
+      "odom_arrival_age_s": 0.05813200200009305,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.704479,
+      "scan_arrival_age_s": 0.018001788999754353,
+      "scan_stamp_age_s": 0.243743896484375,
+      "odom_arrival_age_s": 0.07935702700069669,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.704479,
+      "scan_arrival_age_s": 0.10441274699951464,
+      "scan_stamp_age_s": 0.3301548957824707,
+      "odom_arrival_age_s": 0.0847076449999804,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.802014,
+      "scan_arrival_age_s": 0.1002837649994035,
+      "scan_stamp_age_s": 0.30948805809020996,
+      "odom_arrival_age_s": 0.055339659999845026,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163739.901428,
+      "scan_arrival_age_s": 0.046126574000481924,
+      "scan_stamp_age_s": 0.27585911750793457,
+      "odom_arrival_age_s": 0.02576750299976993,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.000859,
+      "scan_arrival_age_s": 0.03537908599992079,
+      "scan_stamp_age_s": 0.24993419647216797,
+      "odom_arrival_age_s": 0.033452540000325826,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.000859,
+      "scan_arrival_age_s": 0.1177687209992655,
+      "scan_stamp_age_s": 0.3323240280151367,
+      "odom_arrival_age_s": 0.08098070300002291,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.100389,
+      "scan_arrival_age_s": 0.09028727899931255,
+      "scan_stamp_age_s": 0.32648491859436035,
+      "odom_arrival_age_s": 0.07360405700001138,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.199863,
+      "scan_arrival_age_s": 0.06485670900019613,
+      "scan_stamp_age_s": 0.3054616451263428,
+      "odom_arrival_age_s": 0.039722499000163225,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.299273,
+      "scan_arrival_age_s": 0.0366958810000142,
+      "scan_stamp_age_s": 0.27342653274536133,
+      "odom_arrival_age_s": 0.029746587000772706,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.399055,
+      "scan_arrival_age_s": 0.02487727899915626,
+      "scan_stamp_age_s": 0.23684191703796387,
+      "odom_arrival_age_s": 0.021801961999699415,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.399055,
+      "scan_arrival_age_s": 0.10717102699982206,
+      "scan_stamp_age_s": 0.3191354274749756,
+      "odom_arrival_age_s": 0.0573135499998898,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.49793,
+      "scan_arrival_age_s": 0.05989463900004921,
+      "scan_stamp_age_s": 0.28397393226623535,
+      "odom_arrival_age_s": 0.02161649000026955,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.597361,
+      "scan_arrival_age_s": 0.04289609900024516,
+      "scan_stamp_age_s": 0.2608146667480469,
+      "odom_arrival_age_s": 0.041075022999393695,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.698896,
+      "scan_arrival_age_s": 0.01580867499978922,
+      "scan_stamp_age_s": 0.22859907150268555,
+      "odom_arrival_age_s": 0.07108885500019824,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.698896,
+      "scan_arrival_age_s": 0.09509017999971547,
+      "scan_stamp_age_s": 0.3078806400299072,
+      "odom_arrival_age_s": 0.03170407100060402,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.797012,
+      "scan_arrival_age_s": 0.035741904999667895,
+      "scan_stamp_age_s": 0.27275919914245605,
+      "odom_arrival_age_s": 0.019432127000072796,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.897659,
+      "scan_arrival_age_s": 0.02989867299947946,
+      "scan_stamp_age_s": 0.24379444122314453,
+      "odom_arrival_age_s": 0.02804254500006209,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.897659,
+      "scan_arrival_age_s": 0.10487244300020393,
+      "scan_stamp_age_s": 0.318767786026001,
+      "odom_arrival_age_s": 0.1030156380002154,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163740.99503,
+      "scan_arrival_age_s": 0.060350376999849686,
+      "scan_stamp_age_s": 0.2860095500946045,
+      "odom_arrival_age_s": 0.021018770999944536,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.094181,
+      "scan_arrival_age_s": 0.053006909000032465,
+      "scan_stamp_age_s": 0.27373385429382324,
+      "odom_arrival_age_s": 0.05118098999992071,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.19549,
+      "scan_arrival_age_s": 0.052775499000745185,
+      "scan_stamp_age_s": 0.2595512866973877,
+      "odom_arrival_age_s": 0.05001534500024718,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.294688,
+      "scan_arrival_age_s": 0.02195107999978063,
+      "scan_stamp_age_s": 0.23566532135009766,
+      "odom_arrival_age_s": 0.06594751100055873,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.294688,
+      "scan_arrival_age_s": 0.12206432099992526,
+      "scan_stamp_age_s": 0.33577847480773926,
+      "odom_arrival_age_s": 0.06959580700004153,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.392256,
+      "scan_arrival_age_s": 0.06289709099928587,
+      "scan_stamp_age_s": 0.3289058208465576,
+      "odom_arrival_age_s": 0.046081939000032435,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.491767,
+      "scan_arrival_age_s": 0.08037939099995128,
+      "scan_stamp_age_s": 0.31633949279785156,
+      "odom_arrival_age_s": 0.036695516000690986,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.590989,
+      "scan_arrival_age_s": 0.046328766000442556,
+      "scan_stamp_age_s": 0.2854444980621338,
+      "odom_arrival_age_s": 0.044501076000415196,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.690476,
+      "scan_arrival_age_s": 0.030595664999964356,
+      "scan_stamp_age_s": 0.24993491172790527,
+      "odom_arrival_age_s": 0.027864157000294654,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.690476,
+      "scan_arrival_age_s": 0.12612871900000755,
+      "scan_stamp_age_s": 0.34546804428100586,
+      "odom_arrival_age_s": 0.07974573299998156,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.789872,
+      "scan_arrival_age_s": 0.0832966319994739,
+      "scan_stamp_age_s": 0.3337137699127197,
+      "odom_arrival_age_s": 0.08142472300005466,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.889309,
+      "scan_arrival_age_s": 0.07863206700039882,
+      "scan_stamp_age_s": 0.3169999122619629,
+      "odom_arrival_age_s": 0.07477069400010805,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163741.990697,
+      "scan_arrival_age_s": 0.06257619999996678,
+      "scan_stamp_age_s": 0.29253077507019043,
+      "odom_arrival_age_s": 0.059494945000551525,
+      "error": ""
+    },
+    {
+      "scan_stamp": 1792163742.087982,
+      "scan_arrival_age_s": 0.039000559000669455,
+      "scan_stamp_age_s": 0.26187849044799805,
+      "odom_arrival_age_s": 0.03588529300031951,
+      "error": ""
+    }
+  ]
+}

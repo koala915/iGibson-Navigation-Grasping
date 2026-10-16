@@ -1,0 +1,15 @@
+{
+  "elapsed_s": 1398.7129735589997,
+  "samples": 685,
+  "min_available_mb": 1749.0234375,
+  "first_rss_mb": {
+    "grasp-service": 507.37109375,
+    "grasp-vision": 301.55078125
+  },
+  "last_rss_mb": {
+    "grasp-service": 505.34375,
+    "grasp-vision": 298.51953125
+  },
+  "topics": {},
+  "complete": false
+}

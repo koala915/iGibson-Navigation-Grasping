@@ -1,0 +1,101 @@
+{
+  "kind": "arm home-stow while ROS continues; no chassis motion",
+  "phases": [],
+  "initial_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 339.76,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 125856,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0312,
+        0.0398,
+        0.1645
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 6321.6
+  },
+  "serial_owner_before": "30006",
+  "before": {
+    "elapsed": 3.869800002576085e-05,
+    "counts": {
+      "/odom_setmotor": 38,
+      "/tf": 74,
+      "/scan": 6
+    },
+    "ages": {
+      "/odom_setmotor": 0.02768841000033717,
+      "odom_tf": 0.005442004000542511,
+      "/scan": 0.16957957400063606
+    },
+    "sensor_faults": [
+      "/scan_missing_or_stale"
+    ],
+    "available_mb": 1736.1015625
+  },
+  "ok": false,
+  "error": "sensor/RAM preflight"
+}

@@ -1,0 +1,30 @@
+{
+  "direction_left_board_present.json": [
+    {
+      "reason": "side_left+side_right",
+      "nearest_side_m": 0.1721078164546104
+    },
+    {
+      "reason": "side_left+side_right",
+      "nearest_side_m": 0.18163144072807222
+    },
+    {
+      "reason": "side_left+side_right",
+      "nearest_side_m": 0.15530371347002456
+    }
+  ],
+  "direction_left_board_removed.json": [
+    {
+      "reason": "side_left+side_right",
+      "nearest_side_m": 0.1550539560199274
+    },
+    {
+      "reason": "side_left+side_right",
+      "nearest_side_m": 0.16257545862997336
+    },
+    {
+      "reason": "side_left+side_right",
+      "nearest_side_m": 0.17315725645758076
+    }
+  ]
+}

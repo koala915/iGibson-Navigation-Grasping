@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>x3plus_g2_lidar</name>
+  <version>0.1.0</version>
+  <description>X3Plus fixed LiDAR self-return filter and launch configuration.</description>
+  <maintainer email="112303577@cc.ncu.edu.tw">112303577ncu</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+</package>

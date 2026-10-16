@@ -1,0 +1,12 @@
+{
+  "odom_sum_m": 0.8884531454008641,
+  "actual_sum_interval_m": [
+    0.88,
+    0.895
+  ],
+  "scale_correction_interval": [
+    0.990485547330636,
+    1.00736882370559
+  ],
+  "decision": "Keep deployed linear scale; approximate ruler observations do not justify change. Angular calibration pending."
+}

@@ -1,0 +1,30 @@
+test_a_trailing_newline_does_not_sneak_through (__main__.TestArgvBuilding)
+'$' matches before a trailing newline in Python; '\Z' does not. ... ok
+test_deliver_off_adds_the_flag (__main__.TestArgvBuilding) ... ok
+test_each_dry_mode_is_accepted_by_its_real_parser (__main__.TestArgvBuilding) ... ok
+test_height_is_clamped_not_trusted (__main__.TestArgvBuilding) ... ok
+test_laps_cannot_go_negative (__main__.TestArgvBuilding) ... ok
+test_route_cannot_escape_the_project (__main__.TestArgvBuilding) ... ok
+test_route_is_validated_too (__main__.TestArgvBuilding) ... ok
+test_shell_metacharacters_refused (__main__.TestArgvBuilding) ... ok
+test_status_endpoint_points_at_this_server (__main__.TestArgvBuilding) ... ok
+test_unknown_mode_refused (__main__.TestArgvBuilding) ... ok
+test_confirm_without_a_mission_says_so (__main__.TestHTTP) ... ok
+test_healthz (__main__.TestHTTP) ... ok
+test_index_is_served (__main__.TestHTTP) ... ok
+test_preview_refuses_a_real_run_on_a_read_only_server (__main__.TestHTTP) ... ok
+test_preview_returns_a_quoted_command (__main__.TestHTTP) ... ok
+test_sse_delivers_a_published_frame (__main__.TestHTTP) ... ok
+test_state_reports_the_hardware_gate (__main__.TestHTTP) ... ok
+test_static_traversal_is_refused (__main__.TestHTTP)
+A path that climbs out of static/ must not be served. ... ok
+test_stop_is_safe_with_nothing_running (__main__.TestHTTP) ... ok
+test_unknown_route_is_404 (__main__.TestHTTP) ... ok
+test_a_stalled_client_does_not_block_the_others (__main__.TestHub)
+A phone that slept stops draining; it must not hold up the console. ... ok
+test_subscriber_receives_published_events (__main__.TestHub) ... ok
+test_formal_ui_keeps_only_the_requested_surfaces (__main__.TestLiteFrontend) ... ok
+test_qr_enters_the_console_without_an_ip_prompt (__main__.TestLiteFrontend) ... ok
+test_confirm_reaches_the_child_stdin (__main__.TestMissionProcess)
+The mission blocks on input() before driving; a button answers it. ... ok
+test_only_one_mission_at_a_time (__main__.TestMissionProcess) ...

@@ -1,0 +1,5 @@
+
+Traceback (most recent call last):
+  File "tests/test_safety_guards.py", line 60, in <module>
+    from startup_device_check import camera_identity
+ModuleNotFoundError: No module named 'startup_device_check'

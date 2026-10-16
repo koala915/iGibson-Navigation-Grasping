@@ -1,0 +1,148 @@
+{
+  "trial": "micro01",
+  "pulse_s_requested": 0.08,
+  "pulse_s_until_stop_call": 0.10452385200005665,
+  "speed_command_mps": 0.15,
+  "velocity_command_count": 2,
+  "reason": "pulse_complete",
+  "settled": true,
+  "stop_odom_forward_m": 0.0,
+  "odom_forward_m": 0.012019973241311927,
+  "measured_actual_m": 0.01,
+  "start": {
+    "x": 0.8841431968963672,
+    "y": 0.020324296926026685,
+    "yaw": 0.023537104698239553
+  },
+  "final": {
+    "x": 0.8961749943910516,
+    "y": 0.019963487394517566,
+    "yaw": 0.02981592254910037
+  },
+  "samples_after_stop": [
+    {
+      "t_since_stop_s": 0.11905969600002209,
+      "forward_m": 0.005866216434030269,
+      "vx": 0.065709040152,
+      "wz": 0.03449966023000001
+    },
+    {
+      "t_since_stop_s": 0.2437277690000883,
+      "forward_m": 0.011582991259417304,
+      "vx": 0.016427260038,
+      "wz": 0.010842750358
+    },
+    {
+      "t_since_stop_s": 0.3267528559999846,
+      "forward_m": 0.011922641468450556,
+      "vx": 0.006764165898000001,
+      "wz": 0.010842750358
+    },
+    {
+      "t_since_stop_s": 0.4129772910000611,
+      "forward_m": 0.012019973241311927,
+      "vx": 0.001932618828,
+      "wz": -0.01084014195
+    },
+    {
+      "t_since_stop_s": 0.4464052130001619,
+      "forward_m": 0.012019973241311927,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.5281662270001561,
+      "forward_m": 0.012019973241311927,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.6142513370000415,
+      "forward_m": 0.012019973241311927,
+      "vx": 0.0,
+      "wz": 0.0
+    }
+  ],
+  "status_after": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": 0.74,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 17852,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.8962,
+        0.02,
+        0.0298
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 506.0,
+    "uptime_s": 896.8
+  },
+  "memory_available_mb_after": 2024.62109375,
+  "floor": "new_board_user_2026-10-16",
+  "note": "Bounded time pulse through existing TCP client; not a distance-controller acceptance test.",
+  "measurement_note": "User ruler reading 1.0 cm for micro01 segment.",
+  "odom_minus_actual_m": 0.0020199732413119266
+}

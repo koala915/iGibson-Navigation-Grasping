@@ -1,0 +1,25 @@
+{
+  "start_odom": {
+    "x": 1.0075879332153386,
+    "y": 0.051360132411146224,
+    "yaw": 1.6215228439812783,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 6239.297100316,
+    "stamp": 1792162420.800962,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "final_odom": {
+    "x": 1.0075879332153386,
+    "y": 0.051360132411146224,
+    "yaw": 1.6215228439812783,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 6239.297100316,
+    "stamp": 1792162420.800962,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "purpose": "right 90 from completed left 90; no odom reset"
+}

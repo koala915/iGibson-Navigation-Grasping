@@ -1,0 +1,233 @@
+{
+  "mode": "native ROS continuity during home-stow",
+  "phases": [
+    {
+      "command": "home",
+      "started": 1792163578.4459906,
+      "response": {
+        "ok": true,
+        "reason": "arrived",
+        "iters": 1,
+        "elapsed_s": 0.38
+      },
+      "finished": 1792163581.9465716,
+      "topics": {
+        "/scan_raw": {
+          "count": 35,
+          "max_arrival_gap_s": 0.10644102096557617,
+          "max_stamp_age_s": 0.10904812812805176
+        },
+        "/scan": {
+          "count": 36,
+          "max_arrival_gap_s": 0.11333799362182617,
+          "max_stamp_age_s": 0.13632798194885254
+        },
+        "/odom_setmotor": {
+          "count": 70,
+          "max_arrival_gap_s": 0.05881190299987793,
+          "max_stamp_age_s": 0.01656198501586914
+        },
+        "odom_tf": {
+          "count": 70,
+          "max_arrival_gap_s": 0.061419010162353516,
+          "max_stamp_age_s": 0.022059917449951172
+        }
+      }
+    },
+    {
+      "command": "stow",
+      "started": 1792163582.4471235,
+      "response": {
+        "ok": true,
+        "holding": false,
+        "elapsed_s": 3.81
+      },
+      "finished": 1792163586.3179967,
+      "topics": {
+        "/scan_raw": {
+          "count": 39,
+          "max_arrival_gap_s": 0.1074838638305664,
+          "max_stamp_age_s": 0.11276984214782715
+        },
+        "/scan": {
+          "count": 38,
+          "max_arrival_gap_s": 0.11240506172180176,
+          "max_stamp_age_s": 0.12979888916015625
+        },
+        "/odom_setmotor": {
+          "count": 77,
+          "max_arrival_gap_s": 0.06373405456542969,
+          "max_stamp_age_s": 0.023058652877807617
+        },
+        "odom_tf": {
+          "count": 77,
+          "max_arrival_gap_s": 0.06468605995178223,
+          "max_stamp_age_s": 0.0294950008392334
+        }
+      }
+    }
+  ],
+  "initial_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 563.46,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 130304,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0312,
+        0.0398,
+        0.1645
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 6545.3
+  },
+  "owner_before": "30006",
+  "unlock": {
+    "ok": true
+  },
+  "final_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": 575.14,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 130536,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0312,
+        0.0398,
+        0.1645
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 6557.0
+  },
+  "owner_after": "30006",
+  "ok": true,
+  "lock": {
+    "ok": true
+  }
+}

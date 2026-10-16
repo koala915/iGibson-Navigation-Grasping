@@ -1,0 +1,136 @@
+{
+  "mode": "native ROS continuity during home-stow",
+  "phases": [
+    {
+      "command": "home",
+      "started": 1792163548.1960492,
+      "response": {
+        "ok": false,
+        "reason": "maintenance",
+        "hint": "the wheels are turning or stopped less than 0.5 s ago; the arm was not moved",
+        "chassis": {
+          "motors": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "maintenance": true,
+          "moving": false,
+          "stopped_for_s": 536.5,
+          "arm_busy": false,
+          "arm_pose": "travel",
+          "pose_blocked_total": 0,
+          "board_rx_age_s": 0.01,
+          "rx_blocked_total": 0,
+          "dropped_total": 0,
+          "refused_total": 0,
+          "client": null
+        }
+      },
+      "finished": 1792163548.1974728,
+      "topics": {
+        "/scan_raw": {
+          "count": 0,
+          "max_arrival_gap_s": null,
+          "max_stamp_age_s": null
+        },
+        "/scan": {
+          "count": 0,
+          "max_arrival_gap_s": null,
+          "max_stamp_age_s": null
+        },
+        "/odom_setmotor": {
+          "count": 0,
+          "max_arrival_gap_s": null,
+          "max_stamp_age_s": null
+        },
+        "odom_tf": {
+          "count": 0,
+          "max_arrival_gap_s": null,
+          "max_stamp_age_s": null
+        }
+      }
+    }
+  ],
+  "initial_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 533.23,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 129703,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0312,
+        0.0398,
+        0.1645
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 6515.1
+  },
+  "owner_before": "30006",
+  "ok": false,
+  "error": "action failed; no replay"
+}

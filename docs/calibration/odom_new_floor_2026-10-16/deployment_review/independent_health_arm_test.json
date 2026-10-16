@@ -1,0 +1,840 @@
+{
+  "phases": [
+    {
+      "command": "home",
+      "samples": [
+        {
+          "latency_s": 0.0018773310002870858,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1215,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001325028000792372,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1217,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0015868040009081597,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1219,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012732039995171363,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1221,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001403518999723019,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1223,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0011110649993497645,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1225,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012090879990864778,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1227,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012806000013370067,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1229,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0018970709988934686,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1231,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0014231029999791645,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1233,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0013309129990375368,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1235,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0013679449984920211,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1237,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001297578999583493,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1239,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0015636789994459832,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1241,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001280860000406392,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1243,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0019707190003828146,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1245,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0014162269999360433,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1247,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012571099996421253,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1249,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0014363320005941205,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1251,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0010785120011860272,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1253,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0013999250004417263,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1255,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0014224780006770743,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1257,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0013654460017278325,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1259,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012862780004070373,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1261,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0013636229996336624,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1263,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012542969998321496,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1265,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0010639289994287537,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1267,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001016374999380787,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1269,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0010395010012871353,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1271,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0014533640005538473,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1273,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001289453999561374,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1275,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0016286810005112784,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1277,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0011678890004986897,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1279,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012649219988816185,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1281,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0015627930006303359,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1283,
+          "service_pid": 2518
+        }
+      ],
+      "response": {
+        "ok": true,
+        "reason": "arrived",
+        "iters": 1,
+        "elapsed_s": 0.39
+      }
+    },
+    {
+      "command": "stow",
+      "samples": [
+        {
+          "latency_s": 0.0016952450005192077,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1294,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012310670008446323,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1296,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0020416569986991817,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1298,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.007351247999395127,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1300,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.010864500000025146,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1303,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012444010008039186,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1305,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012596619999385439,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1307,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0011198669999430422,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1309,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012704950004263083,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1311,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012267970014363527,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1313,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012023170002066763,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1315,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0010647620001691394,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1317,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.00110944999869389,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1319,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001163931001428864,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1321,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012157030014350312,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1323,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001256433000889956,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1325,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012924749989906559,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1327,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001036219000525307,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1329,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.002435988999422989,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1331,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0017670159995759604,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1333,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001233099001183291,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1335,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0010804920002556173,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1337,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0010702310009946814,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1339,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001237889999174513,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1341,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0010678350008674897,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1343,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.00141414499921666,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1345,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001810714999010088,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1347,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0011361699998815311,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1349,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.005935281000347459,
+          "arm_busy": true,
+          "board_rx_age_s": 0.02,
+          "odom_valid": true,
+          "odom_published": 1351,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0013266950008983258,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1353,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001802381999368663,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1355,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0012035140007355949,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1357,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0010998140005540336,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1359,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0013648719996126601,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1361,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0032825170001160586,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1363,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.001196744000480976,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1365,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0019381660004000878,
+          "arm_busy": true,
+          "board_rx_age_s": 0.0,
+          "odom_valid": true,
+          "odom_published": 1367,
+          "service_pid": 2518
+        },
+        {
+          "latency_s": 0.0014011759994900785,
+          "arm_busy": true,
+          "board_rx_age_s": 0.01,
+          "odom_valid": true,
+          "odom_published": 1369,
+          "service_pid": 2518
+        }
+      ],
+      "response": {
+        "ok": true,
+        "holding": false,
+        "elapsed_s": 3.81
+      }
+    }
+  ],
+  "initial_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 1210,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 503.9,
+    "uptime_s": 60.9
+  },
+  "owner_before": "2518",
+  "health_before": {
+    "ok": true,
+    "serial": null,
+    "stack_version": "v23",
+    "service_pid": 2518,
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip",
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+    "holding": false,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 1215,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 503.9,
+    "uptime_s": 61.1,
+    "capabilities": {
+      "independent_health": true,
+      "owner_restart": false,
+      "serial_transport_diagnostics": false
+    }
+  },
+  "health_rejects_arm_command": {
+    "ok": false
+  },
+  "final_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 1381,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 503.9,
+    "uptime_s": 69.5
+  },
+  "owner_after": "2518",
+  "ok": true,
+  "lock": {
+    "ok": true
+  }
+}

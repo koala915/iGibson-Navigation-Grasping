@@ -1,0 +1,157 @@
+{
+  "trial": "micro03",
+  "pulse_s_requested": 0.08,
+  "pulse_s_until_stop_call": 0.0814019009999356,
+  "speed_command_mps": 0.15,
+  "velocity_command_count": 2,
+  "reason": "pulse_complete",
+  "settled": true,
+  "stop_odom_forward_m": 0.0,
+  "odom_forward_m": 0.007558200919521772,
+  "measured_actual_m": null,
+  "start": {
+    "x": 0.9037309936884479,
+    "y": 0.02032894107842278,
+    "yaw": 0.024031490618031448
+  },
+  "final": {
+    "x": 0.9112867693193432,
+    "y": 0.02052066471113853,
+    "yaw": 0.026256476106449437
+  },
+  "samples_after_stop": [
+    {
+      "t_since_stop_s": 0.12373174399999698,
+      "forward_m": 0.002324963767827823,
+      "vx": 0.046382851872,
+      "wz": 0.010842750358
+    },
+    {
+      "t_since_stop_s": 0.20777288399995086,
+      "forward_m": 0.005378877397121158,
+      "vx": 0.027056663592000003,
+      "wz": 0.010842750358
+    },
+    {
+      "t_since_stop_s": 0.24164104999999836,
+      "forward_m": 0.006589755327565866,
+      "vx": 0.02415773535,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.3281194979999782,
+      "forward_m": 0.007558200919521772,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.4116455820003466,
+      "forward_m": 0.007558200919521772,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.45575361500004874,
+      "forward_m": 0.007558200919521772,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.5328997550000167,
+      "forward_m": 0.007558200919521772,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.615361925000343,
+      "forward_m": 0.007558200919521772,
+      "vx": 0.0,
+      "wz": 0.0
+    }
+  ],
+  "status_after": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": 0.74,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 25822,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.9113,
+        0.0205,
+        0.0263
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 1297.3
+  },
+  "memory_available_mb_after": 2023.51953125,
+  "floor": "new_board_user_2026-10-16",
+  "note": "Same bounded pulse procedure as micro01/02; physical ruler measurement pending.",
+  "measured_actual_interval_m": [
+    0.007,
+    0.008
+  ],
+  "measurement_note": "User ruler reading 0.7-0.8 cm for micro03 segment."
+}

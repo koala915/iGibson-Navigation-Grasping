@@ -87,6 +87,25 @@ class TestSafetyGates(unittest.TestCase):
         self.assertIn("--dry-run", r["argv"])
         self.assertNotIn("--real", r["argv"])
 
+    def test_v23_demo_defaults_to_preview_and_locked_model_settings(self):
+        c = srv.Console(Args())
+        result = c.build_argv({"mode":"D","deliver":False,"plan":"../../evil.json"})
+        argv = result['argv']
+        self.assertIn('--dry-run',argv)
+        self.assertNotIn('--execute',argv)
+        self.assertIn(str(srv.ROOT/'grasp/v23/demo_grasp.json'),argv)
+        self.assertNotIn('../../evil.json',argv)
+        self.assertNotIn('--model',argv)
+
+    def test_v23_real_uses_same_resident_runner_after_existing_gates(self):
+        c = srv.Console(Args(allow_real=True))
+        result = c.build_argv({"mode":"D","real":True,"unlock":True,"deliver":True})
+        self.assertIn('--execute',result['argv'])
+        self.assertIn(str(srv.ROOT/'grasp/v23/demo_pick_place.json'),result['argv'])
+        self.assertNotIn('--real',result['argv'])
+        self.assertIn('error',c.build_argv({"mode":"D","real":True,"unlock":False}))
+        self.assertIn('error',srv.Console(Args()).build_argv({"mode":"D","real":True,"unlock":True}))
+
     def test_estop_latch_blocks_a_new_start(self):
         c = srv.Console(Args())
         c.mission.estop_latched = True
@@ -427,7 +446,10 @@ class TestLiteFrontend(unittest.TestCase):
             self.assertNotIn(removed, self.html)
         self.assertNotIn('source.addEventListener("log"', self.js)
         self.assertNotIn("appendProcLog", self.js)
-        self.assertIn('mode: "A"', self.js)
+        self.assertIn('mode: "D"', self.js)
+        self.assertNotIn('mode: "A"', self.js)
+        self.assertIn('v23 · 定點展示', self.html)
+        self.assertNotIn('A · 完整自走', self.html)
 
     def test_qr_enters_the_console_without_an_ip_prompt(self):
         url = make_qr.console_url("192.168.1.42", 8080)

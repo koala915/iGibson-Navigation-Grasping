@@ -1,0 +1,37 @@
+[
+  {
+    "target": "/home/jetson/Documents/deploy_jetson2/grasp/v23/grasp_service.py",
+    "candidate": "/home/jetson/health_compat_20261016/candidate_0.py",
+    "backup": "/home/jetson/health_compat_20261016/backup_0.py",
+    "old_sha256": "9fcec70bd77c0821f7f0e531d0c9db7ff87077995723e5e938911274f3a755e7",
+    "new_sha256": "d0b250de501842b404c06034c15edfc0d1d88a16e19f363f2d051a1200a1e003"
+  },
+  {
+    "target": "/home/jetson/Documents/deploy_jetson2/integration/vision_grasp_bridge.py",
+    "candidate": "/home/jetson/health_compat_20261016/candidate_1.py",
+    "backup": "/home/jetson/health_compat_20261016/backup_1.py",
+    "old_sha256": "d2d35c3362e7ad8144a94cc61648e37029bafc319172e357d1d3217b5e78cf6b",
+    "new_sha256": "163589512f49f1257fec6555717c2e502e2a0bee1adfc24c44833e191b457000"
+  },
+  {
+    "target": "/home/jetson/Documents/deploy_jetson2/grasp/v23/health_server.py",
+    "candidate": "/home/jetson/health_compat_20261016/candidate_2.py",
+    "backup": null,
+    "old_sha256": null,
+    "new_sha256": "591ed57b47121d7b6fd25ae7dce3a993e2c2c131384a07d29bed2607bcf65e4e"
+  },
+  {
+    "target": "/home/jetson/Documents/deploy_jetson2/grasp/v23/legacy_health_compat.py",
+    "candidate": "/home/jetson/health_compat_20261016/candidate_3.py",
+    "backup": null,
+    "old_sha256": null,
+    "new_sha256": "e454cfa9a4d79f107b9ef6276fd884efa156a6de329e7ac78ae3bf242504d22f"
+  },
+  {
+    "target": "/home/jetson/Documents/deploy_jetson2/integration/frame_health.py",
+    "candidate": "/home/jetson/health_compat_20261016/candidate_4.py",
+    "backup": null,
+    "old_sha256": null,
+    "new_sha256": "26fdbc65558464575061c1c475d0b802ecf4b20b0e71eabd5944786dde5f6d78"
+  }
+]

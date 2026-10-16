@@ -1,0 +1,105 @@
+{
+  "health": {
+    "ok": true,
+    "serial": null,
+    "stack_version": "v23",
+    "service_pid": 2518,
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip",
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+    "holding": false,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.01,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 13779,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 504.3,
+    "uptime_s": 692.7,
+    "capabilities": {
+      "independent_health": true,
+      "owner_restart": false,
+      "serial_transport_diagnostics": false
+    }
+  },
+  "monitor": {
+    "state": "parked",
+    "monotonic": 8839.529401389,
+    "pid": 20577,
+    "scope": "control_vision",
+    "owner_restart_enabled": false,
+    "service_pid": 2518,
+    "serial": null,
+    "reason": "maintenance lock retained; no automatic unlock",
+    "repairs": {
+      "grasp-vision": 1
+    }
+  },
+  "monitor_enabled": "enabled",
+  "monitor_active": "active",
+  "ram": {
+    "elapsed_s": 1224.201799817999,
+    "samples": 600,
+    "min_available_mb": 1749.0234375,
+    "latest_available_mb": 1787.48046875,
+    "complete": false
+  },
+  "vision_heartbeat": {
+    "pid": 22113,
+    "monotonic": 8839.320287131,
+    "height": 480,
+    "width": 640,
+    "inference_s": 0.4064189640012046
+  },
+  "bundle_sha256": {
+    "g2_safety_audit.py": "3ed4460142f0f0fbd30b27f67e614b7f4b3fd84f7041f2bed00d3d75c1ff53e0",
+    "mission_status.py": "05707b05322919cee42863a7342a31a3b3f5449f0d489b5cf01241c08b06f970",
+    "v23_demo.py": "070a022e325418bdb873db09a9bb2baa93caa2b09fcfa433fec19d70e629f436",
+    "v23_recovery.py": "500940632d4a823d74e2689f1e2d80dc28d8ce93719164cd35a72c4a9ebb93f4"
+  }
+}

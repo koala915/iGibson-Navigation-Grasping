@@ -1,0 +1,678 @@
+{
+  "target_accumulated_deg": 90,
+  "pulses": [
+    {
+      "duration_s": 0.2,
+      "commands": 3,
+      "before_deg": -0.0,
+      "after_deg": 4.512289110903644,
+      "odom": {
+        "x": 1.0077090058519587,
+        "y": 0.051202140338696245,
+        "yaw": 1.5427685421941222,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6414.317535067,
+        "stamp": 1792162595.827734,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 3,
+      "before_deg": 4.512289110903644,
+      "after_deg": 9.028310486453506,
+      "odom": {
+        "x": 1.0120924945084606,
+        "y": 0.050879392715019706,
+        "yaw": 1.463949100100334,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6415.198944637,
+        "stamp": 1792162596.6802852,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 4,
+      "before_deg": 9.028310486453506,
+      "after_deg": 15.254184810122515,
+      "odom": {
+        "x": 1.014557176148077,
+        "y": 0.05244847321019268,
+        "yaw": 1.3552870943369344,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6416.085854981,
+        "stamp": 1792162597.5834403,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 4,
+      "before_deg": 15.254184810122515,
+      "after_deg": 21.590828160977743,
+      "odom": {
+        "x": 1.0171431723384523,
+        "y": 0.05143155380531978,
+        "yaw": 1.2446918043399045,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6416.894540678,
+        "stamp": 1792162598.385767,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 4,
+      "before_deg": 21.590828160977743,
+      "after_deg": 26.47209151951636,
+      "odom": {
+        "x": 1.0188847608131322,
+        "y": 0.05039328039426349,
+        "yaw": 1.159497687076449,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6417.791638329,
+        "stamp": 1792162599.2887135,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 4,
+      "before_deg": 26.47209151951636,
+      "after_deg": 31.592833574755694,
+      "odom": {
+        "x": 1.0205296369726624,
+        "y": 0.04974514176717139,
+        "yaw": 1.0701238780671813,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6418.681861199,
+        "stamp": 1792162600.1915698,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 4,
+      "before_deg": 31.592833574755694,
+      "after_deg": 36.914348408383105,
+      "odom": {
+        "x": 1.0225158333879123,
+        "y": 0.05019059194082012,
+        "yaw": 0.9772459230266648,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6419.574407775,
+        "stamp": 1792162601.0944932,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 3,
+      "before_deg": 36.914348408383105,
+      "after_deg": 41.28952852690788,
+      "odom": {
+        "x": 1.0257619265727727,
+        "y": 0.04882636823312813,
+        "yaw": 0.9008846245906117,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6420.471153317,
+        "stamp": 1792162601.9514945,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 3,
+      "before_deg": 41.28952852690788,
+      "after_deg": 45.50982891432581,
+      "odom": {
+        "x": 1.027668999891036,
+        "y": 0.04787497372181812,
+        "yaw": 0.8272264874069766,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6421.313066067,
+        "stamp": 1792162602.8044658,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 4,
+      "before_deg": 45.50982891432581,
+      "after_deg": 51.47653883301119,
+      "odom": {
+        "x": 1.0304769506044484,
+        "y": 0.04643673532807894,
+        "yaw": 0.7230877538145135,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6422.170804569,
+        "stamp": 1792162603.6580787,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 4,
+      "before_deg": 51.47653883301119,
+      "after_deg": 57.40265293867226,
+      "odom": {
+        "x": 1.0312826004695463,
+        "y": 0.046417080366084475,
+        "yaw": 0.6196575508218487,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6423.066958933,
+        "stamp": 1792162604.5606608,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 3,
+      "before_deg": 57.40265293867226,
+      "after_deg": 61.43607211772287,
+      "odom": {
+        "x": 1.0320744033032476,
+        "y": 0.04520145582533933,
+        "yaw": 0.5492611060343289,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6423.861078769,
+        "stamp": 1792162605.3628874,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 3,
+      "before_deg": 61.43607211772287,
+      "after_deg": 66.41788920108863,
+      "odom": {
+        "x": 1.0344311203717644,
+        "y": 0.042756588296123686,
+        "yaw": 0.46231199519749566,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6424.80161822,
+        "stamp": 1792162606.3156288,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "commands": 4,
+      "before_deg": 66.41788920108863,
+      "after_deg": 71.70871700257514,
+      "odom": {
+        "x": 1.0338681349581782,
+        "y": 0.04301253144798223,
+        "yaw": 0.3699696299055031,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6425.655258619,
+        "stamp": 1792162607.1680717,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 71.70871700257514,
+      "after_deg": 73.1219031550925,
+      "odom": {
+        "x": 1.0332752719608154,
+        "y": 0.04265864995591705,
+        "yaw": 0.34530487860048437,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6426.562546347,
+        "stamp": 1792162608.0799015,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 73.1219031550925,
+      "after_deg": 75.10085196310503,
+      "odom": {
+        "x": 1.032143447379565,
+        "y": 0.042688776027948495,
+        "yaw": 0.31076570617224863,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6427.441453276,
+        "stamp": 1792162608.9340928,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 75.10085196310503,
+      "after_deg": 76.21329041671676,
+      "odom": {
+        "x": 1.0316087623299985,
+        "y": 0.043074749172297554,
+        "yaw": 0.29134999243092974,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6428.303530875,
+        "stamp": 1792162609.788294,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 76.21329041671676,
+      "after_deg": 78.06304433108079,
+      "odom": {
+        "x": 1.030833099334896,
+        "y": 0.042792247400773496,
+        "yaw": 0.2590656962736242,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6429.1824292,
+        "stamp": 1792162610.6911798,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 78.06304433108079,
+      "after_deg": 79.34295977425354,
+      "odom": {
+        "x": 1.0308491198396965,
+        "y": 0.042929239074312564,
+        "yaw": 0.23672695764313723,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6430.027533554,
+        "stamp": 1792162611.5437763,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 79.34295977425354,
+      "after_deg": 80.41581843573307,
+      "odom": {
+        "x": 1.0310105551570985,
+        "y": 0.041997121458970464,
+        "yaw": 0.21800204159178005,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6430.93559232,
+        "stamp": 1792162612.4471552,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 80.41581843573307,
+      "after_deg": 81.62898210302214,
+      "odom": {
+        "x": 1.030666230240854,
+        "y": 0.041255978274351124,
+        "yaw": 0.19682834123201684,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6431.832745359,
+        "stamp": 1792162613.3508167,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 81.62898210302214,
+      "after_deg": 82.87238590953577,
+      "odom": {
+        "x": 1.0298340838977345,
+        "y": 0.03987567826107502,
+        "yaw": 0.17512685087652358,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6432.625311461,
+        "stamp": 1792162614.1029723,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.1,
+      "commands": 2,
+      "before_deg": 82.87238590953577,
+      "after_deg": 84.76069739737584,
+      "odom": {
+        "x": 1.029595001627146,
+        "y": 0.03950914926613403,
+        "yaw": 0.14216959811048158,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6433.524312927,
+        "stamp": 1792162615.0055254,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.08,
+      "commands": 2,
+      "before_deg": 84.76069739737584,
+      "after_deg": 86.27788593626427,
+      "odom": {
+        "x": 1.0296798594162795,
+        "y": 0.039615088567653785,
+        "yaw": 0.11568966273335635,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6434.42238879,
+        "stamp": 1792162615.909489,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.08,
+      "commands": 1,
+      "before_deg": 86.27788593626427,
+      "after_deg": 86.88099708064405,
+      "odom": {
+        "x": 1.0297114022779439,
+        "y": 0.039324007555403384,
+        "yaw": 0.10516338750845833,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6435.260962829,
+        "stamp": 1792162616.7627769,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.08,
+      "commands": 2,
+      "before_deg": 86.88099708064405,
+      "after_deg": 88.19142488104056,
+      "odom": {
+        "x": 1.0304290360544668,
+        "y": 0.03784994932471249,
+        "yaw": 0.08229210778187211,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6436.117775602,
+        "stamp": 1792162617.6152616,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.06,
+      "commands": 1,
+      "before_deg": 88.19142488104056,
+      "after_deg": 88.79424608391824,
+      "odom": {
+        "x": 1.030465338984067,
+        "y": 0.03736380866320122,
+        "yaw": 0.07177089299082384,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6436.996666956,
+        "stamp": 1792162618.5179627,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    },
+    {
+      "duration_s": 0.06,
+      "commands": 1,
+      "before_deg": 88.79424608391824,
+      "after_deg": 89.23016637447384,
+      "odom": {
+        "x": 1.0303840694767987,
+        "y": 0.03712992575833124,
+        "yaw": 0.06416264864437826,
+        "vx": 0.0,
+        "wz": 0.0,
+        "received_at": 6437.900129563,
+        "stamp": 1792162619.4205613,
+        "frame_id": "odom",
+        "child_frame_id": "base_footprint"
+      }
+    }
+  ],
+  "ok": true,
+  "reference_odom": {
+    "x": 1.0075879332153386,
+    "y": 0.051360132411146224,
+    "yaw": 1.6215228439812783,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 6239.297100316,
+    "stamp": 1792162420.800962,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "real": true,
+  "direction": "right",
+  "operator_confirmed_self_returns": true,
+  "swept_gate_observations": 66,
+  "initial_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 172.72,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 110747,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0076,
+        0.0514,
+        1.6215
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 5562.9
+  },
+  "start_odom": {
+    "x": 1.0075879332153386,
+    "y": 0.051360132411146224,
+    "yaw": 1.6215228439812783,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 6412.500546371,
+    "stamp": 1792162594.0224292,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "initial_accumulated_deg": -0.0,
+  "final_odom": {
+    "x": 1.0303840694767987,
+    "y": 0.03712992575833124,
+    "yaw": 0.06416264864437826,
+    "vx": 0.0,
+    "wz": 0.0,
+    "received_at": 6437.991211115,
+    "stamp": 1792162619.4706955,
+    "frame_id": "odom",
+    "child_frame_id": "base_footprint"
+  },
+  "final_accumulated_deg": 89.23016637447384,
+  "lock": {
+    "ok": true
+  },
+  "final_status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 0.85,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 111282,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0304,
+        0.0371,
+        0.0642
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 5589.7
+  }
+}

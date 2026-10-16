@@ -1,0 +1,312 @@
+{
+  "observations": [
+    {
+      "state": "ready",
+      "monotonic": 8755.97894797,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "repairs": {}
+    },
+    {
+      "state": "ready",
+      "monotonic": 8755.97894797,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "repairs": {}
+    },
+    {
+      "state": "repairing",
+      "monotonic": 8757.33213112,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8759.212046883,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8759.212046883,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8760.503028439,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8761.820037619,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8763.124587956,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8764.430501015,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8764.430501015,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8765.748310746,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8767.036047438,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "faults": [
+        "vision frames/inference missing or stale"
+      ],
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8768.344049686,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8768.344049686,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "waiting",
+      "monotonic": 8769.671648869,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "repairs": {
+        "grasp-vision": 1
+      }
+    },
+    {
+      "state": "ready",
+      "monotonic": 8771.068099269,
+      "pid": 20577,
+      "scope": "control_vision",
+      "owner_restart_enabled": false,
+      "service_pid": 2518,
+      "serial": null,
+      "repairs": {
+        "grasp-vision": 1
+      }
+    }
+  ],
+  "owner_before": 2518,
+  "vision_pid_before": 15802,
+  "monitor_pid": 20577,
+  "ok": true,
+  "vision_pid_after": 22113,
+  "elapsed_s": 15.346846845999607,
+  "final_monitor": {
+    "state": "ready",
+    "monotonic": 8771.068099269,
+    "pid": 20577,
+    "scope": "control_vision",
+    "owner_restart_enabled": false,
+    "service_pid": 2518,
+    "serial": null,
+    "repairs": {
+      "grasp-vision": 1
+    }
+  },
+  "owner_after": 2518,
+  "final_health": {
+    "ok": true,
+    "serial": null,
+    "stack_version": "v23",
+    "service_pid": 2518,
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip",
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+    "holding": false,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.01,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 12431,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 504.0,
+    "uptime_s": 624.9,
+    "capabilities": {
+      "independent_health": true,
+      "owner_restart": false,
+      "serial_transport_diagnostics": false
+    }
+  },
+  "lock": {
+    "ok": true
+  }
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=X3Plus bounded control and vision monitor (no ROS subscriptions or Serial restart)
+After=grasp-service.service grasp-vision.service
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=jetson
+WorkingDirectory=/home/jetson/Documents/deploy_jetson2
+ExecStart=/home/jetson/grasp_venv/bin/python3 /home/jetson/health_compat_20261016/recovery/v23_recovery.py --control-vision-only
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=10
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

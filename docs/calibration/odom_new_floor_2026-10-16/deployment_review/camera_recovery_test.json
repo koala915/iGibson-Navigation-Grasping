@@ -1,0 +1,299 @@
+{
+  "events": [
+    {
+      "elapsed_s": 0.2728464020001411,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 0.2729343720002362,
+      "state": "repairing",
+      "reason": "grasp-vision"
+    },
+    {
+      "elapsed_s": 1.6431740620009805,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 2.4426982320001116,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 3.2300751140010107,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 4.019265578001068,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 4.808226193999872,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 5.593333812999845,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 6.376847858000474,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 7.177802534000875,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 7.980427663000228,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 8.757761528000628,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 9.534770543001287,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    },
+    {
+      "elapsed_s": 10.361234566000348,
+      "state": "waiting",
+      "reason": "vision frames/inference missing or stale"
+    }
+  ],
+  "owner_restart_enabled": false,
+  "grace_s": 45,
+  "cooldown_s": 20,
+  "max_repairs": 2,
+  "initial_health": {
+    "ok": true,
+    "serial": null,
+    "stack_version": "v23",
+    "service_pid": 2518,
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip",
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+    "holding": false,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.01,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 2568,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 503.9,
+    "uptime_s": 129.2,
+    "capabilities": {
+      "independent_health": true,
+      "owner_restart": false,
+      "serial_transport_diagnostics": false
+    }
+  },
+  "vision_pid_before": 2519,
+  "elapsed_s": 12.782143423000889,
+  "repairs": {
+    "grasp-vision": 1
+  },
+  "final_health": {
+    "ok": true,
+    "serial": null,
+    "stack_version": "v23",
+    "service_pid": 2518,
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip",
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+    "holding": false,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 2832,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 503.9,
+    "uptime_s": 142.5,
+    "capabilities": {
+      "independent_health": true,
+      "owner_restart": false,
+      "serial_transport_diagnostics": false
+    }
+  },
+  "vision_pid_after": 7347,
+  "vision_heartbeat": {
+    "pid": 7347,
+    "monotonic": 8289.634262393,
+    "height": 480,
+    "width": 640,
+    "inference_s": 0.40101141599916446
+  },
+  "ok": true,
+  "lock": {
+    "ok": true
+  },
+  "final_cached_health": {
+    "ok": true,
+    "serial": null,
+    "stack_version": "v23",
+    "service_pid": 2518,
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip",
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+    "holding": false,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 2839,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 503.9,
+    "uptime_s": 142.8,
+    "capabilities": {
+      "independent_health": true,
+      "owner_restart": false,
+      "serial_transport_diagnostics": false
+    }
+  }
+}

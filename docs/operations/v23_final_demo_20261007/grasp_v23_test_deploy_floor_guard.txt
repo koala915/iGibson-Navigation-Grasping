@@ -1,0 +1,22 @@
+b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_link============================================================================
+deployment floor guard  (margin 8 mm, line z >= 8.0 mm, sweep 8 samples)
+requirement: the COMMAND the guard returns must never sweep below the line
+============================================================================
+  near-floor poses generated: 200 (skipped 0)
+  descend         worst commanded sweep =   +8.008 mm
+  greedy          worst commanded sweep =   +8.047 mm
+  jaw_close_only  worst commanded sweep =   +8.002 mm
+  random          worst commanded sweep =   +8.826 mm
+  from_below trials that were genuinely below the line: 0
+  guard clamped 291x, refused 0x
+============================================================================
+all 641 checks passed — deployment guard is preventive
+
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.

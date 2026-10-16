@@ -769,6 +769,16 @@ def build_homography_payload(args,
                      f"{transform_note}")
 
 
+def write_frame_health(path, shape, inference_s):
+    import os
+    target = Path(path)
+    temporary = target.with_name(target.name + '.%d.tmp' % os.getpid())
+    temporary.write_text(json.dumps(dict(pid=os.getpid(), monotonic=time.monotonic(),
+                                        height=int(shape[0]), width=int(shape[1]),
+                                        inference_s=float(inference_s))) + '\n')
+    temporary.replace(target)
+
+
 def parse_args():
     p = argparse.ArgumentParser(description="X3Plus vision → grasp TCP bridge")
     p.add_argument("--host", default="127.0.0.1", help="grasp controller host (default 127.0.0.1)")
@@ -778,6 +788,8 @@ def parse_args():
     p.add_argument("--conf", type=float, default=0.3, help="YOLO confidence threshold (default 0.3)")
     p.add_argument("--imgsz", type=int, default=IMG_SIZE, help="YOLO inference size (default 640)")
     p.add_argument("--rate", type=float, default=0.3, help="min seconds between sends (default 0.3)")
+    p.add_argument("--health-file", default=None,
+                   help="atomic frame/inference heartbeat for the resident demo")
     p.add_argument("--status-udp", default=None, metavar="HOST:PORT",
                    help="publish detection telemetry to the operator console "
                         f"(e.g. {mission_status.DEFAULT_ENDPOINT}). Fire-and-forget.")
@@ -1086,6 +1098,8 @@ def main():
             t_infer = time.monotonic()
             result = model.predict(source=frame, conf=args.conf, imgsz=args.imgsz, verbose=False)[0]
             dt_infer = time.monotonic() - t_infer
+            if args.health_file:
+                write_frame_health(args.health_file, frame.shape, dt_infer)
             infer_ema = dt_infer if infer_ema is None else 0.9 * infer_ema + 0.1 * dt_infer
             annotated = result.plot() if args.show else None
 

@@ -1,0 +1,11 @@
+{
+  "file": "/home/jetson/Documents/deploy_jetson2/integration/g2_turn_probe.py",
+  "backup": "/home/jetson/odom_calibration_backups_20261016/g2_turn_probe_before_near_side_fix.py",
+  "old_sha256": "a17552817499b6ab8d1879c54164a672c0b83d2960d9b60534c88675afe677ff",
+  "new_sha256": "bc33dee41d1052670fceeabc9e2ecf5860046816431e0491edf1c9ab402e3846",
+  "changed_only": "SIDE_SELF_MASK_M 0.35 to measured body half-width 0.12 plus explanatory docstring",
+  "validation": "32 related pytest tests; 6 recorded scan replays; Jetson read-only probe",
+  "probe": "[g2-turn] read-only front_x_m=1.102 yaw_deg=1.50 wz=0.000\n[g2-turn] side_gate=side_left+side_right distance_m=0.169\n[g2-turn] probe OK; no motor command sent\n",
+  "motion_sent": false,
+  "service_restarted": false
+}

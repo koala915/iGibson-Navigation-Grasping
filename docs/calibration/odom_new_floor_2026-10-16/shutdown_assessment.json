@@ -1,0 +1,125 @@
+{
+  "summary": {
+    "elapsed_s": 1398.7129735589997,
+    "samples": 685,
+    "min_available_mb": 1749.0234375,
+    "first_rss_mb": {
+      "grasp-service": 507.37109375,
+      "grasp-vision": 301.55078125
+    },
+    "last_rss_mb": {
+      "grasp-service": 505.34375,
+      "grasp-vision": 298.51953125
+    },
+    "topics": {},
+    "complete": false
+  },
+  "samples": 685,
+  "first": {
+    "elapsed_s": 0.0598282549999567,
+    "time": 1792163796.8365626,
+    "available_mb": 1788.80078125,
+    "rss_mb": {
+      "grasp-service": 507.37109375,
+      "grasp-vision": 301.55078125
+    },
+    "topics": {},
+    "ros_sampling_enabled": false,
+    "monitor_sampling_ms": {}
+  },
+  "last": {
+    "elapsed_s": 1397.8239751190004,
+    "time": 1792165194.6007113,
+    "available_mb": 1792.3046875,
+    "rss_mb": {
+      "grasp-service": 505.34375,
+      "grasp-vision": 298.51953125
+    },
+    "topics": {},
+    "ros_sampling_enabled": false,
+    "monitor_sampling_ms": {}
+  },
+  "min_available_mb": 1749.0234375,
+  "max_available_mb": 2295.07421875,
+  "health": {
+    "ok": true,
+    "serial": null,
+    "stack_version": "v23",
+    "service_pid": 2518,
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip",
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+    "holding": false,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": null,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.01,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 17245,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "rss_mb": 505.3,
+    "uptime_s": 866.9,
+    "capabilities": {
+      "independent_health": true,
+      "owner_restart": false,
+      "serial_transport_diagnostics": false
+    }
+  },
+  "monitor": {
+    "state": "parked",
+    "monotonic": 9013.792050936,
+    "pid": 20577,
+    "scope": "control_vision",
+    "owner_restart_enabled": false,
+    "service_pid": 2518,
+    "serial": null,
+    "reason": "maintenance lock retained; no automatic unlock",
+    "repairs": {
+      "grasp-vision": 1
+    }
+  }
+}

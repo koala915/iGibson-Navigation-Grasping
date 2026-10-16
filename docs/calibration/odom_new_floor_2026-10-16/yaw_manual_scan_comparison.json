@@ -1,0 +1,45 @@
+{
+  "purpose": "diagnostic scan comparison only; not motor yaw calibration",
+  "registration_candidates": [
+    {
+      "initial_deg": 0,
+      "fitted_deg": -21.6,
+      "translation_m": [
+        0.22251115497217172,
+        0.0377603919375316
+      ],
+      "trimmed_rmse_m": 0.1312,
+      "fraction_under_3cm": 0.085
+    },
+    {
+      "initial_deg": 90,
+      "fitted_deg": 88.7,
+      "translation_m": [
+        0.12685481932556789,
+        -0.05655606880320891
+      ],
+      "trimmed_rmse_m": 0.0116,
+      "fraction_under_3cm": 0.663
+    },
+    {
+      "initial_deg": -90,
+      "fitted_deg": -93.19,
+      "translation_m": [
+        0.18460717356637057,
+        0.3691004157679892
+      ],
+      "trimmed_rmse_m": 0.0474,
+      "fraction_under_3cm": 0.411
+    },
+    {
+      "initial_deg": 180,
+      "fitted_deg": -156.45,
+      "translation_m": [
+        0.3382428145987372,
+        -0.015045041879606985
+      ],
+      "trimmed_rmse_m": 0.1456,
+      "fraction_under_3cm": 0.093
+    }
+  ]
+}

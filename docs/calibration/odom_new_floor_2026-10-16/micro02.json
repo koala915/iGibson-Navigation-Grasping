@@ -1,0 +1,154 @@
+{
+  "trial": "micro02",
+  "pulse_s_requested": 0.08,
+  "pulse_s_until_stop_call": 0.08523902100000669,
+  "speed_command_mps": 0.15,
+  "velocity_command_count": 2,
+  "reason": "pulse_complete",
+  "settled": true,
+  "stop_odom_forward_m": 0.0,
+  "odom_forward_m": 0.007563535669527149,
+  "measured_actual_m": 0.006,
+  "start": {
+    "x": 0.8961749943910516,
+    "y": 0.019963487394517566,
+    "yaw": 0.02981592254910037
+  },
+  "final": {
+    "x": 0.9037309936884479,
+    "y": 0.02032894107842278,
+    "yaw": 0.024031490618031448
+  },
+  "samples_after_stop": [
+    {
+      "t_since_stop_s": 0.12174830399999337,
+      "forward_m": 0.004750940394189418,
+      "vx": 0.054113327184000005,
+      "wz": -0.046316970150000004
+    },
+    {
+      "t_since_stop_s": 0.15594803900012266,
+      "forward_m": 0.006350462325724607,
+      "vx": 0.031888210662000004,
+      "wz": -0.01084014195
+    },
+    {
+      "t_since_stop_s": 0.2406163269999979,
+      "forward_m": 0.007078138425224297,
+      "vx": 0.014494641209999999,
+      "wz": -0.02266575135
+    },
+    {
+      "t_since_stop_s": 0.3233109020000029,
+      "forward_m": 0.007563535669527149,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.40617511400000694,
+      "forward_m": 0.007563535669527149,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.4453890520001096,
+      "forward_m": 0.007563535669527149,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.5284690470000442,
+      "forward_m": 0.007563535669527149,
+      "vx": 0.0,
+      "wz": 0.0
+    },
+    {
+      "t_since_stop_s": 0.6113677910000206,
+      "forward_m": 0.007563535669527149,
+      "vx": 0.0,
+      "wz": 0.0
+    }
+  ],
+  "status_after": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": 0.73,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 21794,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.9037,
+        0.0203,
+        0.024
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 506.4,
+    "uptime_s": 1094.9
+  },
+  "memory_available_mb_after": 2025.81640625,
+  "floor": "new_board_user_2026-10-16",
+  "note": "Same bounded pulse procedure as micro01; measured repetition, not distance-controller acceptance.",
+  "measurement_note": "User ruler reading 0.6 cm for micro02 segment.",
+  "odom_minus_actual_m": 0.0015635356695271486
+}

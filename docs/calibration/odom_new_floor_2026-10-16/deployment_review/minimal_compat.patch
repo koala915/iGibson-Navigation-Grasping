@@ -1,0 +1,25 @@
+--- a/grasp/v23/grasp_service.py
++++ b/grasp/v23/grasp_service.py
+@@ -161,7 +161,3 @@
+-        """Cached diagnostics only: never requests servo/serial transactions."""
+-        return {"ok": True, "chassis": self.chassis.status() if self.chassis else None,
+-                "odom": self.odom_bridge.status() if self.odom_bridge else None,
+-                "startup_pose": self.startup_pose,
+-                "chassis_tcp_ready": self.chassis_tcp_ready,
+-                "rss_mb": round(rss_mb(), 1),
+-                "uptime_s": round(time.monotonic()-self.started_monotonic, 1)}
++        """Independent cached snapshot; never performs a servo transaction."""
++        from legacy_health_compat import health_snapshot
++        return health_snapshot(self,rss_mb())
+@@ -515,0 +512,4 @@
++        from health_server import HealthServer
++        health_path='/tmp/grasp_health.sock' if self.sock_path=='/tmp/grasp_service.sock' else self.sock_path+'.health'
++        health_server=HealthServer(self.cmd_health,health_path)
++        health_server.start()
+@@ -590,0 +591 @@
++            health_server.close()
+--- a/integration/vision_grasp_bridge.py
++++ b/integration/vision_grasp_bridge.py
+@@ -1151,0 +1152,2 @@
++            from frame_health import write_frame_health
++            write_frame_health(os.environ.get('GRASP_VISION_HEALTH_FILE','/tmp/x3plus_vision_health.json'),frame.shape,dt_infer)

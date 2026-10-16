@@ -1,0 +1,105 @@
+{
+  "trial": "01",
+  "floor": "new_board_user_2026-10-16",
+  "target_m": 0.25,
+  "speed_mps": 0.15,
+  "stop_reason": "distance_target",
+  "odom_forward_m": 0.2916413428247282,
+  "measured_actual_m": null,
+  "start": {
+    "x": 0.0,
+    "y": 0.0,
+    "yaw": 0.0
+  },
+  "final": {
+    "x": 0.2916413428247282,
+    "y": 0.0040806043210021995,
+    "yaw": 0.023485576439798986
+  },
+  "yaw_delta_deg": 1.3456244094323635,
+  "old_linear_scale": 0.966309414,
+  "status_after": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": false,
+      "moving": false,
+      "stopped_for_s": 1.13,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 3058,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        0.2916,
+        0.0041,
+        0.0235
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 506.0,
+    "uptime_s": 153.6
+  },
+  "memory_available_mb_before": 2048.80859375,
+  "client_sha256": "cd1bbebda522e52ebd0445df41441e6d2dbc84f10d24d4a9bcb6dd66116ae247",
+  "measured_actual_interval_m": [
+    0.28,
+    0.29
+  ],
+  "measurement_note": "User approximate ruler reading 28-29 cm; do not treat midpoint as exact."
+}

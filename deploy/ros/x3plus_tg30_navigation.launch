@@ -1,4 +1,5 @@
 <launch>
+  <arg name="self_filter_profile" default="/home/jetson/Documents/deploy_jetson2/deploy/ros/lidar_self_returns_2026-10-16.json"/>
   <!--
     X3Plus TG30 navigation launch, measured on the real robot on 2026-09-27.
 
@@ -16,6 +17,7 @@
         pkg="ydlidar_ros_driver"
         type="ydlidar_ros_driver_node"
         output="screen">
+    <remap from="scan" to="scan_raw"/>
     <param name="port" type="string" value="/dev/ydlidar"/>
     <param name="baudrate" type="int" value="512000"/>
     <param name="frame_id" type="string" value="laser"/>
@@ -34,6 +36,11 @@
     <param name="frequency" type="double" value="10.0"/>
     <param name="sample_rate" type="int" value="20"/>
     <param name="ignore_array" type="string" value=""/>
+  </node>
+
+  <node name="g2_self_return_filter" pkg="x3plus_g2_lidar" type="g2_self_return_filter.py"
+        output="screen" required="true">
+    <param name="profile" value="$(arg self_filter_profile)"/>
   </node>
 
   <node name="base_footprint_to_base_link"

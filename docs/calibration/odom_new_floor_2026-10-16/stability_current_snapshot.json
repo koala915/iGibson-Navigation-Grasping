@@ -1,0 +1,104 @@
+{
+  "elapsed_s": 61.33722192799996,
+  "samples": 31,
+  "min_available_mb": 1754.63671875,
+  "first_rss_mb": {
+    "grasp-service": 507.37109375,
+    "grasp-vision": 301.55078125
+  },
+  "last_rss_mb": {
+    "grasp-service": 507.37109375,
+    "grasp-vision": 296.9140625
+  },
+  "ros_sampling_enabled": false,
+  "complete": false,
+  "status": {
+    "ok": true,
+    "episodes": 0,
+    "last": null,
+    "servo_deg": [
+      90.0,
+      140.0,
+      0.0,
+      0.0,
+      90.0,
+      30.0
+    ],
+    "detection": {
+      "pos": [
+        0.26,
+        0.0,
+        0.02
+      ],
+      "height": null,
+      "fresh": false
+    },
+    "servo_read_reason": "ok",
+    "startup_pose": {
+      "enabled": true,
+      "ok": true,
+      "reason": "travel_verified",
+      "servo_deg": [
+        90.0,
+        140.0,
+        0.0,
+        0.0,
+        90.0,
+        30.0
+      ]
+    },
+    "chassis_tcp_ready": true,
+    "chassis": {
+      "motors": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "maintenance": true,
+      "moving": false,
+      "stopped_for_s": 848.31,
+      "arm_busy": false,
+      "arm_pose": "travel",
+      "pose_blocked_total": 0,
+      "board_rx_age_s": 0.0,
+      "rx_blocked_total": 0,
+      "dropped_total": 0,
+      "refused_total": 0,
+      "client": null
+    },
+    "odom": {
+      "rosbridge": true,
+      "published": 135968,
+      "skipped_invalid": 1,
+      "skipped_board_silent": 0,
+      "failures": 0,
+      "valid": true,
+      "pose": [
+        1.0312,
+        0.0398,
+        0.1645
+      ],
+      "twist": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "reason": ""
+    },
+    "rss_mb": 507.4,
+    "uptime_s": 6830.2
+  },
+  "vision_frame_report": {
+    "t": 1792163859.525,
+    "seen": false
+  },
+  "vision_frame_age_s": 0.4878201484680176,
+  "new_health_socket_exists": false,
+  "units": {
+    "grasp-service": "active",
+    "grasp-vision": "active",
+    "x3plus-g2-lidar": "active",
+    "x3plus-baseline-ram-20261016": "active"
+  }
+}

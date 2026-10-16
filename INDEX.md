@@ -24,6 +24,7 @@ Quick map for finding the right code without scanning the whole project.
 | One-process navigation + grasp | `integration/vision_grasp_pipeline.py` | `Navigator`, `run_pipeline()`, camera constants |
 | RL navigation + grasp | `integration/nav_rl_grasp_pipeline.py` | `RLNavigator`, `_rl_navigate()`, shared Rosmaster device |
 | TG30 ROS scan adapter | `integration/nav_rl.py` | `RosLaserScanSource`, `laser_scan_to_points()`, `make_lidar()` |
+| G2 navigation-only TCP client | `integration/g2_nav_client.py` | read-only `--probe`, bounded straight `--real`, LiDAR/odom fail-closed gates; **not** a full patrol |
 | set_motor/odom/ROS detailed plan | `integration/SETMOTOR_ODOM_INTEGRATION.md` | serial ownership, actuator contract, odom/TF gates |
 | Dynamic Jetson host | `set_jetson_host.ps1` | set `X3PLUS_JETSON_HOST` once per PowerShell session; no source edits needed |
 | Arm-camera TCP bridge | `integration/vision_grasp_bridge.py` | `estimate_distance()`, payload `{x,y,z,w,class}` |

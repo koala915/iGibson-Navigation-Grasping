@@ -73,6 +73,9 @@ build/
 # scratch directory.
 *.log
 
+# Bounded 10/16 hardware evidence and regression transcripts are deliverables.
+!/docs/calibration/odom_new_floor_2026-10-16/*.log
+
 # Exclude zip by default except trained models.
 # This rule fails SILENTLY: git status never mentions a model you forgot to
 # except, so a "committed" model pair can be missing on the next clone. After

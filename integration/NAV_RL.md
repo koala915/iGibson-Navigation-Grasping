@@ -10,6 +10,7 @@
 |------|------|
 | `nav_rl.py` | 執行期核心：55D obs 組裝、**訓練 plant 復刻**（2 步延遲、stall assist、近障調速、油門映射）、LiDAR→48 束轉換、VecNormalize 手動正規化、幾何煞停、`--selftest/--probe/--bench` |
 | `nav_rl_grasp_pipeline.py` | 全流程：YOLO 目標→GoalTracker（偵測間 dead-reckoning）→RL 導航避障→視覺精對位（沿用 vision_grasp_pipeline 的 ARM_ALIGN）→latch→PPO 夾取→驗證/重試 |
+| `g2_nav_client.py` | G2 常駐服務相容的**導航專用短直線驗收端**：ROS scan/odom + 0.42 m 煞車 + TCP 7000；不持有 serial、不轉彎、不夾取；見 `../docs/operations/G2_NAV_CLIENT_2026-09-28.md` |
 | `nav_best_model/ppo_nav_281440_steps.zip` + `ppo_nav_vecnormalize_281440_steps.pkl` | ★預設模型（**必成對**）。訓練機評測（seed 123×30，2026-07-10）：成功 0.600、碰撞 0.267，兩項都贏 |
 | `nav_best_model/doorway_ft_final.zip` + `doorway_ft_final_vecnormalize.pkl` | ★候選模型（**尚未升預設**）。標準任務 60 episodes：成功 0.683、碰撞 0.183；doorway 10/10。與現行相同 55D／2D／plant 契約，必須上機 A/B 後才決定 |
 | `nav_best_model/best_model.zip` + `best_vecnormalize.pkl` | 備用 checkpoint。同評測：成功 0.467、碰撞 0.367——**上機不要用**，只留作對照 |
@@ -44,9 +45,10 @@
 - TCP 7000 的 0.5 秒 watchdog 與常駐服務內的輪／臂互斥規則，會讓用戶端斷線及夾取
   期間都 fail closed。
 
-這裡只記錄決定，**本 PR 不實作 actuator 改寫**。在 koala915 完成並驗證 G2 服務之前，
-模式 C 維持現狀，仍須與 `grasp-service`／port-7000 motor service 互斥；切換成 TCP 時也
-必須保留目前幾何煞車在用戶端先把 forward command 歸零，不能只依賴遠端 watchdog。
+目前已新增獨立的 `g2_nav_client.py` 驗收端，具備經 G2 常駐服務送速度的
+用戶端與幾何煞車；**尚未執行其實車移動，也未接入模式 C 的 PPO／相機流程**。
+`nav_rl_grasp_pipeline.py` 維持現狀，仍須與 `grasp-service` 互斥，不能把
+`g2_nav_client.py --probe` 當成模式 C 實車驗收。
 
 G2 odom、TF 與 AMCL 的上機驗收步驟見
 [`../docs/operations/G2_ODOM_TF_AMCL_ACCEPTANCE_2026-09-28.md`](../docs/operations/G2_ODOM_TF_AMCL_ACCEPTANCE_2026-09-28.md)。

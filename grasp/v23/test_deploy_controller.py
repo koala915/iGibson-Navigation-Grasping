@@ -343,6 +343,53 @@ def test_tcp_forward_error_moves_control_forward_without_moving_the_object():
           "close gate uses the same corrected TCP as the policy")
 
 
+def test_tcp_height_error_asks_for_more_descent_without_moving_floor_fk():
+    print("\n[1c3] TCP depth correction asks for another 15 mm down")
+    with contextlib.redirect_stdout(io.StringIO()):
+        import x3plus_real_grasp as _X
+
+    raw = np.array([0.250, -0.010, 0.080], dtype=np.float64)
+    corrected = _X.control_tcp_position(raw, 0.020, 0.015)
+    check(np.allclose(corrected, [0.230, -0.010, 0.095]),
+          "+15mm height error adds 15mm to control TCP Z, beside the X correction")
+    check(np.allclose(_X.control_tcp_position(raw, 0.0), raw),
+          "height correction defaults to none")
+    for bad in (0.021, -0.001, float("nan")):
+        try:
+            _X.control_tcp_position(raw, 0.0, bad)
+        except ValueError:
+            check(True, f"height correction {bad} refused (bounded 0..20mm)")
+        else:
+            check(False, f"height correction {bad} refused (bounded 0..20mm)")
+
+    class StubFK:
+        @staticmethod
+        def compute(_arm, _grip):
+            return raw.copy(), np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+
+    builder = _X.ObsBuilder(StubFK(), None, None, dc.OBS_28_INCREMENTAL,
+                            tcp_height_error_m=0.015)
+    obj = np.array([0.270, -0.010, 0.0325], dtype=np.float32)
+    obs = builder.build(np.zeros(5, dtype=np.float32), -1.5, obj, 0,
+                        np.zeros(6, dtype=np.float32))
+    check(abs(float(obs[8]) - 0.095) < 1e-6, "policy tcp_pos receives the raised Z")
+    check(abs(float(obs[18]) - (0.0325 - 0.095)) < 1e-6,
+          "policy rel_pos asks for 15mm more descent")
+
+    plant = FakeServoPlant(list(_X.DeployConfig().home_deg))
+    ctrl, cfg = build(plant)
+    ctrl._wrist_z_offset = dc.episode_wrist_z_offset(0.065, 0.0325)
+    before = ctrl._grasp_geometry(obj, 0.065)
+    cfg.tcp_height_error_m = 0.015
+    after = ctrl._grasp_geometry(obj, 0.065)
+    check(abs(float(after["tcp"][2] - before["tcp"][2]) - 0.015) < 1e-9,
+          "close gate uses the same raised TCP as the policy")
+    check(after["pad_after_close_m"] == before["pad_after_close_m"],
+          "real pad height (pads_ready, floor) is not touched by the correction")
+    check(_X.DeployConfig().tcp_height_error_m == 0.0,
+          "default config keeps the training-identical TCP")
+
+
 def test_a_slipping_object_is_contact_not_a_reason_to_squeeze():
     print("")
     print("[1d] a jaw that moves SLOWER than commanded is contact too")
@@ -1505,6 +1552,7 @@ def main() -> int:
         test_small_home_residual_has_a_bounded_recovery_window,
         test_finger_error_delays_the_pads_ready_gate,
         test_tcp_forward_error_moves_control_forward_without_moving_the_object,
+        test_tcp_height_error_asks_for_more_descent_without_moving_floor_fk,
         test_a_slipping_object_is_contact_not_a_reason_to_squeeze,
         test_stage0_policy_close_uses_the_slow_tracking_detector,
         test_the_jaw_command_can_never_outrun_the_encoder,

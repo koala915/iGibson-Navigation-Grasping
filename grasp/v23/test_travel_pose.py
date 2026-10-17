@@ -7,7 +7,9 @@ jaw is told on the way, and which commands refuse to start from where.
 """
 
 from pathlib import Path
+import ast
 import sys
+import types
 
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
@@ -80,6 +82,45 @@ def svc(ctl, episode=None):
 
 def arms(ctl):
     return [m[0] for m in ctl.moves]
+
+
+def guarded_home_probe(at):
+    """Use the controller's actual guarded loop with a vetoing fake floor.
+
+    Loading that one method avoids importing model/ROS/serial dependencies. The
+    fake floor records the first physical state it receives and refuses motion,
+    so a startup/home state mistake is visible before any fake servo write.
+    """
+    import numpy as np
+
+    source_path = HERE / "x3plus_real_grasp.py"
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    controller = next(node for node in tree.body
+                      if isinstance(node, ast.ClassDef) and node.name == "GraspController")
+    method = next(node for node in controller.body
+                  if isinstance(node, ast.FunctionDef) and node.name == "move_guarded_and_verified")
+    namespace = {"np": np, "time": types.SimpleNamespace(sleep=lambda _s: None)}
+    exec(compile(ast.Module(body=[method], type_ignores=[]), str(source_path), "exec"), namespace)
+
+    c = Ctl(at)
+    # As at service startup, software initially assumes E1 while the plant is elsewhere.
+    c._current_arm_rads = list(E1[:5])
+    c._current_grip_rad = c.mapper.hw_deg_to_sim_grip(E1[5])
+    seen = {"projections": [], "writes": 0}
+
+    class Floor:
+        def project(self, arm, grip, _target_arm, _target_grip):
+            seen["projections"].append((list(arm), grip))
+            return arm, grip, {"action": "emergency_hold"}
+
+    def write(*_args, **_kw):
+        seen["writes"] += 1
+        return True
+
+    c.floor_guard = Floor()
+    c.servo.send_degrees = write
+    c.move_guarded_and_verified = types.MethodType(namespace["move_guarded_and_verified"], c)
+    return c, seen
 
 
 def main():
@@ -183,6 +224,51 @@ def main():
     r = svc(c).run_arm_command(svc(c).cmd_home)
     ok(r["reason"] == "servo_read_failed" and c.moves == [],
        "unreadable encoders: the arm command refuses without moving")
+
+    print("\n== home initializes the first FloorGuard check from the encoders ==")
+    other = (90.0, 130.0, 38.0, 18.0, 90.0, 80.0)
+    c, seen = guarded_home_probe(other)
+    c.servo._last_deg = list(E1)
+    s = svc(c)
+    r = s.run_arm_command(s.cmd_home)
+    ok(seen["projections"] == [(list(other[:5]), c.mapper.hw_deg_to_sim_grip(other[5]))],
+       "the actual guarded loop sees the measured other-pose arm and jaw on its first projection")
+    ok(not r["ok"] and "emergency_hold" in r["reason"] and seen["writes"] == 0,
+       "the floor veto still stops home before its first servo write")
+    ok(c.servo._last_deg[:5] == list(other[:5]) and c.servo._last_deg[5] == E1[5],
+       "synchronizing physical state retains the independent jaw command rate-limit baseline")
+
+    for direct in (False, True):
+        invalid_reads = [(False, list(other)), (True, list(other[:5])),
+                         (True, list(other[:5]) + [float("inf")])]
+        for axis in range(6):
+            bad = list(other)
+            bad[axis] = float("nan")
+            invalid_reads.append((True, bad))
+        for valid, angles in invalid_reads:
+            c, seen = guarded_home_probe(other)
+            c.servo.read_degrees = lambda valid=valid, angles=angles: type(
+                "R", (), {"valid": valid, "degrees": angles})()
+            s = svc(c)
+            r = s.cmd_home() if direct else s.run_arm_command(s.cmd_home)
+            ok(r.get("reason") == "servo_read_failed"
+               and seen["projections"] == [] and seen["writes"] == 0,
+               "{} home rejects invalid/nonfinite/incomplete read before any guard or write ({})"
+               .format("direct" if direct else "routed", angles))
+
+    c, seen = guarded_home_probe(other)
+    readings = iter([(True, list(other)), (False, None)])
+
+    def lost_home_read():
+        valid, angles = next(readings, (False, None))
+        return type("R", (), {"valid": valid, "degrees": angles})()
+
+    c.servo.read_degrees = lost_home_read
+    s = svc(c)
+    r = s.run_arm_command(s.cmd_home)
+    ok(r.get("reason") == "servo_read_failed" and not seen["projections"]
+       and seen["writes"] == 0,
+       "a read lost between command admission and home does not fall back to the old E1 state")
 
     print("\n== the chassis learns the arm pose after every arm command ==")
     import chassis_server as cs

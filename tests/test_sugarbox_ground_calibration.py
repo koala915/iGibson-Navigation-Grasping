@@ -35,22 +35,24 @@ class GroundCalibrationTests(unittest.TestCase):
             path.write_text(json.dumps(data), encoding="utf-8")
             return load_calibration(path)
 
-    def test_committed_json_reads_seven_inliers_and_enforces_range(self):
+    def test_committed_json_reads_all_inliers_and_enforces_range(self):
+        # 2026-10-12 calibration: 0.55-1.40 m ahead of the front wheels, |y| <= 0.20.
         path = ROOT / "detection" / "rear_ground_homography.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         pixels = find_pixels(data)
         expected = [[row["u"], row["v"]] for row in data["samples"]
                     if row.get("inlier", True) != False]
-        self.assertEqual(len(pixels), 7)
+        self.assertEqual(len(pixels), 16)
         np.testing.assert_array_equal(pixels, np.asarray(expected, dtype=np.float32))
         h, offset, hull = load_calibration(path)
         np.testing.assert_allclose(h, data["H_pixel_to_ground"])
         self.assertEqual(offset, 0.2)
         self.assertGreater(cv2.contourArea(hull), 0)
         self.assertTrue(inside_hull(*pixels.mean(axis=0), hull))
+        self.assertTrue(inside_hull(310, 222, hull))       # 1.40 m, centre line
         self.assertFalse(inside_hull(50, 50, hull))
-        # Sample 9 was rejected by calibration and lies beyond the allowed margin.
-        self.assertFalse(inside_hull(253, 321, hull))
+        self.assertFalse(inside_hull(310, 190, hull))      # ~2 m, never measured
+        self.assertFalse(inside_hull(325, 459, hull))      # 0.40 m, behind the gripper
 
     def test_wrong_declared_resolution_is_refused(self):
         for key, value in [("frame_width", 1280), ("frame_height", 720),

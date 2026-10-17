@@ -126,6 +126,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `ros_io.py` | rosbridge：發 `/odom_setmotor` + `odom→base_footprint` TF、收 `/amcl_pose`（含 covariance 發散門檻）與 `/trash_target/detection`（僅 `--target-source offboard` 時訂閱） |
 | `trash_target.py` | 離機 SAM2 目標的轉接層。**發布端 y 左為正、pipeline offset 右為正，這裡負號翻轉** —— 兩邊都是同範圍的 float，接錯不會報錯只會轉錯邊。逾時／無效／後方目標一律 fail closed |
 | `target_approach.py` | 選配的 offboard 近距離流程：bbox 置中後，以 odometry 量測前進 0.15 m，再交給 arm-camera ALIGN |
+| `sugarbox_lidar_geometry.py` | standalone ROS scan→robot frame；實測 yaw180°、x+0.10m；PPO保留48束nearest與1.15 scale，raw safety保留sensor原始距離／旋轉扇區，禁止用鏡射當旋轉 |
 | `nav_safety.py` | 導航命令最後一道 raw LiDAR 安全層；增強前方/側向遲滯、脫困與角速度限幅皆為 opt-in |
 | `vision_grasp_pipeline.py` | ★模式A 自走全流程：雙相機導航(set_car_motion)→handoff→PPO 夾取(obj_provider)→驗證/重試(≤3)。含 `--selftest` |
 | `vision_grasp_bridge.py` | 模式B（除錯）：辨識→算 x/y/z/寬度/高度→TCP 5555 送夾取端。payload 是 superset，v17 讀 `w`、v21 讀 `height` |
@@ -133,6 +134,43 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 | `nav_best_model/` | 導航 PPO 權重（best + checkpoint 281440，各配 vecnorm pkl，來源 igibson_x3_test） |
 | `mission_status.py` | 遙測發布器。`--status-udp` 每 tick 一個 JSON 封包（UDP），fire-and-forget，沒人聽也不影響任務 |
 | `README.md` | 兩種模式開啟流程、各檔用途、校正清單 |
+
+**2026-10-12 起總指揮預設 `--approach enoch`**：enoch 的訓練一致模式（`sugarbox_training_contract.py`，
+目標／LiDAR 以車體中心為原點、動作延遲 0），PPO 負責遠程避障，最後一段交給慢速轉向對準
+（見下），再交 E1 夾取；不置中、不搜尋、不盲走。只有這個模式允許倒車（≤0.08 m/s，
+使用者決定），其他路徑馬達層一律拒絕倒車。LiDAR 用團隊實測旋轉 180°（enoch 原版是鏡射），
+車體正側的障礙由感測器後半圈光束補上（車身回波以 ±15 cm 方框濾掉）。
+enoch 的「首次辨識即鎖定」**刻意不開**：那是他排除抖動原因的一次性診斷，會讓里程計打滑
+無法被畫面修正；盒子看得到時持續更新，看不到才靠里程計。後相機 YOLO 預設 1280。
+圍牆場地調整：PPO 射線 ×1.15（障礙看遠 15%）、前方煞車只看車身中線 ±0.17 m 的走道（同巡航）、
+PPO 只開到盒子離車體中心 `--handoff-m`（1.00 m），之後 `PursuitController` 以 0.08 m/s 前進並轉向
+（0.30–0.60 rad/s，1° 內直走；太小的轉向在低速時車子轉不動），把盒子帶到中心前
+`--final-x-m`（0.28 m；10-16 前是 0.30，停車後 E1 每次仍要再前進約 3 cm）、E1 可夾區中線再交 E1（只前進＋轉向，不橫移）。兩相機中線差 2.8 cm
+（E1 y = 後相機 y + 0.028），對準目標已補償。停車後 E1 若看到盒子但在可夾區外
+（原始 x 0.249–0.273），交接段會自動微調：手臂收回巡航姿態，太遠照粗估前進（≤6 cm）、
+下緣被切固定退 2 cm，再回 E1 重量，最多 3 次；只有通過原本檢查的讀數才夾。粗估來自 E1 bridge 的
+`--frame-report`（`/dev/shm/grasp_vision_frame.json`，由 `deploy/systemd/grasp-vision.service.d/e1-approach.conf`
+常駐開啟，同檔也常駐開上緣例外）。下緣被切的框**永不放行**：那時量到的是畫面邊框。
+E1 完全看不到時直接停，三姿態後備尚未接入。2026-10-16 第 9、11、13 次走完接近＋微調＋夾取，
+第 11 次確實夾起；第 9、13 次只夾到盒頂下 3 mm 而掉落：閉合閘門允許 TCP 高於目標 18 mm（訓練值），
+實物手指又比 URDF 短約 15 mm。v23 控制程式因此加了 `--tcp-height-error-mm`（預設讀
+`GRASP_TCP_HEIGHT_ERROR_MM`，常駐服務由 `deploy/systemd/grasp-service.service.d/tcp-height15.conf` 設 15），
+策略與閘門看到的 TCP 高 15 mm、多降 15 mm，防撞地不變；第 15 次閉合高度從 62–64 mm 降到 53 mm。
+停車前後誤差約 ±4 cm、有遠有近（第 12、14 次太遠到 E1 看不到），見 `docs/operations/sugarbox_20261016/`。
+後相機校正 2026-10-12 重做：前輪線前 0.55–1.40 m、±0.20 m，誤差約 1 cm。
+2026-10-12 實車 6 次，第 6 次距離正確、左右只差 1 mm 未夾；過程見
+`docs/planning/DUAL_CAMERA_APPROACH_GRASP_DISCUSSION_2026-10-05.md` §10.6–10.12，
+原始記錄在 `docs/operations/sugarbox_20261012/`。
+以下描述的是 `--approach legacy`。
+
+`sugarbox_rl_approach_final2.py` 的最後接近與搜尋互斥：後相機連續確認置中後，
+`FinalApproachController` 維持零角速度並以輪速里程完成預設 0.15 m 的前進，最長 3.5 s。
+這段期間物體被夾爪遮住時不切回搜尋、不重設已累積距離；感測過期、急停及原有
+raw LiDAR hard-stop／forward-block 仍優先停車。**行駛姿態的夾爪就在後相機畫面正下方**，
+近距離的盒子會被它擋住：總指揮帶 `--blind-stop-x`（首次 0.30 m）時，盒子在 0.60 m、±10°
+內丟失就沿里程計記憶直走到該距離再交給 E1，E1 手臂相機看不到就不夾。後相機在 1 m
+看盒子要 `--yolo-imgsz 1280`（640 認不到）。原地轉向至少 wz 1.0（輪速 20 轉不動）。
+手臂相機由後續 E1 夾取交接使用，不是這支 standalone 底盤接近程式的輸入。
 
 ### `ui/`（操作台）
 

@@ -1,0 +1,12 @@
+﻿python.exe : Traceback (most recent call last):
+At line:1 char:487
++ ... NG='utf-8'; & .\.venv-approach\Scripts\python.exe -c "import sys, jso ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "<string>", line 1, in <module>
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\sugarbox_approach_grasp.py", line 233, in 
+handoff
+    raise RuntimeError('no stable fresh E1 target; stopped without grasp or blind creep')
+RuntimeError: no stable fresh E1 target; stopped without grasp or blind creep

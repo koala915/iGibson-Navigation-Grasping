@@ -1,0 +1,40 @@
+[五 10月 16 16:50:24 2026] usb 1-2.4.2: USB disconnect, device number 10
+[五 10月 16 16:50:24 2026] usb 1-2.4.2: new high-speed USB device number 15 using tegra-xusb
+[五 10月 16 16:50:24 2026] usb 1-2.4.2: New USB device found, idVendor=0c45, idProduct=6340
+[五 10月 16 16:50:24 2026] usb 1-2.4.2: New USB device strings: Mfr=2, Product=1, SerialNumber=0
+[五 10月 16 16:50:24 2026] usb 1-2.4.2: Product: USB 2.0 Camera
+[五 10月 16 16:50:24 2026] usb 1-2.4.2: Manufacturer: Sonix Technology Co., Ltd.
+[五 10月 16 16:50:24 2026] uvcvideo: Found UVC 1.00 device USB 2.0 Camera (0c45:6340)
+[五 10月 16 16:50:24 2026] uvcvideo 1-2.4.2:1.0: Entity type for entity Extension 4 was not initialized!
+[五 10月 16 16:50:24 2026] uvcvideo 1-2.4.2:1.0: Entity type for entity Processing 3 was not initialized!
+[五 10月 16 16:50:24 2026] uvcvideo 1-2.4.2:1.0: Entity type for entity Camera 1 was not initialized!
+[五 10月 16 16:50:24 2026] input: USB 2.0 Camera as /devices/70090000.xusb/usb1/1-2/1-2.4/1-2.4.2/1-2.4.2:1.0/input/input5
+[五 10月 16 16:50:24 2026] usb 1-2.4.2: 3:1: cannot get freq at ep 0x84
+[五 10月 16 16:50:24 2026] Modules linked in: ch341 uvcvideo cp210x fuse ipt_MASQUERADE nf_nat_masquerade_ipv4 xt_conntrack ipt_REJECT nf_reject_ipv4 xt_tcpudp iptable_filter nf_nat_h323 nf_conntrack_h323 nf_nat_pptp nf_nat_proto_gre nf_conntrack_pptp bnep nf_conntrack_proto_gre nf_nat_tftp nf_conntrack_tftp nf_nat_sip nf_conntrack_sip nf_nat_irc nf_conntrack_irc nf_nat_ftp rtk_btusb btusb btrtl btbcm nf_conntrack_ftp btintel iptable_nat nf_conntrack_ipv4 nf_defrag_ipv4 nf_nat_ipv4 nf_nat nf_conntrack rtl8822ce cfg80211 userspace_alert binfmt_misc nvgpu ip_tables x_tables
+[五 10月 16 16:50:24 2026] [<ffffff80015b6a2c>] uvc_status_cleanup+0x3c/0x48 [uvcvideo]
+[五 10月 16 16:50:24 2026] Modules linked in: ch341 uvcvideo cp210x fuse ipt_MASQUERADE nf_nat_masquerade_ipv4 xt_conntrack ipt_REJECT nf_reject_ipv4 xt_tcpudp iptable_filter nf_nat_h323 nf_conntrack_h323 nf_nat_pptp nf_nat_proto_gre nf_conntrack_pptp bnep nf_conntrack_proto_gre nf_nat_tftp nf_conntrack_tftp nf_nat_sip nf_conntrack_sip nf_nat_irc nf_conntrack_irc nf_nat_ftp rtk_btusb btusb btrtl btbcm nf_conntrack_ftp btintel iptable_nat nf_conntrack_ipv4 nf_defrag_ipv4 nf_nat_ipv4 nf_nat nf_conntrack rtl8822ce cfg80211 userspace_alert binfmt_misc nvgpu ip_tables x_tables
+[五 10月 16 16:50:24 2026] [<ffffff80015b6a2c>] uvc_status_cleanup+0x3c/0x48 [uvcvideo]
+[五 10月 16 16:50:25 2026] Modules linked in: ch341 uvcvideo cp210x fuse ipt_MASQUERADE nf_nat_masquerade_ipv4 xt_conntrack ipt_REJECT nf_reject_ipv4 xt_tcpudp iptable_filter nf_nat_h323 nf_conntrack_h323 nf_nat_pptp nf_nat_proto_gre nf_conntrack_pptp bnep nf_conntrack_proto_gre nf_nat_tftp nf_conntrack_tftp nf_nat_sip nf_conntrack_sip nf_nat_irc nf_conntrack_irc nf_nat_ftp rtk_btusb btusb btrtl btbcm nf_conntrack_ftp btintel iptable_nat nf_conntrack_ipv4 nf_defrag_ipv4 nf_nat_ipv4 nf_nat nf_conntrack rtl8822ce cfg80211 userspace_alert binfmt_misc nvgpu ip_tables x_tables
+[五 10月 16 16:50:25 2026] [<ffffff80015b6a2c>] uvc_status_cleanup+0x3c/0x48 [uvcvideo]
+[五 10月 16 16:50:25 2026] Modules linked in: ch341 uvcvideo cp210x fuse ipt_MASQUERADE nf_nat_masquerade_ipv4 xt_conntrack ipt_REJECT nf_reject_ipv4 xt_tcpudp iptable_filter nf_nat_h323 nf_conntrack_h323 nf_nat_pptp nf_nat_proto_gre nf_conntrack_pptp bnep nf_conntrack_proto_gre nf_nat_tftp nf_conntrack_tftp nf_nat_sip nf_conntrack_sip nf_nat_irc nf_conntrack_irc nf_nat_ftp rtk_btusb btusb btrtl btbcm nf_conntrack_ftp btintel iptable_nat nf_conntrack_ipv4 nf_defrag_ipv4 nf_nat_ipv4 nf_nat nf_conntrack rtl8822ce cfg80211 userspace_alert binfmt_misc nvgpu ip_tables x_tables
+[五 10月 16 16:50:25 2026] [<ffffff80015b6a2c>] uvc_status_cleanup+0x3c/0x48 [uvcvideo]
+[五 10月 16 16:50:25 2026] Modules linked in: ch341 uvcvideo cp210x fuse ipt_MASQUERADE nf_nat_masquerade_ipv4 xt_conntrack ipt_REJECT nf_reject_ipv4 xt_tcpudp iptable_filter nf_nat_h323 nf_conntrack_h323 nf_nat_pptp nf_nat_proto_gre nf_conntrack_pptp bnep nf_conntrack_proto_gre nf_nat_tftp nf_conntrack_tftp nf_nat_sip nf_conntrack_sip nf_nat_irc nf_conntrack_irc nf_nat_ftp rtk_btusb btusb btrtl btbcm nf_conntrack_ftp btintel iptable_nat nf_conntrack_ipv4 nf_defrag_ipv4 nf_nat_ipv4 nf_nat nf_conntrack rtl8822ce cfg80211 userspace_alert binfmt_misc nvgpu ip_tables x_tables
+[五 10月 16 16:50:26 2026] usb 1-2.4.2: usb_suspend_both: status 0
+[五 10月 16 16:50:34 2026] usb 2-1-port3: config error
+[五 10月 16 16:50:34 2026] usb 1-2.4.2: 3:1: cannot get freq at ep 0x84
+[五 10月 16 16:50:34 2026] usb 1-2.4.2: 3:1: cannot get freq at ep 0x84
+[五 10月 16 16:50:42 2026] usb 1-2.4.2: usb_suspend_both: status 0
+[五 10月 16 16:50:54 2026] usb 1-2.4.2: USB disconnect, device number 15
+[五 10月 16 16:50:54 2026] usb 1-2.4.2: new high-speed USB device number 16 using tegra-xusb
+[五 10月 16 16:50:54 2026] usb 1-2.4.2: New USB device found, idVendor=0c45, idProduct=6340
+[五 10月 16 16:50:54 2026] usb 1-2.4.2: New USB device strings: Mfr=2, Product=1, SerialNumber=0
+[五 10月 16 16:50:54 2026] usb 1-2.4.2: Product: USB 2.0 Camera
+[五 10月 16 16:50:54 2026] usb 1-2.4.2: Manufacturer: Sonix Technology Co., Ltd.
+[五 10月 16 16:50:54 2026] uvcvideo: Found UVC 1.00 device USB 2.0 Camera (0c45:6340)
+[五 10月 16 16:50:54 2026] uvcvideo 1-2.4.2:1.0: Entity type for entity Extension 4 was not initialized!
+[五 10月 16 16:50:54 2026] uvcvideo 1-2.4.2:1.0: Entity type for entity Processing 3 was not initialized!
+[五 10月 16 16:50:54 2026] uvcvideo 1-2.4.2:1.0: Entity type for entity Camera 1 was not initialized!
+[五 10月 16 16:50:54 2026] input: USB 2.0 Camera as /devices/70090000.xusb/usb1/1-2/1-2.4/1-2.4.2/1-2.4.2:1.0/input/input6
+[五 10月 16 16:50:54 2026] usb 1-2.4.2: 3:1: cannot get freq at ep 0x84
+[五 10月 16 16:50:55 2026] Modules linked in: ch341 uvcvideo cp210x fuse ipt_MASQUERADE nf_nat_masquerade_ipv4 xt_conntrack ipt_REJECT nf_reject_ipv4 xt_tcpudp iptable_filter nf_nat_h323 nf_conntrack_h323 nf_nat_pptp nf_nat_proto_gre nf_conntrack_pptp bnep nf_conntrack_proto_gre nf_nat_tftp nf_conntrack_tftp nf_nat_sip nf_conntrack_sip nf_nat_irc nf_conntrack_irc nf_nat_ftp rtk_btusb btusb btrtl btbcm nf_conntrack_ftp btintel iptable_nat nf_conntrack_ipv4 nf_defrag_ipv4 nf_nat_ipv4 nf_nat nf_conntrack rtl8822ce cfg80211 userspace_alert binfmt_misc nvgpu ip_tables x_tables
+[五 10月 16 16:50:55 2026] [<ffffff80015b6a2c>] uvc_status_cleanup+0x3c/0x48 [uvcvideo]

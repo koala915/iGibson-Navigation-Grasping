@@ -71,6 +71,104 @@ class HandoffTests(unittest.TestCase):
             return result
         with self.assertRaises(RuntimeError): self.run_flow(read)
 
+    def frame(self, **overrides):
+        record = {'age': 0.4, 'seen': True, 'accepted': False, 'border': [],
+                  'estimate': [0.296, -0.005]}
+        record.update(overrides)
+        return record
+
+    def test_adjustment_only_for_a_fresh_box_rejected_ahead_or_behind_the_band(self):
+        # 2026-10-16: parked 4 cm short (bottom-centre far above the band), then
+        # crept 1.3 cm too far (bottom edge cut off).
+        self.assertAlmostEqual(runner.adjust_distance(self.frame()), 0.296 - runner.E1_AIM_X)
+        self.assertEqual(runner.adjust_distance(self.frame(border=['bottom'], estimate=None)),
+                         -runner.ADJUST_BACK_M)
+        self.assertAlmostEqual(runner.adjust_distance(self.frame(estimate=[0.24, 0.0])),
+                               0.24 - runner.E1_AIM_X)
+        self.assertEqual(runner.adjust_distance(self.frame(estimate=[0.5, 0.0])), runner.ADJUST_MAX_M)
+        for record in [None, self.frame(age=2.0), self.frame(age=-0.1), self.frame(seen=False),
+                       self.frame(accepted=True), self.frame(accepted=None),
+                       self.frame(border=['left', 'bottom']), self.frame(border=['right']),
+                       self.frame(estimate=[0.262, 0.0]), self.frame(estimate=[0.3, 0.09]),
+                       self.frame(estimate=None), self.frame(estimate=[float('nan'), 0.0])]:
+            with self.subTest(record=record):
+                self.assertIsNone(runner.adjust_distance(record))
+
+    def adjust_flow(self, frames, accept_after_moves=1):
+        self.moves = []
+
+        def read(host, cmd):
+            if cmd in ('stow', 'home'):
+                self.snapshot['chassis']['arm_pose'] = 'travel' if cmd == 'stow' else 'e1'
+            return self.read(host, cmd)
+
+        def drive(host, metres):
+            self.calls.append('drive')
+            self.moves.append(metres)
+            if len(self.moves) >= accept_after_moves:
+                self.snapshot['detection'] = {'fresh': True, 'pos': [0.26, 0, 0.0325]}
+
+        self.snapshot['detection'] = {'fresh': False, 'pos': [0.26, 0, 0.0325]}
+        return runner.handoff('host', read=read, send_stop=lambda host: self.calls.append('stop'),
+                              sleep=self.sleep, now=lambda: self.clock,
+                              look=lambda host: copy.deepcopy(frames), drive=drive)
+
+    def test_box_out_of_band_moves_in_travel_pose_then_grasps_a_fresh_reading(self):
+        self.assertTrue(self.adjust_flow(self.frame(border=['bottom'], estimate=None))['confirmed'])
+        self.assertEqual(self.moves, [-runner.ADJUST_BACK_M])
+        drive_at = self.calls.index('drive')
+        self.assertEqual(self.calls[drive_at - 2:drive_at], ['stow', 'status'])
+        self.assertIn('home', self.calls[drive_at:])
+        self.assertEqual(self.calls[-1], 'grasp')
+
+    def test_adjustment_gives_up_after_its_tries(self):
+        with self.assertRaises(RuntimeError):
+            self.adjust_flow(self.frame(), accept_after_moves=99)
+        self.assertEqual(len(self.moves), runner.ADJUST_TRIES)
+        self.assertNotIn('grasp', self.calls)
+
+    def test_flickering_detection_still_adjusts_a_box_at_the_far_edge(self):
+        # 2026-10-16: raw 0.2755 flickered between payload x 0.280/0.281 and nothing.
+        frames = iter([self.frame(estimate=[0.2755, -0.008]), self.frame(seen=False),
+                       self.frame(estimate=[0.2757, -0.008])] + [self.frame(seen=False)] * 20)
+        self.moves = []
+
+        def read(host, cmd):
+            if cmd in ('stow', 'home'):
+                self.snapshot['chassis']['arm_pose'] = 'travel' if cmd == 'stow' else 'e1'
+            return self.read(host, cmd)
+
+        def drive(host, metres):
+            self.moves.append(metres)
+            self.snapshot['detection'] = {'fresh': True, 'pos': [0.27, 0, 0.0325]}
+
+        self.snapshot['detection'] = {'fresh': False, 'pos': [0.26, 0, 0.0325]}
+        with patch('builtins.print'):
+            runner.handoff('host', read=read, send_stop=lambda host: None, sleep=self.sleep,
+                           now=lambda: self.clock, look=lambda host: next(frames), drive=drive)
+        self.assertEqual(len(self.moves), 1)
+        self.assertAlmostEqual(self.moves[0], 0.2757 - runner.E1_AIM_X)
+
+    def test_unhelpful_frames_never_drive(self):
+        for frame in [self.frame(border=['left']), self.frame(estimate=[0.262, 0.0]), None]:
+            with self.subTest(frame=frame):
+                self.setUp()
+                with self.assertRaises(RuntimeError):
+                    self.adjust_flow(frame)
+                self.assertEqual(self.moves, [])
+                self.assertNotIn('stow', self.calls)
+
+    def test_wheels_wait_for_a_confirmed_travel_pose(self):
+        def read(host, cmd):
+            return self.read(host, cmd)       # stow never reaches travel
+        self.snapshot['detection'] = {'fresh': False, 'pos': [0.26, 0, 0.0325]}
+        driven = []
+        with self.assertRaises(RuntimeError):
+            runner.handoff('host', read=read, send_stop=lambda host: None, sleep=self.sleep,
+                           now=lambda: self.clock, look=lambda host: self.frame(),
+                           drive=lambda host, m: driven.append(m))
+        self.assertEqual(driven, [])
+
     def test_failed_approach_never_hands_off(self):
         snapshot = copy.deepcopy(self.snapshot)
         snapshot['servo_deg'] = [90, 74, 8, 9, 90, 30]
@@ -201,11 +299,17 @@ class HandoffTests(unittest.TestCase):
             self.assertEqual(env['SUGARBOX_CONTRACT_ALLOW_DRIVE'], '1')
             self.assertEqual(env['SUGARBOX_RUN_MODE'], 'DRIVE')
             grasp.assert_called_once()
+            self.assertIs(grasp.call_args.kwargs['look'], runner.look)
+            self.assertIs(grasp.call_args.kwargs['drive'], runner.drive)
+            grasp.reset_mock()
+            self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot',
+                                          '--approach', 'legacy']), 0)
+            self.assertEqual(grasp.call_args.kwargs, {})     # legacy may not reverse
 
-    def test_enoch_hands_over_at_1m_and_stops_the_box_at_30cm_by_default(self):
+    def test_enoch_hands_over_at_1m_and_stops_the_box_at_28cm_by_default(self):
         env = self.launched_env([])
         self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
-                         ('1.0', '0.3'))
+                         ('1.0', '0.28'))
         env = self.launched_env(['--handoff-m', '1.0', '--final-x-m', '0.34'])
         self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
                          ('1.0', '0.34'))

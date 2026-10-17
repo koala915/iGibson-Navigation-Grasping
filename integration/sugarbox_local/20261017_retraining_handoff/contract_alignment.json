@@ -1,0 +1,137 @@
+{
+  "schema": "sugarbox-navigation-retraining-alignment-v1",
+  "date": "2026-10-17",
+  "status": "historical_snapshot_superseded_not_for_training_or_deployment",
+  "current_source_reference": {
+    "repository": "https://github.com/koala915/iGibson-Navigation-Grasping",
+    "pull_request": 9,
+    "branch": "codex/approach-lidar-frame",
+    "verified_commit": "eafba63f3ba32673738f2daa29aa8ec80686e7ab",
+    "alignment_document": "docs/handoff/SUGARBOX_PPO_CURRENT_BASELINE_2026-10-17.md",
+    "old_snapshot_must_not_overwrite_current_source": true,
+    "first_training_does_not_require_turn_hold_or_automatic_reverse_recovery": true,
+    "new_observation_dimension_finalized": false
+  },
+  "destination_repository": "https://github.com/koala915/iGibson-Navigation-Grasping",
+  "training_repository": "https://github.com/koala915/igibson_x3_test",
+  "old_training_reference_commit": "12f53c7d4e0c1ed06ac3a13def711e63aed01288",
+  "arm_policy": {
+    "mode": "fixed_cruise",
+    "pose_s1_to_s6_deg": [90, 140, 0, 0, 90, 30],
+    "staged_camera_pose_switching": false,
+    "initialize_once_then_keep_pose": true,
+    "handoff_changes_camera_not_joint_angles": true,
+    "automatic_grasp_in_recording_demo": false,
+    "non_cruise_pixel_calibrations_reusable": false
+  },
+  "existing_policy": {
+    "observation_shape": [55],
+    "action_shape": [2],
+    "observation_dtype": "float32",
+    "observation_layout": [
+      {"indices": [0, 1], "field": "body_center_goal_distance", "unit": "m"},
+      {"indices": [1, 2], "field": "sin_goal_bearing", "unit": "unitless"},
+      {"indices": [2, 3], "field": "cos_goal_bearing", "unit": "unitless"},
+      {"indices": [3, 4], "field": "unsigned_planar_speed_hypot_vx_vy", "unit": "m/s"},
+      {"indices": [4, 5], "field": "angular_velocity_z", "unit": "rad/s"},
+      {"indices": [5, 7], "field": "previous_raw_policy_action", "unit": "normalized_action"},
+      {"indices": [7, 55], "field": "48_body_center_lidar_rays", "unit": "m"}
+    ],
+    "indices_convention": "half_open_start_inclusive_end_exclusive",
+    "action_layout": ["forward_reverse_throttle", "yaw_command"],
+    "action_range": [-1.0, 1.0],
+    "independent_lateral_action": false,
+    "normalization": {
+      "requires_matching_vecnormalize": true,
+      "clip_obs": 100.0,
+      "epsilon": 1e-8,
+      "inference_training": false,
+      "inference_norm_reward": false
+    }
+  },
+  "old_training_lidar": {
+    "ray_count": 48,
+    "fov_deg": 180,
+    "endpoints_deg": [-90, 90],
+    "angular_step_deg": 3.8297872340425534,
+    "order_in_body_frame": "right_to_left",
+    "no_hit_m": 4.0,
+    "output_min_m": 0.33,
+    "output_max_m": 4.0,
+    "z_offset_from_base_position_m": 0.25,
+    "physical_raw_safety_must_remain_separate": true,
+    "scan_to_body_transform": "verify_current_driver_and_measured_evidence_do_not_guess_mirroring"
+  },
+  "geometry_user_reported_approximate": {
+    "body_width_m": 0.25,
+    "body_length_m": 0.32,
+    "lidar_center_offset_x_m": 0.09,
+    "goal_front_reference_offset_x_m": 0.135,
+    "reference_point_discrepancy_requires_check": true,
+    "point_transform": "body_hit=(range*cos(body_angle)+sensor_x,range*sin(body_angle)+sensor_y)",
+    "center_ray_reprojection": "approximation_not_exact_reconstruction_of_occluded_or_offset_origin_rays",
+    "proposed_clearance_margin_m": 0.08,
+    "proposed_margin_validated": false
+  },
+  "old_training_plant": {
+    "control_hz": 6.0,
+    "sim_dt_s": 0.03333333333333333,
+    "action_repeat": 5,
+    "artificial_delay_steps": 2,
+    "max_forward_mps": 0.5,
+    "max_reverse_mps": 0.15,
+    "max_yaw_radps": 1.2,
+    "stall_assist": {"enabled": true, "goal_distance_gt_m": 0.9, "heading_cos_gt": 0.95, "min_lidar_gt_m": 0.6, "speed_lt_mps": 0.04, "min_throttle": 0.28},
+    "near_obstacle_shaping": {"threshold_m": 0.66, "min_linear_scale": 0.24, "min_angular_scale": 0.9}
+  },
+  "current_recording_mode_source_snapshot": {
+    "source": "diagnostics/run_approach_camera_demo.py",
+    "training_contract": true,
+    "ppo_only_env_flag": false,
+    "effective_ppo_only_diagnostic_due_to_or": true,
+    "anti_jitter_apply_executed": false,
+    "footprint_guard_enabled": false,
+    "target_geometry_initial_only": true,
+    "policy_lidar_distance_scale": 1.0,
+    "artificial_delay_steps": 0,
+    "client_limits": {"forward_mps": 0.15, "reverse_mps": 0.08, "yaw_radps": 0.78},
+    "client_limiter": "limited_reference_twist_proportional_scaling_after_training_shaping",
+    "server_limits": {"forward_mps": 0.15, "reverse_mps": 0.08, "yaw_radps": 1.0, "wheel_command_abs_cap": 30},
+    "server_deadbands": {"vx_mps": 0.015, "wz_radps": 0.03},
+    "server_wheel_mapping": {
+      "linear_motor_per_mps": 200.0,
+      "angular_motor_per_radps_default": 25.0,
+      "angular_gain_environment_override": "G2_ANGULAR_MOTOR_PER_RAD_S",
+      "left": "vx*200-wz*gain",
+      "right": "vx*200+wz*gain",
+      "wheel_order": ["left", "left", "right", "right"],
+      "limit": "proportional_scale_to_peak_30_then_round_to_integer",
+      "not_a_verified_physical_velocity_model": true
+    },
+    "diagnostic_stop_distance_m": 0.45,
+    "diagnostic_stop_is_arrival": false,
+    "live_network_motor_gain_odom_not_rechecked_for_this_package": true
+  },
+  "candidate_existing_turn_filter_not_approved_as_final": {
+    "source_class": "AntiJitterSafetyFilter",
+    "near_enter_m": 0.45,
+    "near_exit_m": 0.55,
+    "min_abs_yaw_radps": 0.12,
+    "opposite_direction_confirmation_ticks": 2,
+    "waiting_output_yaw_radps": 0.0,
+    "uses_ema_or_velocity_slew": false,
+    "may_introduce_stop_start_behavior": true
+  },
+  "proposed_retraining_not_implemented": {
+    "shared_filter_required": true,
+    "filter_configuration_finalized": false,
+    "new_observation_shape": null,
+    "state_candidates": ["last_applied_twist", "held_turn_direction", "pending_turn_direction", "confirmation_count", "other_active_filter_memory"],
+    "reward_terms": ["success_once", "collision_terminal", "effective_progress", "body_clearance", "raw_action_variation", "meaningful_repeated_reversals", "unnecessary_filter_intervention", "elapsed_time"],
+    "reward_parameters_validated": false,
+    "handoff_goal_region": null,
+    "success_speed_and_hold": null,
+    "old_checkpoint_directly_compatible_with_new_observation": false,
+    "no_automatic_training_hardware_install_push_or_merge": true
+  }
+}

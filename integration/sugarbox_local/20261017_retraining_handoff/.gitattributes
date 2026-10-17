@@ -1,0 +1,2 @@
+# Preserve source snapshot bytes so manifest SHA256 values survive checkout.
+* -text

@@ -1,0 +1,32 @@
+{
+  "stall_assist_min_throttle": 0.28,
+  "stall_clearance_threshold": 0.6,
+  "stall_heading_cos_threshold": 0.95,
+  "robot_safety_radius": 0.33,
+  "near_obstacle_slowdown_dist": 0.66,
+  "collision_threshold": 0.22,
+  "near_obstacle_min_linear_scale": 0.24,
+  "near_obstacle_min_angular_scale": 0.9,
+  "obstacle_turn_bonus_dist": 0.78,
+  "obstacle_turn_bonus_scale": 0.36,
+  "reward_obstacle_proximity": -0.35,
+  "reward_collision": -150.0,
+
+  "waypoint_mode": true,
+  "waypoint_count": 2,
+  "waypoint_count_random": true,
+  "waypoint_pass_threshold": 0.5,
+  "waypoint_reward": 120.0,
+  "waypoint_dist_min": 0.5,
+  "waypoint_dist_max": 2.5,
+  "moving_start_prob": 0.5,
+  "moving_start_throttle_max": 0.8,
+
+  "open_doors": true,
+  "doorway_chain_prob": 0.35,
+  "doorway_pre_post_offset": 0.6,
+
+  "reward_action_smoothness": -0.05,
+  "reward_obstacle_close": -1.0,
+  "obstacle_close_dist": 0.25
+}

@@ -1,0 +1,81 @@
+{
+  "schema": "sugarbox-source-handoff-manifest-v1",
+  "date": "2026-10-17",
+  "destination_repository": "https://github.com/koala915/iGibson-Navigation-Grasping",
+  "status": "historical_snapshot_not_current_deployment_or_training_configuration",
+  "files": [
+    {
+      "path": "PPO_RETRAINING_HANDOFF_2026-10-17.md",
+      "sha256": "580edf8fdedd8b96c4d3bcd8ebe6ebb451dfaa870f499bc66344bc11e97b1f8d",
+      "bytes": 15766
+    },
+    {
+      "path": "README.md",
+      "sha256": "334d693da8f20925c8d983f6804aba05cb9a316251b999143f8774abdb81164f",
+      "bytes": 5020
+    },
+    {
+      "path": "artifact_fingerprints.json",
+      "sha256": "2544d2b7352906fff5956a5f9f99084db43abb4db047e9be3dda8281a22b82b6",
+      "bytes": 1083
+    },
+    {
+      "path": "contract_alignment.json",
+      "sha256": "67817d3712c1b742a8c32b6059668bc25b9307e62ae03ad25f1a6360f50bdb66",
+      "bytes": 6362
+    },
+    {
+      "path": "diagnostics/run_approach_camera_demo.py",
+      "sha256": "30c837d0ca370ab28f3373f26dd1aa95edf8ee603ea2b3506a0042ad835bcb2a",
+      "bytes": 7875
+    },
+    {
+      "path": "integration/sugarbox_navigation_handoff.py",
+      "sha256": "4b9295cd8df8bf84b700b66cc0c5131cfea60b8951a04e40ff349243258f707e",
+      "bytes": 1028
+    },
+    {
+      "path": "integration/sugarbox_rl_approach_final2.py",
+      "sha256": "56ec8b1634e94abd1cae1db889f9b8a516bb924e0992f7d5887db58915f60872",
+      "bytes": 186752
+    },
+    {
+      "path": "integration/sugarbox_training_contract.py",
+      "sha256": "646d0f5fa19f7b61e41cba7a93dd14f1916fd078e5a583c2dda4dcb37a00df3e",
+      "bytes": 7588
+    },
+    {
+      "path": "reference/doorway_ft_training_config.json",
+      "sha256": "e8cba1d0f72f648efbf0d878d22013a3bb25efe8a7e98c5153a7d387c6a08e14",
+      "bytes": 926
+    },
+    {
+      "path": "tests/test_approach_camera_demo.py",
+      "sha256": "3f102a9d8ced9af6ba8276fa1067035cdfbe4c8ea4c39c152273a6c6d00b6f14",
+      "bytes": 2740
+    },
+    {
+      "path": "tests/test_training_contract_reference.py",
+      "sha256": "6c7d8323c39a67c07fcc9391ae722f4dd1c092e1cc7d3bb40bb94b5b0a235aa5",
+      "bytes": 11819
+    },
+    {
+      "path": "tests/test_turn_filter.py",
+      "sha256": "125dfb963354c93f0fe5210570a8b229bce55d5622832e46b6f1523eae8d3260",
+      "bytes": 2641
+    }
+  ],
+  "manifest_is_not_self_hashed": true,
+  "model_weights_photos_videos_raw_logs_credentials_scene_assets_included": false,
+  "external_reference_not_included": [
+    "current Jetson feedback_odom.py",
+    "training repository checkout",
+    "matching model and VecNormalize binaries"
+  ],
+  "current_baseline": {
+    "branch": "codex/approach-lidar-frame",
+    "commit": "eafba63f3ba32673738f2daa29aa8ec80686e7ab",
+    "pull_request": 9,
+    "alignment_document": "docs/handoff/SUGARBOX_PPO_CURRENT_BASELINE_2026-10-17.md"
+  }
+}

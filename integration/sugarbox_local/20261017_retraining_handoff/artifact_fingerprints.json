@@ -1,0 +1,38 @@
+{
+  "checked_date": "2026-10-17",
+  "binaries_included": false,
+  "model": {
+    "filename": "doorway_ft_final.zip",
+    "sha256": "af5e9e1d5ce0115de8b4bbb321873c6a99686c82c0c69d060f881bbe97b64f35",
+    "bytes": 226182
+  },
+  "normalizer": {
+    "filename": "doorway_ft_final_vecnormalize.pkl",
+    "sha256": "3cd4ef9ab5b0fa38058b5142b1cc5b5df1ba9c440f325ff81b88d5e6ca7a8cdf",
+    "bytes": 3235
+  },
+  "model_archive_metadata": {
+    "stable_baselines3_version": "2.2.1",
+    "num_timesteps": 400224,
+    "n_steps": 2048,
+    "gamma": 0.99,
+    "n_envs": 1
+  },
+  "trusted_local_offline_audit": {
+    "model_observation_shape": [
+      55
+    ],
+    "model_action_shape": [
+      2
+    ],
+    "vecnormalize_observation_shape": [
+      55
+    ],
+    "clip_obs": 100.0,
+    "finite_stats": true,
+    "positive_variances": true,
+    "source": "audit_policy_contract.py --training-contract completed 2026-10-17",
+    "not_physical_validation": true
+  },
+  "lineage_note": "Archive metadata num_timesteps differs from historical handoff checkpoint 398304; do not silently equate them."
+}

@@ -72,6 +72,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import socket
 import statistics
 import sys
@@ -645,6 +646,63 @@ def policy_ranges(args) -> Tuple[Tuple[float, float], Tuple[float, float]]:
     return x_range, y_range
 
 
+def rough_floor_estimate(args, box_xyxy: Tuple[float, float, float, float]):
+    """Base XY of the bbox bottom-centre, extrapolated past the calibration hull.
+
+    Only for a supervisor deciding which way to drive the chassis before looking
+    again; it never becomes a grasp target (payloads still go through
+    build_homography_payload). Raw homography, before the grasp forward offset.
+    None when the bottom edge is clipped: the bottom-centre is then the frame
+    edge, and the box meets the floor somewhere nearer by an unknown amount.
+    """
+    x1, y1, x2, y2 = box_xyxy
+    if (getattr(args, "homography_matrix", None) is None
+            or "bottom" in acg.bbox_border_hits(x1, y1, x2, y2)):
+        return None
+    try:
+        try:
+            from .grasp_home_homography import apply_homography
+        except ImportError:
+            from grasp_home_homography import apply_homography
+        u, v = acg.undistort_pixel((x1 + x2) / 2.0, y2)
+        x, y = (float(value) for value in
+                apply_homography(args.homography_matrix, (u, v)))
+    except Exception:
+        return None
+    if not (math.isfinite(x) and math.isfinite(y)):
+        return None
+    return [round(x, 4), round(y, 4)]
+
+
+def frame_report_record(args, box_xyxy, payload, note, clock=time.time) -> dict:
+    """What this frame showed, including boxes the gates rejected."""
+    if box_xyxy is None:
+        return {"t": round(clock(), 3), "seen": False}
+    x1, y1, x2, y2 = box_xyxy
+    return {"t": round(clock(), 3), "seen": True,
+            "bbox": [round(float(value), 1) for value in box_xyxy],
+            "border": list(acg.bbox_border_hits(x1, y1, x2, y2)),
+            "accepted": payload is not None, "note": note,
+            "estimate": rough_floor_estimate(args, box_xyxy)}
+
+
+_frame_report_failed = False
+
+
+def write_frame_report(path, record: dict) -> None:
+    """Replace the report atomically so a reader never sees half a file."""
+    global _frame_report_failed
+    tmp = str(path) + ".tmp"
+    try:
+        with open(tmp, "w") as handle:
+            json.dump(record, handle)
+        os.replace(tmp, str(path))
+    except OSError as exc:
+        if not _frame_report_failed:
+            print(f"[bridge] WARN: cannot write frame report {path}: {exc}")
+        _frame_report_failed = True
+
+
 def apply_grasp_forward_offset(
         xy: Tuple[float, float], offset_mm: float) -> Tuple[float, float]:
     """Translate a homography result in base +X without changing its width.
@@ -803,6 +861,11 @@ def parse_args():
                    help="advanced: explicit arm-camera pose registry name")
     p.add_argument("--homography", default=None,
                    help="verified grasp-home pixel-to-base calibration JSON")
+    p.add_argument("--frame-report", default=None, metavar="PATH",
+                   help="rewrite PATH (use tmpfs, e.g. /dev/shm) every frame with what "
+                        "the camera saw, including boxes the gates rejected and a rough "
+                        "extrapolated floor position, so a supervisor can move the "
+                        "chassis and look again. Never a grasp target.")
     p.add_argument("--allow-top-clipped-grasp-home", action="store_true",
                    help="with a measured grasp-home homography only, accept a bbox "
                         "that touches the TOP edge alone. Its bottom-centre and "
@@ -1127,7 +1190,12 @@ def main():
                     elif not args.calibration_only:
                         print(f"[bridge] dropped {class_name}: {note}")
                     last_note = note
+            if args.frame_report and not args.calibration_only:
+                write_frame_report(args.frame_report, frame_report_record(
+                    args, None if box is None else (x1, y1, x2, y2),
+                    payload, None if box is None else note))
 
+            if box is not None:
                 if args.show and annotated is not None:
                     cx_box = (x1 + x2) / 2.0
                     cv2.circle(annotated, (int(cx_box), int(y2)), 6, (0, 0, 255), -1)

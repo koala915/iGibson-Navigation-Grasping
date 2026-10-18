@@ -356,7 +356,8 @@ class TurnSafetyTests(unittest.TestCase):
             with self.subTest(line=call.lineno):
                 self.assertTrue(used & filters, 'wheel command without a safety filter')
             checked += 1
-        self.assertEqual(checked, 6)   # blind, search, centering, steer-in, final, avoidance
+        # blind, search, centering, steer-in, final, seed facing, avoidance
+        self.assertEqual(checked, 7)
 
     def test_stale_scan_or_odometry_stops_every_branch(self):
         gate = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)

@@ -25,7 +25,7 @@ SETTINGS = {'RUN_MODE', 'CONTRACT_HANDOFF_CENTER_M', 'TARGET_KIND', 'CONTRACT_FI
             'CONTRACT_AIM_Y_M', 'SEED_MIN_M', 'FAR_SEED', 'FAR_SEED_FRAMES',
             'FAR_SEED_MAX_ERROR_M', 'SEED_GIVE_UP_CENTER_M', 'TRAINING_CONTRACT'}
 FUNCTIONS = {'get_age', 'arrival_record', 'write_arrival_report', 'coarse_ground'}
-CLASSES = {'TargetState', 'FarSighting'}
+CLASSES = {'TargetState', 'FarSighting', 'SeedFacing'}
 
 
 def engine(env=None):
@@ -146,6 +146,42 @@ class FarSeedTests(unittest.TestCase):
         rt = self.rt
         self.assertLess(rt['SEED_GIVE_UP_CENTER_M'], rt['CONTRACT_HANDOFF_CENTER_M'])
         self.assertGreater(rt['SEED_GIVE_UP_CENTER_M'], 0.64)
+
+
+class SeedFacingTests(unittest.TestCase):
+    """2026-10-18: a far sighting 25 deg to the left never entered the calibrated
+    strip while the policy drove on; the seed is now faced first."""
+
+    def setUp(self):
+        self.rt = engine({'SUGARBOX_TRAINING_CONTRACT': '1', 'SUGARBOX_FAR_SEED': '1'})
+        self.face = self.rt['SeedFacing']()
+        self.target = self.rt['TargetState']()
+
+    def at(self, degrees, seeded=True):
+        self.target.seed(math.cos(math.radians(degrees)), math.sin(math.radians(degrees)), 0.0)
+        self.target.seeded = seeded
+        return self.face.command(self.target)
+
+    def test_turns_in_place_toward_a_seed_off_to_the_side_until_it_is_ahead(self):
+        self.assertEqual(self.at(25.0), self.rt['TURN_MIN_WZ'])       # left is +wz
+        self.assertEqual(self.at(8.0), self.rt['TURN_MIN_WZ'])        # keeps turning
+        self.assertEqual(self.at(4.0), 0.0)                           # faced: policy's turn
+        self.assertEqual(self.at(10.0), 0.0)                          # small drift: no restart
+        self.assertEqual(self.at(-15.0), -self.rt['TURN_MIN_WZ'])
+
+    def test_a_measured_box_is_never_turned_to_by_this(self):
+        self.assertEqual(self.at(40.0, seeded=False), 0.0)
+        self.assertFalse(self.face.active)
+
+    def test_the_turn_is_fast_enough_to_move_the_chassis_in_place(self):
+        self.assertGreaterEqual(self.rt['TURN_MIN_WZ'], 1.0)
+
+    def test_facing_branch_sits_before_the_policy_and_keeps_the_safety_filter(self):
+        branch = next(n for n in ast.walk(TREE) if isinstance(n, ast.If)
+                      and 'seed_facing.command(target)' in ast.unparse(n.test))
+        body = ast.unparse(branch.body)
+        self.assertIn('anti_jitter.apply_contract(', body)
+        self.assertIn('policy_predict', ast.unparse(branch.orelse))     # the policy is the else
 
 
 class SettingsTests(unittest.TestCase):

@@ -543,6 +543,33 @@ FAR_SEED_MAX_ERROR_M = 0.40
 # run. The camera sees the box until about 0.64 m from the centre, so the policy
 # gets 20 cm past the 1.00 m handoff to bring it into the measured area.
 SEED_GIVE_UP_CENTER_M = 0.80
+# A seed off to the side is faced first, turning in place, before the policy
+# drives at it. 2026-10-18: a far sighting 0.93 m away but 0.43 m left (25 deg);
+# the policy drove on without turning enough, the box never entered the
+# calibrated strip and the run gave up at 0.79 m. Turn rate: the in-place minimum
+# (TURN_MIN_WZ); the policy's 0.78 rad/s cap would stall a pure turn.
+SEED_FACE_ENTER_DEG = 12.0
+SEED_FACE_EXIT_DEG = 5.0
+# SUGARBOX_SEARCH_SPIN=1 (placement): with no box in view at all, turn in place
+# about 26 deg at a time and look between turns, at most SEARCH_MAX_STEPS turns
+# (a full circle), then stop. After a grasp the placement box can be anywhere
+# around the robot (the user, 2026-10-18: "recognise the placement area, turn in
+# place, go to it").
+SEARCH_SPIN = os.environ.get("SUGARBOX_SEARCH_SPIN", "0") == "1"
+SEARCH_TURN_S = 0.45          # ~26 deg at TURN_MIN_WZ
+SEARCH_PAUSE_S = 1.8          # vision ~2.5 Hz, ~0.4 s late; a seed needs 3 sightings
+SEARCH_MAX_STEPS = 15
+# SUGARBOX_SEED_BACKOFF=1 (placement): a seed faced but nearer than
+# SEED_VIEW_MIN_M sits below the camera's calibrated area (it starts ~0.70 m
+# ahead of the centre), so back straight off at SEED_BACKOFF_VX until it is
+# SEED_VIEW_MIN_M + 5 cm away. 2026-10-18: a run ended 0.64 m from the box and
+# could not start again. At most SEED_BACKOFF_MAX_M in all, and only while the
+# LiDAR sees SEED_BACKOFF_REAR_CLEAR_M free behind the chassis.
+SEED_BACKOFF = os.environ.get("SUGARBOX_SEED_BACKOFF", "0") == "1"
+SEED_VIEW_MIN_M = 0.90
+SEED_BACKOFF_VX = 0.06
+SEED_BACKOFF_MAX_M = 0.40
+SEED_BACKOFF_REAR_CLEAR_M = 0.25
 # Written once when the run ends (how it ended, where the box was, the LiDAR
 # corridor ahead), so the runner can decide whether a release is safe.
 ARRIVAL_REPORT_PATH = os.environ.get("SUGARBOX_ARRIVAL_REPORT", "").strip()
@@ -3824,6 +3851,38 @@ class PursuitController:
             x, y, math.degrees(error))
 
 
+class SeedFacing:
+    """Turn in place toward a seeded box before the policy drives at it.
+
+    Active while the target is a seed and its bearing is beyond
+    SEED_FACE_ENTER_DEG, until it is within SEED_FACE_EXIT_DEG. Odometry turns
+    the seed with the robot, and a sighting refreshes it, so the turn ends on
+    the box, which then sits in the camera's calibrated strip.
+    """
+
+    def __init__(self):
+        self.active = False
+
+    def reset(self):
+        self.active = False
+
+    def command(self, target):
+        """-> wz to turn with, 0.0 when not facing."""
+        if not target.seeded:
+            self.active = False
+            return 0.0
+        bearing = math.degrees(target.bearing)
+        if not self.active and abs(bearing) > SEED_FACE_ENTER_DEG:
+            self.active = True
+            print("[SEED] box {:+.1f} deg to the side: turning in place to face it "
+                  "first".format(bearing))
+        elif self.active and abs(bearing) <= SEED_FACE_EXIT_DEG:
+            self.active = False
+            print("[SEED] facing the box ({:+.1f} deg); the policy drives at it".format(
+                bearing))
+        return math.copysign(TURN_MIN_WZ, bearing) if self.active else 0.0
+
+
 def arrival_record(arrived, blocked, arrival_reason, blocked_reason, target, now,
                    front_robust, front_min):
     """How the run ended, for the runner's release decision. JSON-safe."""
@@ -5959,6 +6018,7 @@ def main():
     center_controller = BottomCenterController()
     final_approach = FinalApproachController()
     pursuit = PursuitController()
+    seed_facing = SeedFacing()
     handoff_deferred = False
     path_blocked_ticks = 0
     blind_finish = BlindFinishController()
@@ -6737,6 +6797,7 @@ def main():
                     final_approach.reset()
                     pursuit.reset()
                     blind_finish.reset()
+                    seed_facing.reset()
 
                     last_raw_action[:] = 0.0
 
@@ -7138,6 +7199,36 @@ def main():
                         if EXIT_ON_ARRIVAL and arrived_latched:
                             motor.stop(repeat=5)
                             break
+
+
+                # ------------------------------------------------
+                # Face a seed that is off to the side (SeedFacing)
+                # ------------------------------------------------
+
+                elif TRAINING_CONTRACT and seed_facing.command(target) != 0.0:
+
+                    face_wz = math.copysign(TURN_MIN_WZ, target.bearing)
+                    last_raw_action[:] = 0.0
+                    prev_raw_action = np.zeros(2, dtype=np.float32)
+                    contract_action.reset()
+                    last_desired_vx = 0.0
+                    last_desired_wz = face_wz
+                    vx_cmd, wz_cmd, face_safety = anti_jitter.apply_contract(
+                        0.0, face_wz, front_robust, front_min,
+                        right_robust=right_side_robust,
+                        left_robust=left_side_robust,
+                        odom_vx=odom.vx, now=now)
+                    # The filter caps turns at the policy's 0.78 rad/s, which
+                    # stalls a pure turn; keep only its stop/guard decisions.
+                    if vx_cmd == 0.0 and wz_cmd * face_wz > 0.0:
+                        wz_cmd = face_wz
+                    safety_reason = "SEED_FACE bearing={:+.1f}deg | {}".format(
+                        math.degrees(target.bearing), face_safety)
+                    last_cmd_vx = float(vx_cmd)
+                    last_cmd_wz = float(wz_cmd)
+
+                    if RUN_MODE == "DRIVE":
+                        motor.send_velocity(last_cmd_vx, last_cmd_wz)
 
 
                 # ------------------------------------------------

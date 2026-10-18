@@ -57,6 +57,15 @@ ADJUST_TRIES = 3
 ADJUST_MAX_M = 0.06
 ADJUST_BACK_M = 0.02
 ADJUST_LEAD_M = 0.012
+# E1 working but seeing no box at all: creep forward and look again. 2026-10-18 on
+# the white ribbed mats, wheel odometry read 0.105-0.123 m/s at 0.08 commanded
+# over the blind last 41 cm and parked 3-6 cm short, the box beyond the top of
+# the E1 view. Odometry that over-reads only ever stops the robot short, and a
+# box it overshot would show at the bottom edge (that is a seen frame), so
+# forward is the only direction this takes.
+BLIND_CREEP_M = 0.03
+BLIND_CREEP_TRIES = 2
+BLIND_CREEP_LOOKS = 4       # fresh frames in a row that saw nothing (E1 runs at 1 Hz)
 MODEL_HASHES = {
     'doorway_ft_final.zip': 'af5e9e1d5ce0115de8b4bbb321873c6a99686c82c0c69d060f881bbe97b64f35',
     'doorway_ft_final_vecnormalize.pkl': '3cd4ef9ab5b0fa38058b5142b1cc5b5df1ba9c440f325ff81b88d5e6ca7a8cdf',
@@ -311,9 +320,12 @@ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic
 
     With look/drive, a box E1 sees outside its grasp band (twice, same direction)
     moves the chassis with the arm in travel, then E1 measures again, at most
-    ADJUST_TRIES times. Only an accepted reading is ever grasped.
+    ADJUST_TRIES times. A working E1 that sees nothing at all for
+    BLIND_CREEP_LOOKS frames creeps BLIND_CREEP_M forward instead, at most
+    BLIND_CREEP_TRIES times. Only an accepted reading is ever grasped.
     """
     adjustments = 0
+    creeps = 0
     while True:
         settle(host, read, send_stop, sleep, now)
         read(host, 'home')
@@ -321,7 +333,9 @@ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic
         sleep(2.5)
         previous = None
         move = None
+        creep = False
         hints = []
+        blank, saw_box = 0, False
         deadline = now() + 12
         while now() < deadline:
             status = read(host, 'status')
@@ -335,6 +349,7 @@ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic
                     raise RuntimeError('grasp was not confirmed')
                 return result
             previous = pos
+            saw_box = saw_box or pos is not None
             if pos is None and look is not None and adjustments < ADJUST_TRIES:
                 record = look(host)
                 step = adjust_distance(record)
@@ -352,14 +367,29 @@ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic
                         and abs(hints[0] - hints[1]) <= 0.015):
                     move = hints[1]
                     break
+                if isinstance(record, dict) and record.get('seen') is True:
+                    saw_box = True
+                elif (isinstance(record, dict) and record.get('seen') is False
+                        and 0 <= record.get('age', -1) <= FRAME_MAX_AGE_S):
+                    blank += 1
+                if not saw_box and blank >= BLIND_CREEP_LOOKS and creeps < BLIND_CREEP_TRIES:
+                    move, creep = BLIND_CREEP_M, True
+                    break
             else:
                 hints = []
             sleep(1.1)
         if move is None:
-            raise RuntimeError('no stable fresh E1 target; stopped without grasp or blind creep')
-        adjustments += 1
-        print('[ADJUST] {}/{}: E1 sees the box outside its grasp band; {} {:.3f} m'.format(
-            adjustments, ADJUST_TRIES, 'forward' if move > 0 else 'back', abs(move)), flush=True)
+            raise RuntimeError('no stable fresh E1 target; stopped without grasp')
+        if creep:
+            creeps += 1
+            print('[CREEP] {}/{}: E1 saw nothing in {} fresh frames; the box is beyond its '
+                  'view (odometry parked short); forward {:.3f} m'.format(
+                      creeps, BLIND_CREEP_TRIES, blank, move), flush=True)
+        else:
+            adjustments += 1
+            print('[ADJUST] {}/{}: E1 sees the box outside its grasp band; {} {:.3f} m'.format(
+                adjustments, ADJUST_TRIES, 'forward' if move > 0 else 'back', abs(move)),
+                flush=True)
         read(host, 'stow')
         status = read(host, 'status')
         if status.get('chassis', {}).get('arm_pose') != 'travel' or not stationary(status):

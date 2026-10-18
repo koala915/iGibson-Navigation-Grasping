@@ -160,6 +160,48 @@ class HandoffTests(unittest.TestCase):
                 self.assertEqual(self.moves, [])
                 self.assertNotIn('stow', self.calls)
 
+    def test_e1_seeing_nothing_creeps_forward_then_grasps(self):
+        # 2026-10-18, white ribbed mats: odometry ran fast over the blind last
+        # 41 cm and parked 3-6 cm short; E1 saw only the floor.
+        with patch('builtins.print'):
+            result = self.adjust_flow(self.frame(seen=False, estimate=None), accept_after_moves=2)
+        self.assertTrue(result['confirmed'])
+        self.assertEqual(self.moves, [runner.BLIND_CREEP_M] * 2)
+        drive_at = self.calls.index('drive')
+        self.assertEqual(self.calls[drive_at - 2:drive_at], ['stow', 'status'])
+
+    def test_blind_creep_is_bounded_and_forward_only(self):
+        with patch('builtins.print'), self.assertRaises(RuntimeError):
+            self.adjust_flow(self.frame(seen=False, estimate=None), accept_after_moves=99)
+        self.assertEqual(self.moves, [runner.BLIND_CREEP_M] * runner.BLIND_CREEP_TRIES)
+        self.assertNotIn('grasp', self.calls)
+        self.assertTrue(0 < runner.BLIND_CREEP_M * runner.BLIND_CREEP_TRIES <= 0.06)
+
+    def test_no_creep_without_fresh_proof_that_e1_sees_nothing(self):
+        blank = self.frame(seen=False, estimate=None)
+        cases = {'stale frames': [dict(blank, age=2.0)] * 12,
+                 'no reports': [None] * 12,
+                 'a box seen once': [blank, blank, self.frame(border=['left'])] + [blank] * 9,
+                 'too few blank frames': [blank] * (runner.BLIND_CREEP_LOOKS - 1) + [None] * 9}
+        for name, frames in cases.items():
+            with self.subTest(case=name):
+                self.setUp()
+                frames = iter(frames + [None] * 20)
+                self.moves = []
+
+                def read(host, cmd):
+                    if cmd in ('stow', 'home'):
+                        self.snapshot['chassis']['arm_pose'] = 'travel' if cmd == 'stow' else 'e1'
+                    return self.read(host, cmd)
+
+                self.snapshot['detection'] = {'fresh': False, 'pos': [0.26, 0, 0.0325]}
+                with patch('builtins.print'), self.assertRaises(RuntimeError):
+                    runner.handoff('host', read=read, send_stop=lambda host: None,
+                                   sleep=self.sleep, now=lambda: self.clock,
+                                   look=lambda host: next(frames),
+                                   drive=lambda host, m: self.moves.append(m))
+                self.assertEqual(self.moves, [])
+
     def test_wheels_wait_for_a_confirmed_travel_pose(self):
         def read(host, cmd):
             return self.read(host, cmd)       # stow never reaches travel

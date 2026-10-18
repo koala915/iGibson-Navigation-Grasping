@@ -544,6 +544,27 @@ class PlacementTests(unittest.TestCase):
             self.assertEqual(runner.main(['--dry-run', '--target', 'placement'] + argv), 0)
             return process.call_args.kwargs['env']
 
+    def test_handoff_only_skips_the_approach_and_stows_nothing_first(self):
+        # 2026-10-18: the arm camera dropped at the box; after replugging, only E1
+        # was left to do, from where the robot stood.
+        self.holding = False
+        self.status['servo_deg'] = [90, 74, 8, 9, 90, 30]
+        with patch.object(runner, 'preflight', return_value=({}, [])), \
+             patch.object(runner, 'ctl', side_effect=self.read), \
+             patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'), \
+             patch.object(runner, 'handoff', return_value={'confirmed': True}) as grasp, \
+             patch.object(runner.subprocess, 'run') as process:
+            self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot',
+                                          '--handoff-only']), 0)
+        process.assert_not_called()
+        grasp.assert_called_once()
+        self.assertIs(grasp.call_args.kwargs['look'], runner.look)
+        self.assertNotIn('stow', self.calls)
+        for argv in (['--handoff-only', '--target', 'placement'],
+                     ['--handoff-only', '--approach', 'legacy']):
+            with self.subTest(argv=argv), patch('sys.stderr'), self.assertRaises(SystemExit):
+                runner.main(argv)
+
     def test_placement_settings_reach_the_approach(self):
         env = self.launched_env([])
         self.assertEqual((env['SUGARBOX_TARGET'], env['SUGARBOX_CONTRACT_AIM_Y_M'],

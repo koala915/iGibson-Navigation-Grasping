@@ -91,3 +91,6 @@ grasp/deploy_v23/
 .venv-approach/
 # Official SAM2 download is 154 MB; fetch locally as documented, do not commit.
 /detection/models/sam2.1_b.pt
+
+# mission_loop.py run output (grasp/place logs and policy observations)
+/logs/

@@ -120,7 +120,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 |------|------|
 | `mission_pipeline.py` | ★**完整任務**：巡航→辨識→接近→夾取→送垃圾桶→續巡。單一 Py3.8 程序擁有 `/dev/myserial`，ROS 只跑感測/定位。見 `MISSION.md` |
 | `sugarbox_approach_grasp.py` / `sugarbox_rl_approach_final2.py` | Windows 的 doorway PPO 避障接近→停車→E1 新鮮辨識→v23夾取交接；預設只讀，實機需 `--real --i-am-beside-the-robot`。後相機校正已補，載入驗證使用 `sugarbox_ground_calibration.py`；未完成現場 dry-run／實機驗收，見 `docs/operations/SUGARBOX_APPROACH_GRASP_2026-10-03.md` |
-| `mission_loop.py` | 2026-10-18 決賽總控（Windows）：ncu 的地圖巡航（Jetson）→ 後相機確認糖果盒就停 → 接近＋E1 夾取 → 依常駐 AMCL 位置轉向放置盒 → 放置盒接近＋放開 → 後退 0.20 m → 續巡航。預設只做檢查，實機需 `--real --i-am-beside-the-robot`。**尚未實機測試** |
+| `mission_loop.py` | 2026-10-18 決賽總控（Windows）：ncu 的地圖巡航（Jetson）→ 後相機確認糖果盒就停 → 接近＋E1 夾取 → 依常駐 AMCL 位置轉向放置盒 → 放置盒接近＋放開 → 後退 0.20 m → 續巡航（**巡航串接尚未實機測試**）。`--no-patrol` 只跑一個物體：夾前方糖果盒 → 帶到放置盒放開（放置盒須在夾完後的後相機視野內），10/18 實機成功 2 次；`--resume-at grasp-e1|place` 從中途接著做，各段輸出存在 `logs/`。預設只做檢查，實機需 `--real --i-am-beside-the-robot` |
 | `placement_dock.py` / `placement_box_map.json` | 放置模式（`sugarbox_approach_grasp.py --target placement`）的幾何與檢查：盒子地圖位置（**尚未驗證**，未驗證時只轉向、不憑地圖開過去）、抵達報告檢查、LiDAR 牆距校正；`--where`、`--measure-wall` 兩個現場量測工具 |
 | `mission_fsm.py` | 21 狀態任務機（純邏輯，`--selftest`/`--diagram`）。強制「輪子與手臂不同時動」「換目標來源必重置 nav」 |
 | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`。含 `--validate` 與弧長重取樣（Route C 原檔最小間距只有 0.049 m） |

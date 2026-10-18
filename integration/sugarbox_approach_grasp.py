@@ -562,6 +562,10 @@ def main(argv=None):
                              'pose and --box-map, and drive at its map position until the '
                              'camera finds it (only when the map entry is verified)')
     parser.add_argument('--box-map', type=Path, default=dock.BOX_MAP)
+    parser.add_argument('--handoff-only', action='store_true',
+                        help='sugarbox: skip the approach and only run E1 (look, fine-adjust, '
+                             'grasp) from where the robot stands, e.g. after an arm-camera '
+                             'dropout stopped a run at the box')
     parser.add_argument('--wall-m', type=float, default=None,
                         help='placement: taught LiDAR distance to the wall behind the box at '
                              'the right release spot (placement_dock.py --measure-wall); the '
@@ -587,6 +591,8 @@ def main(argv=None):
         parser.error('--yolo-imgsz must be a multiple of 32 in 320..1920')
     if not placement and (args.empty_test or args.turn_to_box or args.wall_m is not None):
         parser.error('--empty-test, --turn-to-box and --wall-m are for --target placement')
+    if args.handoff_only and (placement or args.approach != 'enoch'):
+        parser.error('--handoff-only is for --target sugarbox with --approach enoch')
     if placement and args.approach != 'enoch':
         parser.error('--target placement needs --approach enoch (steer-in and arrival report)')
     if args.wall_m is not None and not (math.isfinite(args.wall_m) and 0.20 <= args.wall_m <= 1.50):
@@ -692,6 +698,10 @@ def main(argv=None):
     try:
         stop(args.host)
         time.sleep(0.6)
+        if args.handoff_only:
+            # handoff() settles, raises the arm to E1 and may fine-adjust from there.
+            print(json.dumps(handoff(args.host, look=look, drive=drive), ensure_ascii=False))
+            return 0
         ctl(args.host, 'stow')       # after a grasp the held object comes home to travel
         st = ctl(args.host, 'status')
         if st.get('chassis', {}).get('arm_pose') != 'travel':

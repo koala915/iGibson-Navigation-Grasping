@@ -4,6 +4,7 @@ import importlib.util
 import math
 from pathlib import Path
 import shlex
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -206,6 +207,141 @@ class MainTests(unittest.TestCase):
         self.assertEqual(order, ['sugarbox'])
         backing.assert_not_called()
         stopping.assert_called_once()
+
+
+class NoPatrolTests(unittest.TestCase):
+    """--no-patrol: the one-object flow that delivered twice on 2026-10-18."""
+
+    def run_main(self, argv, holding=(True,), stage_codes=None, camera='ok', problem=None):
+        calls = []
+        holding = iter(holding)
+        stage_codes = iter(stage_codes or [0, 0])
+
+        def ctl(host, cmd):
+            calls.append(cmd)
+            if cmd == 'health':
+                return {'holding': next(holding)}
+            return {'chassis': {'maintenance': False, 'arm_pose': 'travel'}}
+
+        def stage(host, argv, log_path=None):
+            calls.append(('stage', argv[1], '--handoff-only' in argv, Path(log_path).name))
+            return next(stage_codes)
+
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(mission, 'preflight', return_value=[]), \
+             patch.object(mission, 'pc_address', return_value='10.0.0.2'), \
+             patch.object(mission, 'stream_running', return_value=True), \
+             patch.object(mission, 'ensure_arm_camera',
+                          side_effect=lambda host, fix: calls.append('camera') or problem), \
+             patch.object(mission, 'arm_camera_state', return_value=camera), \
+             patch.object(mission.runner, 'ctl', side_effect=ctl), \
+             patch.object(mission.runner, 'service_command') as unlock, \
+             patch.object(mission, 'run_stage', side_effect=stage), \
+             patch.object(mission, 'patrol_until_sugarbox') as patrol, \
+             patch.object(mission, 'back_out') as backing, \
+             patch.object(mission.runner, 'stop') as stopping, \
+             patch('builtins.print') as printed:
+            code = mission.main(['--host', '10.0.0.1', '--no-patrol', '--real',
+                                 '--i-am-beside-the-robot', '--log-dir', folder] + argv)
+            text = ' '.join(str(c.args[0]) for c in printed.call_args_list if c.args)
+        patrol.assert_not_called()
+        backing.assert_not_called()
+        stopping.assert_called_once()
+        unlock.assert_not_called()                       # the service was not locked
+        return code, calls, text
+
+    def test_grasp_then_place_with_their_own_logs(self):
+        code, calls, text = self.run_main([])
+        self.assertEqual(code, 0)
+        stages = [c for c in calls if isinstance(c, tuple)]
+        self.assertEqual(stages, [('stage', 'sugarbox', False, 'grasp.log'),
+                                  ('stage', 'placement', False, 'place.log')])
+        self.assertLess(calls.index('camera'), calls.index(stages[0]))
+        self.assertIn('grasped and released', text)
+
+    def test_resume_at_the_box_only_runs_e1_then_places(self):
+        code, calls, _ = self.run_main(['--resume-at', 'grasp-e1'])
+        self.assertEqual(code, 0)
+        self.assertEqual([c for c in calls if isinstance(c, tuple)][0],
+                         ('stage', 'sugarbox', True, 'grasp.log'))
+
+    def test_resume_at_place_skips_the_grasp_and_the_arm_camera(self):
+        code, calls, _ = self.run_main(['--resume-at', 'place'], holding=())
+        self.assertEqual(code, 0)
+        self.assertEqual([c for c in calls if isinstance(c, tuple)],
+                         [('stage', 'placement', False, 'place.log')])
+        self.assertNotIn('camera', calls)
+
+    def test_an_arm_camera_dropout_says_how_to_resume(self):
+        code, calls, text = self.run_main([], stage_codes=[2], camera='unplugged')
+        self.assertEqual(code, 2)
+        self.assertEqual(len([c for c in calls if isinstance(c, tuple)]), 1)   # no placement
+        self.assertIn('--resume-at grasp-e1', text)
+
+    def test_an_unfixable_arm_camera_stops_before_any_motion(self):
+        code, calls, text = self.run_main([], problem='the arm camera is off the USB bus')
+        self.assertEqual(code, 2)
+        self.assertFalse([c for c in calls if isinstance(c, tuple)])
+        self.assertIn('off the USB bus', text)
+
+    def test_a_failed_placement_that_still_holds_says_how_to_resume(self):
+        code, _, text = self.run_main([], holding=(True, True), stage_codes=[0, 2])
+        self.assertEqual(code, 2)
+        self.assertIn('--resume-at place', text)
+
+    def test_one_object_per_run_and_resume_only_without_patrol(self):
+        for argv in (['--no-patrol', '--loops', '2'], ['--resume-at', 'place']):
+            with self.subTest(argv=argv), patch('sys.stderr'), self.assertRaises(SystemExit):
+                mission.main(['--host', '10.0.0.1'] + argv)
+
+    def test_preflight_without_patrol_needs_no_localization(self):
+        args = mission.argparse.Namespace(
+            host='10.0.0.1', no_patrol=True, resume_at=None, box_map=mission.dock.BOX_MAP,
+            homography=ROOT / 'detection/rear_ground_homography.json', gstreamer=__file__)
+        with patch.object(mission.runner, 'ctl', side_effect=lambda h, c: (
+                {'holding': False} if c == 'health'
+                else {'chassis': {'arm_pose': 'travel', 'moving': False}})), \
+             patch.object(mission.dock, 'read_localization', side_effect=OSError('down')), \
+             patch.object(mission, 'ensure_arm_camera', return_value=None):
+            self.assertEqual(mission.preflight(args), [])
+
+
+class ArmCameraTests(unittest.TestCase):
+    def test_states(self):
+        fresh = lambda host: {'seen': False, 'age': 0.3}
+        with patch.object(mission, 'arm_camera_state', return_value='unplugged'):
+            self.assertIn('replug', mission.ensure_arm_camera('h', fix=True, look=fresh))
+        with patch.object(mission, 'arm_camera_state', return_value='ok'):
+            self.assertIsNone(mission.ensure_arm_camera('h', fix=False, look=fresh))
+
+    def test_a_bridge_that_gave_up_is_restarted(self):
+        states = iter(['service_down', 'ok'])
+        with patch.object(mission, 'arm_camera_state', side_effect=lambda h: next(states)), \
+             patch.object(mission, 'ssh') as remote, patch.object(mission.time, 'sleep'), \
+             patch('builtins.print'):
+            self.assertIsNone(mission.ensure_arm_camera(
+                'h', fix=True, look=lambda host: {'seen': True, 'age': 0.2}))
+        self.assertIn('restart grasp-vision', remote.call_args.args[1])
+        with patch.object(mission, 'arm_camera_state', return_value='service_down'), \
+             patch.object(mission, 'ssh') as remote:
+            self.assertIn('restarts', mission.ensure_arm_camera('h', fix=False,
+                                                                look=lambda host: None))
+            remote.assert_not_called()
+
+
+class StageLogTests(unittest.TestCase):
+    def test_stage_output_reaches_the_terminal_and_the_log(self):
+        with tempfile.TemporaryDirectory() as folder:
+            script = Path(folder) / 'fake_runner.py'
+            script.write_text("import sys\nprint('[ARRIVED] 糖果盒 x=0.21')\nsys.exit(3)\n",
+                              encoding='utf-8')
+            log = Path(folder) / 'grasp.log'
+            with patch.object(mission, 'RUNNER', script), patch('sys.stdout') as out, \
+                 patch('builtins.print'):
+                code = mission.run_stage('10.0.0.1', [], log)
+            self.assertEqual(code, 3)
+            self.assertIn('[ARRIVED] 糖果盒 x=0.21', log.read_text(encoding='utf-8'))
+            self.assertTrue(any('[ARRIVED]' in str(c.args[0]) for c in out.write.call_args_list))
 
 
 if __name__ == '__main__':

@@ -12,9 +12,18 @@ One velocity owner at a time: the patrol is stopped with SIGTERM (it brakes and
 re-locks the service) before an approach connects, and it is never started while
 one runs. Any failure stops the loop where it is and says which stage failed.
 
+--no-patrol runs one object without the patrol, as on 2026-10-18 when it put the
+sugarbox in the placement box twice: grasp the sugarbox in front of the robot,
+then carry it to the placement box, which must be in the rear camera's view
+after the grasp (finding it from anywhere needs ncu's localization, later).
+--resume-at picks a stopped run up where it stopped: grasp-e1 after the arm
+camera dropped off USB at the box (replug it first), place once the object is
+held. Every stage's output is also saved under logs/.
+
 Default is a read-only preflight. --real needs --i-am-beside-the-robot.
 
-    python integration/mission_loop.py --host <IP>
+    python integration/mission_loop.py --host <IP> --no-patrol
+    python integration/mission_loop.py --host <IP> --no-patrol --real --i-am-beside-the-robot
     python integration/mission_loop.py --host <IP> --real --i-am-beside-the-robot
 """
 import argparse
@@ -22,6 +31,7 @@ import importlib.util
 import ipaddress
 import json
 import math
+import os
 from pathlib import Path
 import shlex
 import socket
@@ -44,6 +54,10 @@ runner = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(runner)
 
 RUNNER = ROOT / 'integration/sugarbox_approach_grasp.py'
+LOG_ROOT = ROOT / 'logs'
+# The E1 camera, on the hub it shares with the motor board; it drops off USB
+# after arm moves now and then (twice on 2026-10-18) and may need replugging.
+ARM_CAMERA = '/dev/v4l/by-id/usb-Sonix_Technology_Co.__Ltd._USB_2.0_Camera-video-index0'
 JETSON_ROOT = '/home/jetson/Documents/deploy_jetson2'
 SCENE = 'maps/demo_box_20261018_patrol'
 PATROL_OUTPUT = '/tmp/mission_patrol.json'
@@ -273,11 +287,58 @@ def patrol_until_sugarbox(host, scene, reader, watcher, box=None, now=time.monot
             stop_patrol(host, pid)
 
 
-def run_stage(host, argv):
-    """The approach runner as its own process: the one velocity owner until it exits."""
+def run_stage(host, argv, log_path=None):
+    """The approach runner as its own process: the one velocity owner until it exits.
+
+    With log_path its output goes to the terminal and to that file as it comes.
+    """
     command = [sys.executable, '-u', str(RUNNER), '--host', host] + argv
     print('[MISSION] ' + ' '.join(command[2:]), flush=True)
-    return subprocess.run(command).returncode
+    if log_path is None:
+        return subprocess.run(command).returncode
+    env = dict(os.environ, PYTHONIOENCODING='utf-8')
+    with open(log_path, 'w', encoding='utf-8') as log, subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
+            text=True, encoding='utf-8', errors='replace', bufsize=1) as proc:
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            log.write(line)
+        return proc.wait()
+
+
+def arm_camera_state(host):
+    """'ok', 'service_down' (the bridge gave up, camera present) or 'unplugged'."""
+    words = ssh(host, 'test -e {} && echo camera-present; systemctl is-active grasp-vision'
+                .format(shlex.quote(ARM_CAMERA))).stdout.split()
+    if 'camera-present' not in words:
+        return 'unplugged'
+    return 'ok' if 'active' in words else 'service_down'
+
+
+def ensure_arm_camera(host, fix, look=runner.look, wait_s=25.0):
+    """None when E1 reports fresh frames, else why not. With fix, a bridge that
+    gave up (it tries the camera three times, then exits) is restarted."""
+    state = arm_camera_state(host)
+    if state == 'unplugged':
+        return 'the arm camera is off the USB bus: replug its cable'
+
+    def fresh():
+        record = look(host)
+        return record is not None and 0 <= record.get('age', -1) <= runner.FRAME_MAX_AGE_S
+
+    if state == 'ok' and fresh():
+        return None
+    if not fix:
+        return 'the arm-camera bridge is not reporting frames (--real restarts it)'
+    print('[MISSION] restarting the arm-camera bridge (grasp-vision)', flush=True)
+    ssh(host, 'sudo -n systemctl reset-failed grasp-vision; sudo -n systemctl restart grasp-vision',
+        timeout=60)
+    deadline = time.monotonic() + wait_s
+    while time.monotonic() < deadline:
+        time.sleep(2.0)
+        if arm_camera_state(host) == 'ok' and fresh():
+            return None
+    return 'the arm-camera bridge did not come back: ' + arm_camera_state(host)
 
 
 def back_out(host, metres=BACK_OUT_M, scans=dock.read_scans, drive=runner.drive):
@@ -291,33 +352,102 @@ def back_out(host, metres=BACK_OUT_M, scans=dock.read_scans, drive=runner.drive)
 
 def preflight(args):
     issues = []
+    resume = getattr(args, 'resume_at', None)
+    holding_wanted = resume == 'place'
+    poses = ('travel', 'e1') if resume == 'grasp-e1' else ('travel',)
     try:
         status = runner.ctl(args.host, 'status')
         chassis = status.get('chassis', {})
-        if chassis.get('arm_pose') != 'travel' or chassis.get('moving') is not False:
-            issues.append('arm not in travel or chassis moving')
-        if runner.ctl(args.host, 'health').get('holding') is not False:
+        if chassis.get('arm_pose') not in poses or chassis.get('moving') is not False:
+            issues.append('arm not in {} or chassis moving'.format('/'.join(poses)))
+        holding = runner.ctl(args.host, 'health').get('holding')
+        if holding_wanted and holding is not True:
+            issues.append('nothing is held: --resume-at place needs the object in the jaw')
+        elif not holding_wanted and holding is not False:
             issues.append('the jaw holds something; release it first')
     except Exception as exc:
         issues.append('robot: ' + str(exc))
-    try:
-        dock.localization_pose(dock.read_localization(args.host))
-    except (ValueError, OSError, subprocess.SubprocessError) as exc:
-        issues.append('localization: ' + str(exc))
-    try:
-        box = dock.load_box_map(args.box_map)
-        if not box['verified']:
-            print('[WARN] placement box map not verified: the robot turns toward it but '
-                  'never drives to it unseen, and a delivered sugarbox cannot be told from '
-                  'a new one')
-    except (OSError, ValueError) as exc:
-        issues.append('placement box map: ' + str(exc))
+    if not args.no_patrol:
+        try:
+            dock.localization_pose(dock.read_localization(args.host))
+        except (ValueError, OSError, subprocess.SubprocessError) as exc:
+            issues.append('localization: ' + str(exc))
+        try:
+            box = dock.load_box_map(args.box_map)
+            if not box['verified']:
+                print('[WARN] placement box map not verified: the robot turns toward it but '
+                      'never drives to it unseen, and a delivered sugarbox cannot be told '
+                      'from a new one')
+        except (OSError, ValueError) as exc:
+            issues.append('placement box map: ' + str(exc))
+    if resume != 'place':
+        try:
+            camera = ensure_arm_camera(args.host, fix=False)
+        except (OSError, subprocess.SubprocessError) as exc:
+            camera = 'arm camera check failed: ' + str(exc)
+        if camera and 'restarts' in camera:
+            print('[WARN] ' + camera)
+        elif camera:
+            issues.append(camera)
     for path in (runner.SUGARBOX_MODEL, runner.PLACEMENT_MODEL, args.homography):
         if not Path(path).is_file():
             issues.append('missing ' + str(path))
     if args.gstreamer is None or not Path(args.gstreamer).is_file():
         issues.append('gstreamer receiver missing')
     return issues
+
+
+def grasp_and_place(args, pc_ip, log_dir):
+    """One object, no patrol: the flow that delivered twice on 2026-10-18."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    place_argv = ['--target', 'placement', '--real', '--i-am-beside-the-robot',
+                  '--obs-log', str(log_dir / 'place_obs.jsonl')]
+    if args.wall_m is not None:
+        place_argv += ['--wall-m', str(args.wall_m)]
+    stage, started = 'START', time.monotonic()
+    try:
+        if not stream_running(args.host, pc_ip):
+            start_stream(args.host, pc_ip)
+        if args.resume_at != 'place':
+            stage = 'GRASP'
+            problem = ensure_arm_camera(args.host, fix=True)
+            if problem:
+                raise MissionError(problem)
+            if runner.ctl(args.host, 'status').get('chassis', {}).get('maintenance') is True:
+                runner.service_command(args.host, 'maintenance-unlock')
+            argv = ['--target', 'sugarbox', '--real', '--i-am-beside-the-robot',
+                    '--obs-log', str(log_dir / 'grasp_obs.jsonl')]
+            if args.resume_at == 'grasp-e1':
+                argv.append('--handoff-only')
+            code = run_stage(args.host, argv, log_dir / 'grasp.log')
+            if code:
+                hint = ''
+                if arm_camera_state(args.host) == 'unplugged':
+                    hint = ('; the arm camera dropped off USB: replug it and rerun with '
+                            '--resume-at grasp-e1 (the robot can stay where it is)')
+                raise MissionError('grasp runner exit {}{}'.format(code, hint))
+            if runner.ctl(args.host, 'health').get('holding') is not True:
+                raise MissionError('grasp reported done but nothing is held')
+        stage = 'PLACE'
+        code = run_stage(args.host, place_argv, log_dir / 'place.log')
+        if code:
+            still = runner.ctl(args.host, 'health').get('holding') is True
+            raise MissionError('placement runner exit {}{}'.format(code, (
+                '; still holding: put the placement box in view and rerun with '
+                '--resume-at place') if still else ''))
+        stage = 'DONE'
+        print('[MISSION] grasped and released in {:.0f} s; logs in {}'.format(
+            time.monotonic() - started, log_dir), flush=True)
+        return 0
+    except (Exception, KeyboardInterrupt) as exc:
+        print('[MISSION] stopped in {}: {}'.format(stage, exc), flush=True)
+        print('[MISSION] logs in {}'.format(log_dir), flush=True)
+        return 2
+    finally:
+        try:
+            runner.stop(args.host)
+        except OSError as exc:
+            print('[MISSION] final stop not delivered: {}; resident watchdog remains'.format(exc))
 
 
 def main(argv=None):
@@ -332,25 +462,45 @@ def main(argv=None):
     parser.add_argument('--homography', type=Path,
                         default=Path(resolve_asset_paths(str(ROOT))['homography']))
     parser.add_argument('--gstreamer', type=Path, default=runner.find_gstreamer())
+    parser.add_argument('--no-patrol', action='store_true',
+                        help='one object, no patrol: grasp the sugarbox in front, then carry '
+                             'it to the placement box (which must then be in the rear view)')
+    parser.add_argument('--resume-at', choices=('grasp-e1', 'place'), default=None,
+                        help='with --no-patrol, pick a stopped run up: grasp-e1 (robot at the '
+                             'sugarbox, e.g. after an arm-camera dropout) or place (object held)')
+    parser.add_argument('--log-dir', type=Path, default=None,
+                        help='where each stage writes its output (default logs/mission_<time>)')
     parser.add_argument('--real', action='store_true')
     parser.add_argument('--i-am-beside-the-robot', action='store_true')
     args = parser.parse_args(argv)
     ipaddress.IPv4Address(args.host)
     if not 1 <= args.loops <= 5:
         parser.error('--loops must be 1..5')
+    if args.no_patrol and args.loops != 1:
+        parser.error('--no-patrol delivers one object; set the next one up and run again')
+    if args.resume_at and not args.no_patrol:
+        parser.error('--resume-at goes with --no-patrol')
+    log_dir = args.log_dir or LOG_ROOT / time.strftime('mission_%Y%m%d_%H%M%S')
     issues = preflight(args)
     for issue in issues:
         print('[BLOCKED] ' + issue)
     if issues:
         return 2
     pc_ip = pc_address(args.host)
-    print('[MISSION] PC {} | patrol {} | {} loop(s)'.format(pc_ip, args.scene, args.loops))
+    if args.no_patrol:
+        print('[MISSION] PC {} | one object, no patrol{}'.format(
+            pc_ip, '' if not args.resume_at else ' | resume at ' + args.resume_at))
+    else:
+        print('[MISSION] PC {} | patrol {} | {} loop(s)'.format(pc_ip, args.scene, args.loops))
     if not args.real:
-        print('[check] robot, localization, box map and files passed; no motion.')
+        print('[check] robot, cameras and files passed{}; no motion.'.format(
+            '' if args.no_patrol else ', localization, box map'))
         return 0
     if not args.i_am_beside_the_robot:
         print('[REFUSED] --real requires --i-am-beside-the-robot')
         return 3
+    if args.no_patrol:
+        return grasp_and_place(args, pc_ip, log_dir)
     from integration.rear_stream import StreamReader
     box = dock.load_box_map(args.box_map)
     place_argv = ['--target', 'placement', '--turn-to-box', '--box-map', str(args.box_map),

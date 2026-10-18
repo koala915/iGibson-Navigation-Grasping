@@ -224,6 +224,14 @@ class DeployConfig:
     # shipped 8 deg (~13 if --jaw-step-deg raises it to 12). Left at 40 so the bound
     # still holds either way.
     close_max_iters: int = 40
+    # A jaw moving on its own (the arm already where it should be, no contact
+    # watch: the release open, the empty preview close) is declared stalled only
+    # after this many reads in a row without progress. 2026-10-18: two empty
+    # previews stopped half-way after the jaw had tracked its 8 deg steps exactly
+    # for 15 and 9 reads, then repeated one reading once -- a stale read on the
+    # shared USB bus (the arm camera dropped out at the same time), not a stall;
+    # home opened the same jaw at once. Arm joints still stop on the first repeat.
+    jaw_stall_repeats: int = 3
     # Grasp proxy: this robot has no force/tactile sensor. A jaw closing on nothing
     # reaches the fully-closed stop; one closing on an object stalls short of it.
     # Require it to stall by at least this fraction of the open→closed span before
@@ -2190,6 +2198,7 @@ class GraspController:
         prev_jaw = None
         prev_jaw_cmd = None
         contact_streak = 0
+        no_progress = 0
 
         for it in range(max_iters):
             cur_arm = np.asarray(self._current_arm_rads, dtype=np.float64).reshape(-1)[:5]
@@ -2245,6 +2254,12 @@ class GraspController:
                         hw[5] = ceiling
                     elif sign < 0.0 and hw[5] < ceiling:
                         hw[5] = ceiling
+            if no_progress:
+                # Waiting out a repeated jaw read (jaw_stall_repeats): hold the jaw
+                # command where it is rather than advance it another step.
+                sent = getattr(self.servo, "_last_deg", None)
+                if sent is not None:
+                    hw[5] = float(sent[5])
             if not self.servo.send_degrees(hw, run_time_ms=run_time_ms):
                 return {"reached": False, "reason": "servo write failed",
                         "iters": it, "guard": guard_actions}
@@ -2330,10 +2345,28 @@ class GraspController:
                             "reason": (f"no progress — jaw contact at {jaw_rd:.1f} deg, "
                                        f"holding at {hold:.1f} deg"),
                             "iters": it + 1, "guard": guard_actions}
-                return {"reached": False,
-                        "reason": f"no progress (residual {err:.1f} deg) — servo stalled "
-                                  f"or target unreachable",
-                        "iters": it + 1, "guard": guard_actions, "residual_deg": err}
+                # A repeat is forgiven only for a jaw moving on its own and at most
+                # one rate-limited step behind its command (a stale read), and the
+                # jaw command then holds still (see above the send). A jaw that is
+                # really blocked is therefore never squeezed further than without
+                # this allowance: one step past contact, the size of
+                # jaw_hold_bias_deg, never the walk to the stop that grinds the
+                # gears (2026-07-31). Grasp closes take the contact branch above.
+                no_progress += 1
+                arm_err = max(abs(float(a) - float(b))
+                              for a, b in zip(rd.degrees[:5], want_hw[:5]))
+                sent = getattr(self.servo, "_last_deg", None)
+                jaw_lag = (abs(float(sent[5]) - float(rd.degrees[5]))
+                           if sent is not None else float("inf"))
+                jaw_alone = (n_err == 6 and arm_err <= tol_deg
+                             and jaw_lag <= float(self.cfg.jaw_max_delta_deg) + 1.0)
+                if not jaw_alone or no_progress >= max(1, int(self.cfg.jaw_stall_repeats)):
+                    return {"reached": False,
+                            "reason": f"no progress (residual {err:.1f} deg) — servo stalled "
+                                      f"or target unreachable",
+                            "iters": it + 1, "guard": guard_actions, "residual_deg": err}
+            else:
+                no_progress = 0
             last_err = err
 
         return {"reached": False, "reason": f"did not arrive in {max_iters} iterations",

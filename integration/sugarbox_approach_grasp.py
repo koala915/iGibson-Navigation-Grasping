@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Windows orchestration: supervised avoidance approach -> stopped E1 grasp.
+"""Windows orchestration: supervised avoidance approach -> stopped E1 grasp,
+or (--target placement) -> stopped release over the placement box.
 
 Default is a read-only preflight. The Jetson resident service remains the only
-serial owner. This runner never releases an object or starts a second motor server.
+serial owner; this runner never starts a second motor server. It releases only in
+placement mode, only after the approach reports a checked stop at the box.
 """
 import argparse
 import hashlib
@@ -12,19 +14,36 @@ import json
 import math
 import os
 from pathlib import Path
+import shlex
 import socket
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from integration.sugarbox_ground_calibration import load_ground_calibration, resolve_asset_paths
+from integration import placement_dock as dock
 
 APPROACH = ROOT / 'integration/sugarbox_rl_approach_final2.py'
 REMOTE_CTL = '/home/jetson/Documents/deploy_jetson2/grasp/v23/graspctl.py'
+SERVICE_SOCKET = '/tmp/grasp_service.sock'
+SUGARBOX_MODEL = ROOT / 'detection/models/best.pt'
+# Retrained on 70 rear-camera frames on 2026-10-18 (yolo_train
+# placement_box_yolo11_robotcam_20261018): the phone-photo model found nothing in
+# the rear camera. imgsz 640, the camera's own size.
+PLACEMENT_MODEL = ROOT / 'detection/models/placement_box.pt'
+PLACEMENT_MODEL_SHA256 = '8e256e80b770a6ff7a5a3187ab7cbeb7e30fb84a5d6a1fc1515f84a3025406a0'
+# graspctl command -> reply timeout (s). release/release-preview come from E1.
+ARM_COMMANDS = {'status': 75, 'health': 30, 'stow': 75, 'home': 75, 'grasp': 200,
+                'release': 150, 'release-preview': 150}
+# In place the chassis needs >= 1.0 rad/s (wheel speed 20 does not turn it).
+TURN_WZ = 1.0
+# Stop this much early for odometry latency and coast; to be measured on the robot.
+TURN_LEAD_RAD = 0.08
 # Written every frame by the E1 bridge (--frame-report in its systemd drop-in).
 FRAME_REPORT = '/dev/shm/grasp_vision_frame.json'
 FRAME_MAX_AGE_S = 1.5
@@ -45,17 +64,41 @@ MODEL_HASHES = {
 
 
 def ctl(host, command):
-    if command not in ('status', 'stow', 'home', 'grasp'):
+    if command not in ARM_COMMANDS:
         raise ValueError('unsupported arm command')
     result = subprocess.run(
         ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
          'jetson@' + host, 'python3 ' + REMOTE_CTL + ' ' + command],
-        capture_output=True, text=True, timeout=200 if command == 'grasp' else 75)
+        capture_output=True, text=True, timeout=ARM_COMMANDS[command])
     if result.returncode:
         raise RuntimeError('graspctl {} failed: {}'.format(command, result.stdout + result.stderr))
     value = json.loads(result.stdout)
     if value.get('ok') is not True:
         raise RuntimeError('graspctl refused: ' + str(value))
+    return value
+
+
+def service_command(host, command):
+    """ncu's maintenance lock, which graspctl does not forward (PR #5 service).
+
+    His navigation tools lock the wheels and arm when they finish; the next
+    approach needs them unlocked. The service grants either only when idle.
+    """
+    if command not in ('maintenance-lock', 'maintenance-unlock'):
+        raise ValueError('unsupported service command')
+    script = ("import socket;s=socket.socket(socket.AF_UNIX);s.settimeout(10);"
+              "s.connect({!r});s.sendall({!r});print(s.makefile().readline())").format(
+                  SERVICE_SOCKET, (command + '\n').encode())
+    result = subprocess.run(
+        ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'jetson@' + host,
+         'python3 -c ' + shlex.quote(script)],
+        capture_output=True, text=True, timeout=30)
+    try:
+        value = json.loads(result.stdout)
+    except ValueError:
+        raise RuntimeError('{} failed: {}'.format(command, result.stdout + result.stderr))
+    if value.get('ok') is not True:
+        raise RuntimeError('{} refused: {}'.format(command, value))
     return value
 
 
@@ -133,42 +176,71 @@ def look(host):
     return record
 
 
-def drive(host, metres):
+def yaw_of(q):
+    return math.atan2(2.0 * (q['w'] * q['z'] + q['x'] * q['y']),
+                      1.0 - 2.0 * (q['y'] * q['y'] + q['z'] * q['z']))
+
+
+class Odometry:
+    """Latest wheel-odometry pose (/odom_setmotor via rosbridge) for measured moves."""
+
+    def __init__(self, host):
+        import roslibpy
+        self.latest = {}
+        self.ros = roslibpy.Ros(host=host, port=9090)
+        self.ros.run()
+        self.topic = roslibpy.Topic(self.ros, '/odom_setmotor', 'nav_msgs/Odometry')
+        self.topic.subscribe(self._update)
+
+    def _update(self, message):
+        pose = message['pose']['pose']
+        self.latest = {'x': pose['position']['x'], 'y': pose['position']['y'],
+                       'yaw': yaw_of(pose['orientation']), 't': time.monotonic()}
+
+    def wait(self):
+        started = time.monotonic()
+        while not self.latest:
+            if time.monotonic() - started > 5:
+                raise RuntimeError('no odometry; wheels not moved')
+            time.sleep(0.05)
+        return dict(self.latest)
+
+    def check_fresh(self):
+        if time.monotonic() - self.latest['t'] > 0.3:
+            raise RuntimeError('odometry went stale while moving')
+
+    def close(self):
+        self.topic.unsubscribe()
+        self.ros.close()
+
+
+def drive(host, metres, limit=ADJUST_MAX_M):
     """Straight move measured by wheel odometry; the arm must already be in travel.
 
     The stop goes out ADJUST_LEAD_M early: on 2026-10-16 a 3.6 cm creep at 0.08 m/s
     sent its stop 0.5 cm late (odometry latency) and coasted another 0.8 cm.
+    Backing is 0.08 m/s, the only reverse the team allows (2026-10-12).
     """
-    import roslibpy
-    if not (math.isfinite(metres) and 0 < abs(metres) <= ADJUST_MAX_M):
-        raise ValueError('refusing adjustment of {!r} m'.format(metres))
+    if not (math.isfinite(metres) and 0 < abs(metres) <= limit <= 0.30):
+        raise ValueError('refusing a move of {!r} m'.format(metres))
     goal = max(abs(metres) - ADJUST_LEAD_M, 0.003)
     command = json.dumps({'action': 'velocity', 'vx': math.copysign(0.08, metres),
                           'wz': 0.0}).encode() + b'\n'
-    ros = roslibpy.Ros(host=host, port=9090)
-    ros.run()
-    latest = {}
-    odom = roslibpy.Topic(ros, '/odom_setmotor', 'nav_msgs/Odometry')
-    odom.subscribe(lambda m: latest.update(p=m['pose']['pose']['position'], t=time.monotonic()))
+    odom = Odometry(host)
     try:
-        started = time.monotonic()
-        while 'p' not in latest:
-            if time.monotonic() - started > 5:
-                raise RuntimeError('no odometry; wheels not moved')
-            time.sleep(0.05)
-        origin = dict(latest['p'])
+        origin = odom.wait()
 
         def moved():
-            return math.hypot(latest['p']['x'] - origin['x'], latest['p']['y'] - origin['y'])
+            return math.hypot(odom.latest['x'] - origin['x'], odom.latest['y'] - origin['y'])
 
         with socket.create_connection((host, 7000), timeout=3) as sock:
             try:
                 started = time.monotonic()
                 while moved() < goal:
-                    if time.monotonic() - started > 2.0:
-                        raise RuntimeError('adjustment did not finish in 2 s')
-                    if time.monotonic() - latest['t'] > 0.3:
-                        raise RuntimeError('odometry went stale while driving')
+                    # 2 s for the 6 cm adjustments, as before; longer moves pro rata.
+                    if time.monotonic() - started > abs(metres) / 0.08 + 1.25:
+                        raise RuntimeError('move did not finish in time')
+                    odom.check_fresh()
                     sock.sendall(command)
                     time.sleep(0.05)
             finally:
@@ -179,8 +251,49 @@ def drive(host, metres):
         print('[ADJUST] odometry moved {:+.3f} m (asked {:+.3f})'.format(
             math.copysign(moved(), metres), metres), flush=True)
     finally:
-        odom.unsubscribe()
-        ros.close()
+        odom.close()
+
+
+def turn(host, radians):
+    """In-place turn measured by wheel odometry (+ = left); arm in travel."""
+    if not (math.isfinite(radians) and 0 < abs(radians) <= math.pi):
+        raise ValueError('refusing a turn of {!r} rad'.format(radians))
+    goal = max(abs(radians) - TURN_LEAD_RAD, 0.02)
+    command = json.dumps({'action': 'velocity', 'vx': 0.0,
+                          'wz': math.copysign(TURN_WZ, radians)}).encode() + b'\n'
+    odom = Odometry(host)
+    try:
+        last = odom.wait()['yaw']
+        turned = 0.0
+        with socket.create_connection((host, 7000), timeout=3) as sock:
+            try:
+                started = time.monotonic()
+                while abs(turned) < goal:
+                    if time.monotonic() - started > goal / TURN_WZ * 2.0 + 2.0:
+                        raise RuntimeError('turn did not finish in time')
+                    odom.check_fresh()
+                    sock.sendall(command)
+                    time.sleep(0.05)
+                    yaw = odom.latest['yaw']
+                    turned += dock.wrap(yaw - last)
+                    last = yaw
+                    if abs(turned) > 0.15 and turned * radians < 0:
+                        raise RuntimeError('odometry says it turns the other way; stopped')
+                    # 1 rad/s should give ~0.5 rad by now; a yaw that does not move
+                    # would otherwise keep the robot spinning until the timeout.
+                    if time.monotonic() - started > 1.0 and abs(turned) < 0.10:
+                        raise RuntimeError('odometry yaw is not changing; stopped')
+            finally:
+                for _ in range(3):
+                    sock.sendall(b'{"action":"stop"}\n')
+                    time.sleep(0.05)
+        time.sleep(1.0)
+        turned += dock.wrap(odom.latest['yaw'] - last)
+        print('[TURN] odometry turned {:+.1f} deg (asked {:+.1f})'.format(
+            math.degrees(turned), math.degrees(radians)), flush=True)
+        return turned
+    finally:
+        odom.close()
 
 
 def settle(host, read, send_stop, sleep, now):
@@ -254,10 +367,74 @@ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic
         drive(host, move)
 
 
+def face_box(host, box, localize=dock.read_localization, rotate=turn, tries=3):
+    """Turn in place until the placement box's map position is straight ahead.
+
+    The resident AMCL pose (ncu's localization service) and the box's map position
+    say where it is when the rear camera cannot see it, e.g. right after a grasp.
+    Returns the final map pose.
+    """
+    for attempt in range(tries + 1):
+        record = localize(host)
+        pose = dock.localization_pose(record)
+        bearing, distance = dock.box_bearing(pose, box)
+        print('[FACE] placement box {:.2f} m away, bearing {:+.1f} deg'.format(
+            distance, math.degrees(bearing)), flush=True)
+        if abs(bearing) <= dock.TURN_TOLERANCE_RAD:
+            return pose
+        if attempt == tries:
+            break
+        if (record.get('state') or {}).get('turn_clear') is not True:
+            raise RuntimeError('localization reports no room to turn here; not turning')
+        rotate(host, bearing)
+    raise RuntimeError('placement box still not ahead after {} turns'.format(tries))
+
+
+def place(host, report, final_x, aim_y, empty_test, wall_m=None, read=ctl, send_stop=stop,
+          sleep=time.sleep, now=time.monotonic, wall=dock.wall_ahead, drive=drive):
+    """Release over the placement box once the approach stopped where it should.
+
+    No camera sees the box at the end (the gripper hides it), so the approach's
+    own report is the check. With a taught --wall-m the LiDAR distance to the wall
+    behind the box corrects the stop first: odometry carried the last ~40 cm.
+    """
+    problem = dock.arrival_problem(report, final_x, aim_y)
+    if problem:
+        raise RuntimeError(problem + '; nothing released')
+    settle(host, read, send_stop, sleep, now)
+    if wall_m is not None:
+        for attempt in range(3):
+            measured = wall(host)
+            try:
+                step = dock.wall_correction(measured, wall_m)
+            except ValueError as exc:
+                raise RuntimeError(str(exc) + '; nothing released')
+            print('[WALL] {:.3f} m ahead, taught {:.3f} m -> {}'.format(
+                measured, wall_m, 'ok' if not step else '{:+.3f} m'.format(step)), flush=True)
+            if not step:
+                break
+            if attempt == 2:
+                raise RuntimeError('wall distance not reached after 2 corrections; nothing released')
+            status = read(host, 'status')
+            if status.get('chassis', {}).get('arm_pose') != 'travel':
+                raise RuntimeError('travel pose not confirmed; wheels not moved')
+            drive(host, step)
+            settle(host, read, send_stop, sleep, now)
+    result = read(host, 'release-preview' if empty_test else 'release')
+    if not empty_test:
+        read(host, 'stow')          # release ends at E1; preview stows by itself
+    status = read(host, 'status')
+    if status.get('chassis', {}).get('arm_pose') != 'travel':
+        raise RuntimeError('released, but the travel pose is not confirmed')
+    if read(host, 'health').get('holding') is not False:
+        raise RuntimeError('released, but the service still reports holding')
+    return result
+
+
 def preflight(args):
     issues = []
     paths = {
-        'SUGARBOX_YOLO_MODEL': ROOT / 'detection/models/best.pt',
+        'SUGARBOX_YOLO_MODEL': PLACEMENT_MODEL if args.target == 'placement' else SUGARBOX_MODEL,
         'SUGARBOX_SAM_MODEL': args.sam,
         'SUGARBOX_HOMOGRAPHY': args.homography,
         'SUGARBOX_RL_MODEL': ROOT / 'integration/nav_best_model/doorway_ft_final.zip',
@@ -276,6 +453,15 @@ def preflight(args):
         path = ROOT / 'integration/nav_best_model' / name
         if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() != expected:
             issues.append('avoidance model checksum mismatch: ' + name)
+    # Both models have one class; the wrong file would chase the wrong box quietly.
+    if (args.target == 'placement' and PLACEMENT_MODEL.is_file()
+            and hashlib.sha256(PLACEMENT_MODEL.read_bytes()).hexdigest() != PLACEMENT_MODEL_SHA256):
+        issues.append('placement model checksum mismatch: ' + str(PLACEMENT_MODEL))
+    if getattr(args, 'turn_to_box', False):
+        try:
+            dock.load_box_map(args.box_map)
+        except (OSError, ValueError) as exc:
+            issues.append('placement box map: ' + str(exc))
     for module in ('cv2', 'numpy', 'torch', 'gymnasium', 'roslibpy', 'stable_baselines3', 'ultralytics'):
         if importlib.util.find_spec(module) is None:
             issues.append('missing Python dependency: ' + module)
@@ -317,9 +503,11 @@ def main(argv=None):
     parser.add_argument('--handoff-m', type=float, default=1.00,
                         help='enoch: box distance from the chassis centre where the policy '
                              'hands over to the slow steer-in (m, 0.60..1.20)')
-    parser.add_argument('--final-x-m', type=float, default=0.28,
+    parser.add_argument('--final-x-m', type=float, default=None,
                         help='enoch: stop when the box is this far ahead of the chassis '
-                             'centre (m, 0.25..0.45)')
+                             'centre (m; sugarbox 0.25..0.45, default 0.28; placement box '
+                             'near edge 0.18..0.45, default {:.3f})'.format(
+                                 dock.PLACEMENT_FINAL_X_M))
     parser.add_argument('--obs-log', type=Path, default=None,
                         help='append every policy observation/action as JSON lines '
                              '(for replaying a run offline)')
@@ -327,7 +515,25 @@ def main(argv=None):
                         help="enoch: training-matched PPO drives to the box on its own and "
                              "may reverse slowly (2026-10-12 primary); legacy: centring, "
                              "fixed final 15 cm and optional blind finish")
+    parser.add_argument('--target', choices=('sugarbox', 'placement'), default='sugarbox',
+                        help='sugarbox: approach and grasp (E1). placement: carry the held '
+                             'object to the placement box and release it over the box')
+    parser.add_argument('--empty-test', action='store_true',
+                        help='placement: rehearse with an empty jaw (graspctl release-preview)')
+    parser.add_argument('--turn-to-box', action='store_true',
+                        help='placement: first turn toward the box using the resident AMCL '
+                             'pose and --box-map, and drive at its map position until the '
+                             'camera finds it (only when the map entry is verified)')
+    parser.add_argument('--box-map', type=Path, default=dock.BOX_MAP)
+    parser.add_argument('--wall-m', type=float, default=None,
+                        help='placement: taught LiDAR distance to the wall behind the box at '
+                             'the right release spot (placement_dock.py --measure-wall); the '
+                             'stop is corrected to it before releasing')
     args = parser.parse_args(argv)
+    placement = args.target == 'placement'
+    if args.final_x_m is None:
+        args.final_x_m = dock.PLACEMENT_FINAL_X_M if placement else 0.28
+    final_min = 0.18 if placement else 0.25
     if args.real and args.dry_run:
         parser.error('--real and --dry-run are mutually exclusive')
     if args.approach == 'enoch' and args.blind_stop_x is not None:
@@ -336,11 +542,18 @@ def main(argv=None):
             math.isfinite(args.blind_stop_x) and 0.05 <= args.blind_stop_x <= 0.60):
         parser.error('--blind-stop-x must be 0.05..0.60 m')
     if not (math.isfinite(args.handoff_m) and math.isfinite(args.final_x_m)
-            and 0.60 <= args.handoff_m <= 1.20 and 0.25 <= args.final_x_m <= 0.45
+            and 0.60 <= args.handoff_m <= 1.20 and final_min <= args.final_x_m <= 0.45
             and args.handoff_m >= args.final_x_m + 0.15):
-        parser.error('--handoff-m 0.60..1.20 and --final-x-m 0.25..0.45, at least 0.15 m apart')
+        parser.error('--handoff-m 0.60..1.20 and --final-x-m {:.2f}..0.45, at least 0.15 m '
+                     'apart'.format(final_min))
     if args.yolo_imgsz is not None and (args.yolo_imgsz % 32 or not 320 <= args.yolo_imgsz <= 1920):
         parser.error('--yolo-imgsz must be a multiple of 32 in 320..1920')
+    if not placement and (args.empty_test or args.turn_to_box or args.wall_m is not None):
+        parser.error('--empty-test, --turn-to-box and --wall-m are for --target placement')
+    if placement and args.approach != 'enoch':
+        parser.error('--target placement needs --approach enoch (steer-in and arrival report)')
+    if args.wall_m is not None and not (math.isfinite(args.wall_m) and 0.20 <= args.wall_m <= 1.50):
+        parser.error('--wall-m must be 0.20..1.50 m')
     ipaddress.IPv4Address(args.host)  # fixed-format SSH target, no shell interpolation
     if (not math.isfinite(args.final_travel_m) or not 0 < args.final_travel_m <= 0.15
             or not math.isfinite(args.approach_timeout) or not 0 < args.approach_timeout <= 300):
@@ -351,13 +564,21 @@ def main(argv=None):
         angles = status.get('servo_deg')
         if not angles or len(angles) != 6 or not all(math.isfinite(v) for v in angles):
             issues.append('servo readings unavailable')
-        elif angles[5] > 50 and args.real:
+        elif not placement and angles[5] > 50 and args.real:
             issues.append('jaw may hold an object; release and confirm empty before approach')
+        elif placement and args.empty_test and angles[5] > 50:
+            issues.append('--empty-test needs an empty, open jaw')
         chassis = status.get('chassis', {})
         if chassis.get('moving') is not False or chassis.get('arm_busy') is not False:
             issues.append('robot is busy')
+        if chassis.get('maintenance') is True:
+            issues.append('maintenance lock is on (ncu\'s navigation sets it when it ends); '
+                          'mission_loop.py unlocks it, or send maintenance-unlock')
         if status.get('odom', {}).get('valid') is not True:
             issues.append('odometry unavailable')
+        if placement and not args.empty_test and args.real:
+            if ctl(args.host, 'health').get('holding') is not True:
+                issues.append('placement needs a held object (or --empty-test)')
     except Exception as exc:
         issues.append('robot preflight: ' + str(exc))
     for issue in issues:
@@ -372,15 +593,24 @@ def main(argv=None):
     for key in ('SUGARBOX_BLIND_STOP_X', 'SUGARBOX_YOLO_IMGSZ', 'SUGARBOX_TRAINING_CONTRACT',
                 'SUGARBOX_CONTRACT_ALLOW_DRIVE', 'SUGARBOX_TARGET_INITIAL_ONLY',
                 'SUGARBOX_OBS_LOG', 'SUGARBOX_CONTRACT_HANDOFF_M',
-                'SUGARBOX_CONTRACT_FINAL_X_M'):
+                'SUGARBOX_CONTRACT_FINAL_X_M', 'SUGARBOX_TARGET', 'SUGARBOX_CONTRACT_AIM_Y_M',
+                'SUGARBOX_SEED_TARGET', 'SUGARBOX_ARRIVAL_REPORT', 'SUGARBOX_FAR_SEED'):
         env.pop(key, None)
     if args.blind_stop_x is not None:
         env['SUGARBOX_BLIND_STOP_X'] = str(args.blind_stop_x)
     if args.obs_log is not None:
         env['SUGARBOX_OBS_LOG'] = str(args.obs_log.resolve())
-    # The 2026-10-12 rear calibration reaches 1.40 m; 640 misses the box beyond ~1 m.
-    yolo_imgsz = args.yolo_imgsz or (1280 if args.approach == 'enoch' else 640)
+    # The 2026-10-12 rear calibration reaches 1.40 m; 640 misses the sugarbox beyond
+    # ~1 m. The placement box is three times wider and its model was trained at 640.
+    yolo_imgsz = args.yolo_imgsz or (1280 if args.approach == 'enoch' and not placement else 640)
     env['SUGARBOX_YOLO_IMGSZ'] = str(yolo_imgsz)
+    aim_y = dock.PLACEMENT_AIM_Y_M if placement else None
+    arrival_report = Path(tempfile.gettempdir()) / 'sugarbox_arrival_{}.json'.format(os.getpid())
+    if placement:
+        # The placement box sits in a corner, often beyond the calibrated 1.40 m after
+        # a grasp: drive at where the camera roughly sees it (never stop on that).
+        env.update(SUGARBOX_TARGET='placement', SUGARBOX_CONTRACT_AIM_Y_M=str(aim_y),
+                   SUGARBOX_ARRIVAL_REPORT=str(arrival_report), SUGARBOX_FAR_SEED='1')
     if args.approach == 'enoch':
         # enoch's training-matched inputs and shaping. His "first sighting locks the
         # target" switch is deliberately left off: it was a one-off diagnostic that did
@@ -391,12 +621,26 @@ def main(argv=None):
         env['SUGARBOX_CONTRACT_FINAL_X_M'] = str(args.final_x_m)
         if args.real:
             env['SUGARBOX_CONTRACT_ALLOW_DRIVE'] = '1'
-    print('[config] approach={} blind_stop_x={} yolo_imgsz={} final_travel_m={} '
-          'handoff_m={} final_x_m={}'.format(args.approach, args.blind_stop_x, yolo_imgsz,
-                                             args.final_travel_m, args.handoff_m,
-                                             args.final_x_m))
+    print('[config] target={} approach={} blind_stop_x={} yolo_imgsz={} final_travel_m={} '
+          'handoff_m={} final_x_m={}{}'.format(
+              args.target, args.approach, args.blind_stop_x, yolo_imgsz, args.final_travel_m,
+              args.handoff_m, args.final_x_m,
+              '' if aim_y is None else ' aim_y_m={} wall_m={} empty_test={}'.format(
+                  aim_y, args.wall_m, args.empty_test)))
     if args.dry_run:
         env.update(SUGARBOX_RUN_MODE='DRY_RUN', SUGARBOX_EXIT_ON_ARRIVAL='0')
+        if args.turn_to_box:
+            # No turning in a dry run: show where the map says the box is from here.
+            try:
+                box = dock.load_box_map(args.box_map)
+                pose = dock.localization_pose(dock.read_localization(args.host))
+                bearing, distance = dock.box_bearing(pose, box)
+                print('[FACE] dry run: placement box {:.2f} m away, bearing {:+.1f} deg '
+                      '(the real run turns first)'.format(distance, math.degrees(bearing)))
+                if box['verified'] and abs(bearing) <= math.radians(60):
+                    env['SUGARBOX_SEED_TARGET'] = '{:.4f},{:.4f}'.format(*dock.seed_point(pose, box))
+            except (OSError, ValueError, RuntimeError) as exc:
+                print('[FACE] dry run without a map estimate: ' + str(exc))
         return subprocess.run([sys.executable, '-u', str(APPROACH)], env=env).returncode
     if not args.real:
         print('[check] files, model hashes, Python imports and status passed; no motion. '
@@ -407,20 +651,40 @@ def main(argv=None):
         return 3
     env.update(SUGARBOX_RUN_MODE='DRIVE',
                SUGARBOX_EXIT_ON_ARRIVAL='1', SUGARBOX_FINAL_TRAVEL_M=str(args.final_travel_m))
+    outcome = 'nothing released' if placement else 'no E1/grasp'
     try:
         stop(args.host)
         time.sleep(0.6)
-        ctl(args.host, 'stow')
+        ctl(args.host, 'stow')       # after a grasp the held object comes home to travel
         st = ctl(args.host, 'status')
         if st.get('chassis', {}).get('arm_pose') != 'travel':
             raise RuntimeError('travel pose not confirmed')
+        if args.turn_to_box:
+            box = dock.load_box_map(args.box_map)
+            pose = face_box(args.host, box)
+            if box['verified']:
+                env['SUGARBOX_SEED_TARGET'] = '{:.4f},{:.4f}'.format(*dock.seed_point(pose, box))
+            else:
+                print('[FACE] placement_box_map.json is not verified: turned toward it only; '
+                      'the camera has to find the box from here')
+        if arrival_report.exists():
+            arrival_report.unlink()
         result = subprocess.run([sys.executable, '-u', str(APPROACH)], env=env,
                                 timeout=args.approach_timeout)
         if result.returncode == 4:
             raise RuntimeError('approach stopped: no progress toward the box (the [STOPPED] '
-                               'line above says what held it); no E1/grasp')
+                               'line above says what held it); ' + outcome)
         if result.returncode:
-            raise RuntimeError('approach did not report stopped arrival; no E1/grasp')
+            raise RuntimeError('approach did not report stopped arrival; ' + outcome)
+        if placement:
+            try:
+                report = json.loads(arrival_report.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                report = None
+            print('[ARRIVAL] ' + json.dumps(report))
+            print(json.dumps(place(args.host, report, args.final_x_m, aim_y, args.empty_test,
+                                   wall_m=args.wall_m), ensure_ascii=False))
+            return 0
         # Only enoch's approach may reverse, so only it gets the E1 fine adjustment.
         tools = dict(look=look, drive=drive) if args.approach == 'enoch' else {}
         print(json.dumps(handoff(args.host, **tools), ensure_ascii=False))

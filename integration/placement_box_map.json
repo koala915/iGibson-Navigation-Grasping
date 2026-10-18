@@ -1,0 +1,9 @@
+{
+  "frame": "map",
+  "scene": "maps/demo_box_20261018_patrol",
+  "x": 1.5599,
+  "y": 0.8333,
+  "verified": false,
+  "source": "ncu's scene_layout.json bin.placement_update.midpoint_pose_map_candidate (PR #5, a3022f4): the box moved 20-25 cm off both walls, centre not surveyed. On 2026-10-17 the older registration put the box 1.5 deg left where it really was 20 deg left.",
+  "to_verify": "Localize, park the robot squarely in front of the box, run `python integration/placement_dock.py --host <IP> --where`, measure the box centre with a tape, correct x/y here and set verified to true. Until then the runner only turns toward this point and never drives to it unseen."
+}

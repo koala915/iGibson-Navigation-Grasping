@@ -547,6 +547,37 @@ class ContractModeTests(unittest.TestCase):
             self.setUp()
             self.assertEqual(self.safe(vx, .4, .5, .17)[:2], (0, 0))
 
+    def test_hard_stop_backs_off_once_then_lets_the_policy_turn_away(self):
+        # 2026-10-17 run 18: held at 0.18 m with the policy asking forward-left
+        # until NO_PROGRESS ended the run.
+        apply = lambda vx, wz, front, now, odom=0.0: self.safety.apply_contract(
+            vx, wz, front, front, right_robust=1.0, left_robust=1.0, odom_vx=odom, now=now)
+        self.assertEqual(apply(.1, .7, .17, 10.0)[:2], (0, 0))           # held first
+        vx, wz, reason = apply(.1, .7, .17, 10.35)
+        self.assertEqual((vx, wz), (self.rt['HARD_RECOVERY_REVERSE_VX'], 0))
+        self.assertGreaterEqual(-vx, 0.0)
+        self.assertLessEqual(-vx, self.rt['CONTRACT_REVERSE_MAX_MPS'])
+        self.assertIn('HARD_RECOVERY_START', reason)
+        t = 10.35
+        while True:                                                       # 6 cm by odometry
+            t += 0.2
+            vx, wz, reason = apply(.1, .7, .20, t, odom=-0.08)
+            if 'DONE' in reason:
+                break
+            self.assertIn('BACKUP', reason)
+        self.assertEqual(apply(.1, .7, .24, t + 0.1)[:2], (0, 0))         # settle
+        vx, wz, reason = apply(.1, .7, .24, t + 0.5)                      # policy again
+        self.assertEqual((vx, wz), (0, .7))                               # turn, no push
+        self.assertIn('FWD_BLOCK', reason)
+        # Pushed back in without clearing the hard stop: no second backup.
+        self.setUp()
+        apply(.1, .7, .17, 1.0)
+        apply(.1, .7, .17, 1.4)
+        for t in (1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0):
+            apply(.1, .7, .17, t, odom=0.0)                               # wheels slipping
+        self.assertEqual(apply(.1, .7, .17, 3.4)[:2], (0, 0))
+        self.assertEqual(apply(.1, .7, .17, 4.0)[:2], (0, 0))
+
     def test_front_block_keeps_the_turn_but_not_the_push(self):
         vx, wz, reason = self.safe(.1, .5, .29, .29)
         self.assertEqual((vx, wz), (0, .5))
@@ -620,19 +651,44 @@ class ContractModeTests(unittest.TestCase):
         return next(ast.literal_eval(n.value) for n in self.rt['tree'].body
                     if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == name)
 
-    def handoff(self, contract=True, dist=0.99, stop=False, active=False):
+    def handoff(self, contract=True, dist=0.99, stop=False, active=False,
+                block_m=float('inf'), blocked_ticks=0, seeded=False):
+        # The whole if/elif chain: seed give-up, handoff, handback.
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
-                     and 'CONTRACT_HANDOFF_CENTER_M' in ast.unparse(n.test))
-        started = []
-        pursuit = SimpleNamespace(active=active, start=lambda now: started.append(now))
+                     and 'SEED_GIVE_UP_CENTER_M' in ast.unparse(n.test))
+        started, resets = [], []
+        pursuit = SimpleNamespace(active=active, start=lambda now: started.append(now),
+                                  reset=lambda: resets.append(True))
         scope = dict(TRAINING_CONTRACT=contract, should_stop=stop, arrived_latched=False,
                      safety_reason='', CONTRACT_HANDOFF_CENTER_M=1.00, pursuit=pursuit, now=5.0,
                      contract_action=SimpleNamespace(reset=lambda: None),
                      anti_jitter=SimpleNamespace(reset_motion=lambda: None), math=math,
-                     target=SimpleNamespace(has_memory=lambda: True, dist=dist, bearing=.05, y=.04))
+                     target=SimpleNamespace(has_memory=lambda: True, dist=dist, bearing=.05, y=.04,
+                                            seeded=seeded, class_name='far_sighting'),
+                     path_block_m=block_m, handoff_deferred=False,
+                     path_blocked_ticks=blocked_ticks, CONTRACT_HANDBACK_TICKS=2,
+                     blocked_latched=False, blocked_reason='', SEED_GIVE_UP_CENTER_M=0.80,
+                     print=lambda *args, **kwargs: None)
         exec(compile(ast.Module(body=[block], type_ignores=[]), str(SOURCE), 'exec'), scope)
-        scope['started'] = started
+        scope['started'], scope['resets'] = started, resets
         return scope
+
+    def test_no_handoff_while_an_obstacle_stands_between_the_robot_and_the_box(self):
+        # 2026-10-17 run 17: the steer-in, which cannot avoid, drove into the hard stop.
+        scope = self.handoff(block_m=0.45)
+        self.assertEqual(scope['started'], [])
+        self.assertTrue(scope['handoff_deferred'])
+        self.assertEqual(self.handoff()['started'], [5.0])            # clear path
+
+    def test_steer_in_hands_back_to_the_policy_when_its_path_closes(self):
+        once = self.handoff(active=True, block_m=0.40)
+        self.assertEqual((once['resets'], once['path_blocked_ticks']), ([], 1))   # one tick: noise
+        twice = self.handoff(active=True, block_m=0.40, blocked_ticks=1)
+        self.assertEqual(twice['resets'], [True])
+        cleared = self.handoff(active=True, blocked_ticks=1)
+        self.assertEqual((cleared['resets'], cleared['path_blocked_ticks']), ([], 0))
+        self.assertEqual(self.handoff(active=True, block_m=0.4, blocked_ticks=1,
+                                      stop=True)['resets'], [])
 
     def test_policy_hands_over_to_the_steer_in_at_1m(self):
         scope = self.handoff()
@@ -643,6 +699,21 @@ class ContractModeTests(unittest.TestCase):
         self.assertEqual(self.handoff(dist=1.01)['started'], [])
         self.assertEqual(self.handoff(contract=False)['started'], [])
         self.assertEqual(self.handoff(stop=True)['started'], [])          # never over a stop
+
+    def test_a_map_estimate_never_starts_the_steer_in(self):
+        # 2026-10-18: after a grasp the placement box may be out of view; the runner
+        # seeds its map position. Reaching it unseen means the map or the view is
+        # wrong, and the steer-in would end in a release over nothing.
+        # Between the 1.00 m handoff and 0.80 m the policy keeps driving it in view.
+        for dist in (1.5, 0.99, 0.81):
+            with self.subTest(dist=dist):
+                scope = self.handoff(seeded=True, dist=dist)
+                self.assertEqual(scope['started'], [])
+                self.assertFalse(scope['blocked_latched'] or scope['should_stop'])
+        scope = self.handoff(seeded=True, dist=0.79)
+        self.assertEqual(scope['started'], [])
+        self.assertTrue(scope['blocked_latched'] and scope['should_stop'])
+        self.assertTrue(scope['blocked_reason'].startswith('SEED_NOT_CONFIRMED'))
 
     def test_after_arrival_it_never_returns_to_the_policy(self):
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
@@ -715,16 +786,24 @@ class ContractModeTests(unittest.TestCase):
         self.assertEqual(self.constant('CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M'), 0.17)
 
     def test_driving_this_mode_needs_its_own_opt_in(self):
-        checks = [n for n in self.main.body[:4] if isinstance(n, ast.If)]
+        checks = [n for n in self.main.body[:5] if isinstance(n, ast.If)]
         code = compile(ast.Module(body=checks, type_ignores=[]), str(SOURCE), 'exec')
         base = dict(RUN_MODE='DRIVE', TRAINING_CONTRACT=True, CONTRACT_ALLOW_DRIVE=False,
-                    TARGET_INITIAL_ONLY=False)
+                    TARGET_INITIAL_ONLY=False, TARGET_KIND='sugarbox', SEED_TARGET=None,
+                    FAR_SEED=False)
         with self.assertRaises(SystemExit):
             exec(code, dict(base))
         exec(code, dict(base, CONTRACT_ALLOW_DRIVE=True))
         exec(code, dict(base, RUN_MODE='DRY_RUN'))
         with self.assertRaises(SystemExit):
             exec(code, dict(base, TRAINING_CONTRACT=False, TARGET_INITIAL_ONLY=True))
+        # The placement box and the map seed rest on the steer-in and its report.
+        legacy = dict(base, RUN_MODE='DRY_RUN', TRAINING_CONTRACT=False)
+        exec(code, dict(legacy))
+        for extra in (dict(TARGET_KIND='placement'), dict(SEED_TARGET=(1.0, 0.0)),
+                      dict(FAR_SEED=True)):
+            with self.subTest(**extra), self.assertRaises(SystemExit):
+                exec(code, dict(legacy, **extra))
 
 
 class ObsLogTests(unittest.TestCase):

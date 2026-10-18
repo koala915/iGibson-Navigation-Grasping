@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from integration import nav_rl
+from integration import sugarbox_training_contract as training_contract
 from integration.sugarbox_lidar_geometry import (
     LidarGeometry, nearest_policy_ranges, robot_scan_samples, wrap_angle,
 )
@@ -28,6 +29,8 @@ def runtime_geometry_functions():
         'SIDE_ROBUST_MIN_POINTS', 'SIDE_ROBUST_PERCENTILE',
         'scan_to_policy_rays', 'raw_front_metrics', 'raw_side_metrics',
         'raw_front_corridor_metrics', 'CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M',
+        'path_obstacle_distance', 'CONTRACT_PATH_HALF_WIDTH_M',
+        'CONTRACT_PATH_BOX_CLEARANCE_M', 'CONTRACT_PATH_MIN_RETURNS',
         'clamp', 'AntiJitterSafetyFilter',
     }
     source = ROOT / 'integration/sugarbox_rl_approach_final2.py'
@@ -53,6 +56,7 @@ def runtime_geometry_functions():
         'LidarGeometry': LidarGeometry,
         'nearest_policy_ranges': nearest_policy_ranges,
         'robot_scan_samples': robot_scan_samples,
+        'training_contract': training_contract,
     }
     exec(compile(ast.Module(body=selected, type_ignores=[]), str(source), 'exec'),
          namespace)
@@ -187,6 +191,32 @@ class SugarboxLidarGeometryTests(unittest.TestCase):
         self.assertLess(corridor(corner)[1], 0.18)           # the hard-stop distance
         beside = self.one_return(95.0, 0.15)                 # beside the sensor: the side guard's
         self.assertEqual(corridor(beside), (float('inf'), float('inf'), 0))
+
+    def returns_at(self, *points, beams=3):
+        """A scan with `beams` returns 0.01 rad apart at each centre-frame point."""
+        ranges, angle_min = [], None
+        for px, py in points:
+            sx, sy = px - 0.10, py                       # the sensor sits 0.10 m ahead
+            start = wrap_angle(math.atan2(sy, sx) - math.pi - 0.01 * (beams // 2))
+            if angle_min is None:
+                angle_min = start
+            first = round((start - angle_min) / 0.01) % 629
+            ranges += [float('inf')] * (first - len(ranges)) + [math.hypot(sx, sy)] * beams
+        return SimpleNamespace(ranges=ranges, angle_min=angle_min, angle_increment=0.01)
+
+    def test_path_check_finds_what_stands_between_the_robot_and_the_box(self):
+        path = lambda scan, x, y: self.runtime['path_obstacle_distance'](
+            scan, x, y, self.runtime['CONTRACT_PATH_HALF_WIDTH_M'])
+        # 2026-10-17 run 17: obstacle 0.50 m ahead of the sensor, box 1.2 m out, 22 cm right.
+        obstacle = self.returns_at((0.60, 0.0))
+        self.assertAlmostEqual(path(obstacle, 1.225, -0.219), 0.60 * math.cos(math.atan2(-0.219, 1.225)),
+                               places=2)
+        self.assertEqual(path(obstacle, 0.9, 0.6), float('inf'))           # box off to the side
+        self.assertEqual(path(obstacle, 0.55, 0.0), float('inf'))          # box short of it
+        self.assertEqual(path(self.returns_at((1.6, 0.0)), 1.2, 0.0), float('inf'))   # wall behind
+        self.assertEqual(path(self.returns_at((0.75, 0.15)), 0.8, 0.0), float('inf'))  # beside the box
+        self.assertEqual(path(self.returns_at((0.6, 0.0), beams=2), 1.2, 0.0), float('inf'))  # stray
+        self.assertEqual(path(None, 1.2, 0.0), float('inf'))
 
     def test_invalid_returns_have_no_safety_or_policy_range(self):
         samples = robot_scan_samples([0.0, float('inf'), float('nan'), -1.0],

@@ -142,6 +142,14 @@ CAMERA_PIPE_FPS = int(
 FRAME_W = 640
 FRAME_H = 480
 
+# The arm camera sits in the bottom middle of the rear view in travel pose, and
+# at 1280 YOLO reads its dark housing as a sugarbox at 0.84-0.90 (2026-10-17,
+# bbox 308,409 - 391,479), often above the real box, which then went unused.
+# Detections mostly inside these pixel regions (x1, y1, x2, y2) are dropped; the
+# real box cannot be there, it would be behind the camera.
+REAR_IGNORE_REGIONS = ((295, 395, 405, 480),)
+REAR_IGNORE_MIN_OVERLAP = 0.5
+
 YOLO_CONF = 0.30
 
 # The box is ~25x50 px in the rear camera at 1 m. At 640 the model saw nothing
@@ -487,23 +495,78 @@ CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M = 0.17
 # centre (its calibration edge); odometry carries it after that, so the handoff
 # leaves 0.35 m of steering on live vision.
 CONTRACT_HANDOFF_CENTER_M = float(os.environ.get("SUGARBOX_CONTRACT_HANDOFF_M", "1.00"))
+# What the approach drives to (2026-10-18). "placement" is the box the object is
+# dropped into, with its own YOLO model (set by the runner): its near edge stops
+# just ahead of the chassis front so the jaw opens over its middle, and no E1
+# corrects the stop afterwards, so the runner checks the arrival report instead.
+TARGET_KIND = os.environ.get("SUGARBOX_TARGET", "sugarbox").strip().lower()
+if TARGET_KIND not in ("sugarbox", "placement"):
+    raise ValueError("SUGARBOX_TARGET must be sugarbox or placement")
 # Where the box should end, ahead of the chassis centre. The user, 2026-10-12: the
 # run that stopped with it remembered at 0.336 m needed about 3 cm more, and the
 # one at 0.307 m about 1 cm more. 2026-10-16: stopping at 0.30 m, E1 still asked
 # for 2.8 and 3.4 cm more (runs 9 and 11), so 2 cm closer; E1's fine adjustment
 # in the runner takes the rest either way.
 CONTRACT_FINAL_CENTER_X_M = float(os.environ.get("SUGARBOX_CONTRACT_FINAL_X_M", "0.28"))
+# The chassis front is 0.15 m ahead of the centre; a placement box edge may come
+# within 3 cm of it, a sugarbox must stay in E1's view.
+CONTRACT_FINAL_MIN_X_M = 0.18 if TARGET_KIND == "placement" else 0.25
 if not (math.isfinite(CONTRACT_HANDOFF_CENTER_M) and math.isfinite(CONTRACT_FINAL_CENTER_X_M)
         and 0.60 <= CONTRACT_HANDOFF_CENTER_M <= 1.20
-        and 0.25 <= CONTRACT_FINAL_CENTER_X_M <= 0.45
+        and CONTRACT_FINAL_MIN_X_M <= CONTRACT_FINAL_CENTER_X_M <= 0.45
         and CONTRACT_HANDOFF_CENTER_M >= CONTRACT_FINAL_CENTER_X_M + 0.15):
-    raise ValueError("handoff must be 0.60-1.20 m, final x 0.25-0.45 m, at least 0.15 m apart")
+    raise ValueError("handoff must be 0.60-1.20 m, final x {:.2f}-0.45 m, at least 0.15 m "
+                     "apart".format(CONTRACT_FINAL_MIN_X_M))
+# A map estimate of the box to drive at before the camera has found it, chassis-
+# centre frame "x,y" (the runner computes it from the resident AMCL pose and the
+# placement box's map position). It never stops the robot anywhere: the steer-in
+# starts only on a box the camera confirmed, and reaching the handoff distance on
+# the estimate alone stops the run.
+SEED_MIN_M, SEED_MAX_M, SEED_MAX_BEARING_DEG = 0.30, 3.50, 60.0
+_seed = os.environ.get("SUGARBOX_SEED_TARGET", "").strip()
+SEED_TARGET = tuple(float(v) for v in _seed.split(",")) if _seed else None
+if SEED_TARGET is not None and not (
+        len(SEED_TARGET) == 2 and all(math.isfinite(v) for v in SEED_TARGET)
+        and SEED_MIN_M <= math.hypot(*SEED_TARGET) <= SEED_MAX_M
+        and abs(math.degrees(math.atan2(SEED_TARGET[1], SEED_TARGET[0])))
+        <= SEED_MAX_BEARING_DEG):
+    raise ValueError("SUGARBOX_SEED_TARGET must be 'x,y', 0.30-3.50 m away within 60 deg")
+# A box the camera sees beyond its calibrated area (0.55-1.40 m ahead of the front
+# wheels, +-0.20 m) is otherwise ignored. With SUGARBOX_FAR_SEED=1 its extrapolated
+# position becomes a seed like the map estimate: the policy drives at it and the
+# camera takes over once the box is inside the area. The placement box sits in a
+# corner and is often 1.5-2.5 m away after a grasp (2026-10-18).
+FAR_SEED = os.environ.get("SUGARBOX_FAR_SEED", "0") == "1"
+FAR_SEED_FRAMES = 3
+FAR_SEED_MAX_ERROR_M = 0.40
+# A seeded box that comes this close without the camera confirming it stops the
+# run. The camera sees the box until about 0.64 m from the centre, so the policy
+# gets 20 cm past the 1.00 m handoff to bring it into the measured area.
+SEED_GIVE_UP_CENTER_M = 0.80
+# Written once when the run ends (how it ended, where the box was, the LiDAR
+# corridor ahead), so the runner can decide whether a release is safe.
+ARRIVAL_REPORT_PATH = os.environ.get("SUGARBOX_ARRIVAL_REPORT", "").strip()
+# The steer-in has no obstacle avoidance; only the policy does. 2026-10-17 run 17:
+# an obstacle stood 0.50 m ahead when the box locked, the policy drove 25 cm, the
+# box reached 1.0 m and the steer-in pressed on into the hard stop at 0.18 m. So
+# hand over only while the strip from the centre to the box is clear (chassis
+# half width 0.15 m plus 5 cm), and give it back to the policy when something
+# shows up in that strip for CONTRACT_HANDBACK_TICKS ticks in a row.
+CONTRACT_PATH_HALF_WIDTH_M = 0.20
+# The steer-in stops with the box 0.28 m ahead of the centre, 0.13 m past the
+# chassis front, so a wall right beside the box is never driven into.
+CONTRACT_PATH_BOX_CLEARANCE_M = 0.10
+CONTRACT_PATH_MIN_RETURNS = 3
+CONTRACT_HANDBACK_TICKS = 2
 # Aim for the middle of the E1 grasp area (y -0.049..+0.017 m at x 0.264 m),
 # moved into the rear camera's frame: the two cameras' centre lines differ. On
 # 2026-10-12 a box the rear camera put at y -0.011 m was measured by E1 at
 # +0.0175 m (and x 0.267 m for a remembered 0.307 m -- exactly right), missing
-# the grasp area by 1 mm. E1 y = rear y + 0.028 m, so -0.016 - 0.028:
-CONTRACT_AIM_Y_M = -0.044
+# the grasp area by 1 mm. E1 y = rear y + 0.028 m, so -0.016 - 0.028. A placement
+# box is aimed at the arm's own centre line instead (the runner sets -0.028).
+CONTRACT_AIM_Y_M = float(os.environ.get("SUGARBOX_CONTRACT_AIM_Y_M", "-0.044"))
+if not (math.isfinite(CONTRACT_AIM_Y_M) and abs(CONTRACT_AIM_Y_M) <= 0.10):
+    raise ValueError("SUGARBOX_CONTRACT_AIM_Y_M must be within +-0.10 m")
 PURSUIT_VX = 0.08                # FINAL_APPROACH_VX: slow enough to stop on the mark
 # At this speed a small turn does nothing: on 2026-10-12 wz 0.12-0.17 became
 # motors 12/20 and the chassis turned ~0.015 rad/s, leaving the box 4-6 cm left.
@@ -926,6 +989,16 @@ def inside_calibration_hull(u, v, hull):
 # YOLO
 # ============================================================
 
+def overlap_fraction(bbox, region):
+    """Share of bbox's own area that falls inside region (both x1, y1, x2, y2)."""
+    x1, y1, x2, y2 = bbox
+    width = min(x2, region[2]) - max(x1, region[0])
+    height = min(y2, region[3]) - max(y1, region[1])
+    if width <= 0.0 or height <= 0.0:
+        return 0.0
+    return (width * height) / max(1.0, (x2 - x1) * (y2 - y1))
+
+
 def select_best_box(
     yolo_result,
     model_names
@@ -1025,6 +1098,10 @@ def select_best_box(
             )
         )
 
+        if any(overlap_fraction((x1, y1, x2, y2), region) >= REAR_IGNORE_MIN_OVERLAP
+               for region in REAR_IGNORE_REGIONS):
+            continue
+
         detections.append({
 
             "conf": conf,
@@ -1042,6 +1119,9 @@ def select_best_box(
 
             "area": area
         })
+
+    if not detections:
+        return None
 
     detections.sort(
 
@@ -1250,6 +1330,55 @@ def mask_bottom_contact(
 # 完整 Vision Pipeline
 # ============================================================
 
+def coarse_ground(u, v, H, rear_cam_to_front_m):
+    """Chassis-centre floor point of a pixel outside the calibrated area, or None.
+
+    The homography is extrapolated here, so the point can be off by tens of cm
+    (2026-10-18: the placement box in its corner read 1.62 m ahead, 0.47 m left).
+    Good enough to drive toward, never to stop on.
+    """
+    ground = pixel_to_ground(u, v, H)
+    if ground is None:
+        return None
+    x, y = ground[0] - rear_cam_to_front_m, ground[1]
+    if TRAINING_CONTRACT:
+        x, y = training_contract.center_relative_goal(x, y)
+    if not (SEED_MIN_M <= math.hypot(x, y) <= SEED_MAX_M
+            and abs(math.atan2(y, x)) <= math.radians(SEED_MAX_BEARING_DEG)):
+        return None
+    return x, y
+
+
+class FarSighting:
+    """FAR_SEED_FRAMES consistent out-of-area sightings before they become a seed.
+
+    Looser than the real lock (FAR_SEED_MAX_ERROR_M) because extrapolation
+    magnifies pixel noise; still enough to ignore a single false detection.
+    """
+
+    def __init__(self):
+        self.points = []
+        self.stamp = 0.0
+
+    def update(self, point, now):
+        """-> mean (x, y) once confirmed, else None. None input forgets after a gap."""
+        if point is None:
+            if self.points and now - self.stamp > TARGET_CONFIRM_MAX_GAP_S:
+                self.points = []
+            return None
+        if self.points and (
+                now - self.stamp > TARGET_CONFIRM_MAX_GAP_S
+                or math.hypot(point[0] - self.points[-1][0],
+                              point[1] - self.points[-1][1]) > FAR_SEED_MAX_ERROR_M):
+            self.points = []
+        self.points = self.points[-(FAR_SEED_FRAMES - 1):] + [tuple(point)]
+        self.stamp = now
+        if len(self.points) < FAR_SEED_FRAMES:
+            return None
+        return (sum(p[0] for p in self.points) / len(self.points),
+                sum(p[1] for p in self.points) / len(self.points))
+
+
 def vision_to_target(
 
     frame,
@@ -1399,7 +1528,9 @@ def vision_to_target(
                 "mask": mask,
                 "u": u,
                 "v": v,
-                "bottom_count": bottom_count
+                "bottom_count": bottom_count,
+                # Extrapolated, never measured: only ever a FAR_SEED goal.
+                "coarse": coarse_ground(u, v, H, rear_cam_to_front_m)
             },
             "OUTSIDE_CALIBRATION"
         )
@@ -2465,6 +2596,42 @@ def raw_front_corridor_metrics(scan, half_width_m):
     return robust_distance, strict_min, int(arr.size)
 
 
+def path_obstacle_distance(scan, box_x, box_y, half_width_m,
+                           min_returns=CONTRACT_PATH_MIN_RETURNS):
+    """How far along the line to the box the first obstacle sits; inf when clear.
+
+    Centre frame, the box's frame in enoch mode. Counts returns within
+    half_width_m of the straight line from the chassis centre to the box and
+    more than CONTRACT_PATH_BOX_CLEARANCE_M short of it. The 6.5 cm box is below
+    the scan plane, so whatever shows
+    up there is in the way; walls behind the box are not. Chassis echoes are
+    dropped. The min_returns-th nearest is reported, so one stray point does not
+    hold the policy back.
+    """
+    length = math.hypot(box_x, box_y)
+    if (scan is None or scan.ranges is None or len(scan.ranges) == 0
+            or not math.isfinite(length) or length <= 1e-6):
+        return float("inf")
+    ux, uy = box_x / length, box_y / length
+    along_hits = []
+    for sample in robot_scan_samples(
+            scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY):
+        if sample.range_m is None:
+            continue
+        x = sample.range_m * math.cos(sample.angle_rad)
+        y = sample.range_m * math.sin(sample.angle_rad)
+        if (abs(x) <= training_contract.CHASSIS_HALF_LENGTH_M
+                and abs(y) <= training_contract.CHASSIS_HALF_WIDTH_M):
+            continue
+        along = x * ux + y * uy
+        if (0.0 < along < length - CONTRACT_PATH_BOX_CLEARANCE_M
+                and abs(y * ux - x * uy) <= half_width_m):
+            along_hits.append(along)
+    if len(along_hits) < max(1, int(min_returns)):
+        return float("inf")
+    return float(sorted(along_hits)[max(1, int(min_returns)) - 1])
+
+
 def raw_side_metrics(scan):
     """Yaw-corrected sensor-origin side sectors and original measured ranges."""
     if scan.ranges is None or len(scan.ranges) == 0:
@@ -2743,7 +2910,9 @@ class AntiJitterSafetyFilter:
         front_min,
         *,
         right_robust,
-        left_robust
+        left_robust,
+        odom_vx=0.0,
+        now=None
     ):
         """Safety essentials for the training-matched policy (TRAINING_CONTRACT).
 
@@ -2752,8 +2921,12 @@ class AntiJitterSafetyFilter:
         hard stop, the front block (turning still allowed), the side guard, and a
         bounded reverse (allowed by the user in this mode only, 2026-10-12).
         """
+        now = time.monotonic() if now is None else float(now)
         self._update_distance_latches(front_robust, front_min)
         self._update_side_latches(right_robust, left_robust)
+        backup = self._contract_backup(odom_vx, now)
+        if backup is not None:
+            return backup
         if self.hard_stopped:
             return 0.0, 0.0, f"HARD_STOP_HOLD min={front_min:.3f}m"
         vx = clamp(float(desired_vx), -CONTRACT_REVERSE_MAX_MPS, TEST_MAX_FWD)
@@ -2775,6 +2948,52 @@ class AntiJitterSafetyFilter:
             parts.append("REVERSE rear unobserved")
         reason = f"CONTRACT front={front_robust:.3f}m"
         return float(vx), float(wz), reason + "".join(" | " + p for p in parts)
+
+    def _contract_backup(self, odom_vx, now):
+        """Enoch mode's way out of a hard stop: one short reverse, then the policy.
+
+        2026-10-17 run 18: the policy pushed into an obstacle until the hard stop at
+        0.18 m and then wanted forward-left; the hard stop held both, so the chassis
+        sat there until NO_PROGRESS ended the run. Same steps as apply()'s recovery:
+        held HARD_RECOVERY_WAIT_S -> reverse HARD_RECOVERY_TARGET_M by odometry at
+        0.08 m/s (this mode's reverse limit; nothing watches behind) -> settle ->
+        back to the policy, whose front block then lets it turn but not push. Once
+        per hard-stop episode. Returns None when the policy's command applies.
+        """
+        if self.recovery_active:
+            dt = max(0.0, min(0.25, now - self.recovery_last_time))
+            self.recovery_last_time = now
+            if math.isfinite(float(odom_vx)):
+                self.recovery_travel_m += max(0.0, -float(odom_vx)) * dt
+            if (self.recovery_travel_m >= HARD_RECOVERY_TARGET_M
+                    or now - self.recovery_started_at >= HARD_RECOVERY_MAX_S):
+                self.recovery_active = False
+                self.recovery_settle_until = now + HARD_RECOVERY_SETTLE_S
+                self.hard_stop_since = None
+                self.reset_motion()
+                return 0.0, 0.0, f"HARD_RECOVERY_DONE travel={self.recovery_travel_m:.3f}m"
+            return (float(HARD_RECOVERY_REVERSE_VX), 0.0,
+                    f"HARD_RECOVERY_BACKUP travel={self.recovery_travel_m:.3f}/"
+                    f"{HARD_RECOVERY_TARGET_M:.3f}m | REVERSE rear unobserved")
+        if now < self.recovery_settle_until:
+            return 0.0, 0.0, "HARD_RECOVERY_SETTLE"
+        if not self.hard_stopped:
+            self.hard_stop_since = None
+            self.recovery_used_this_hard_stop = False
+            return None
+        if self.hard_stop_since is None:
+            self.hard_stop_since = now
+        if (now - self.hard_stop_since >= HARD_RECOVERY_WAIT_S
+                and not self.recovery_used_this_hard_stop):
+            self.recovery_active = True
+            self.recovery_started_at = now
+            self.recovery_last_time = now
+            self.recovery_travel_m = 0.0
+            self.recovery_used_this_hard_stop = True
+            self.reset_motion()
+            return (float(HARD_RECOVERY_REVERSE_VX), 0.0,
+                    "HARD_RECOVERY_START | REVERSE rear unobserved")
+        return None
 
 
     def _stabilize_turn_direction(
@@ -3605,6 +3824,38 @@ class PursuitController:
             x, y, math.degrees(error))
 
 
+def arrival_record(arrived, blocked, arrival_reason, blocked_reason, target, now,
+                   front_robust, front_min):
+    """How the run ended, for the runner's release decision. JSON-safe."""
+    def number(value):
+        value = float(value)
+        return round(value, 4) if math.isfinite(value) else None
+    known = target.has_memory()
+    return {
+        "arrived": bool(arrived),
+        "blocked": bool(blocked),
+        "reason": arrival_reason if arrived else (blocked_reason or "not arrived"),
+        "target_kind": TARGET_KIND,
+        "run_mode": RUN_MODE,
+        "x": number(target.x) if known else None,
+        "y": number(target.y) if known else None,
+        "seeded": bool(target.seeded),
+        "visual_age_s": number(now - target.last_seen) if target.last_seen > 0 else None,
+        "front_robust_m": number(front_robust),
+        "front_min_m": number(front_min),
+        "final_x_m": CONTRACT_FINAL_CENTER_X_M,
+        "aim_y_m": CONTRACT_AIM_Y_M,
+        "t": now,
+    }
+
+
+def write_arrival_report(path, record):
+    # Atomic, so the runner never reads half a file.
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(record, f, allow_nan=False)
+    os.replace(path + ".tmp", path)
+
+
 class BlindFinishController:
     """Straight creep on the remembered box after the gripper hides it (see BLIND_STOP_X)."""
 
@@ -4279,6 +4530,11 @@ class TargetState:
     # the target and later ones are ignored; odometry alone moves it after that.
     freeze_visual_updates: bool = False
 
+    # True while x/y is only the runner's map estimate (SEED_TARGET): the camera
+    # has not confirmed the box yet. Any confirmed sighting replaces it outright,
+    # however far it is from the estimate.
+    seeded: bool = False
+
     x: float = 0.0
 
     y: float = 0.0
@@ -4371,7 +4627,35 @@ class TargetState:
         self.on_floor = False
         self.rejected_count = 0
         self.last_match_error = float("inf")
+        self.seeded = False
         self.clear_candidate()
+
+
+    def seed(
+        self,
+        x,
+        y,
+        now,
+        source="map_seed"
+    ):
+        # Memory for the policy to drive at, but never "seen": last_seen stays 0,
+        # so the first real measurement replaces it instead of averaging into it.
+        # Only ever called with no memory or a seed (never over a real sighting),
+        # and it keeps the acquisition candidate: a box on the edge of the
+        # calibrated area may alternate between far seeds and real frames.
+        self.x = float(x)
+        self.y = float(y)
+        self.dist = math.hypot(self.x, self.y)
+        self.bearing = math.atan2(self.y, self.x)
+        self.last_seen = 0.0
+        self.last_geometry_stamp = now
+        self.last_motion_update = now
+        self.conf = 0.0
+        self.class_name = source
+        self.on_floor = True
+        self.rejected_count = 0
+        self.last_match_error = float("inf")
+        self.seeded = True
 
 
     def _update_candidate(
@@ -4442,7 +4726,7 @@ class TargetState:
     ):
 
         if self.freeze_visual_updates:
-            if self.has_memory():
+            if self.has_memory() and not self.seeded:
                 return False, "TARGET_INITIAL_ONLY_ODOM", 0.0, 0.0
             self.set_measurement(measurement, now)
             self.clear_candidate()
@@ -4451,7 +4735,9 @@ class TargetState:
         new_x = float(measurement["x"])
         new_y = float(measurement["y"])
 
-        if not self.has_memory():
+        # A seed is only an estimate: acquire the box exactly as with no memory
+        # (the same confirmation frames), never reject it for disagreeing.
+        if not self.has_memory() or self.seeded:
             self._update_candidate(
                 new_x,
                 new_y,
@@ -4663,6 +4949,8 @@ class TargetState:
         )
 
         self.on_floor = True
+
+        self.seeded = False
 
 
     def refresh_seen_only(
@@ -5332,6 +5620,10 @@ def main():
         raise SystemExit("training-matched DRIVE needs SUGARBOX_CONTRACT_ALLOW_DRIVE=1")
     if TARGET_INITIAL_ONLY and not TRAINING_CONTRACT:
         raise SystemExit("SUGARBOX_TARGET_INITIAL_ONLY needs the training-matched mode")
+    # Both rest on the steer-in and its arrival report, which only enoch mode has.
+    if (TARGET_KIND == "placement" or SEED_TARGET is not None or FAR_SEED) \
+            and not TRAINING_CONTRACT:
+        raise SystemExit("placement target and seeds need the training-matched mode")
 
 
     print()
@@ -5363,6 +5655,14 @@ def main():
     if TARGET_INITIAL_ONLY:
         print("[TARGET_INITIAL_ONLY] the first valid detection locks the target; "
               "odometry alone moves it after that")
+    print(f"[TARGET] {TARGET_KIND} | model {YOLO_MODEL_PATH}")
+    if SEED_TARGET is not None:
+        print("[SEED] map estimate x={:.3f} y={:+.3f} m; the camera must confirm the box "
+              "before the steer-in".format(*SEED_TARGET))
+    if FAR_SEED:
+        print("[SEED] a box seen beyond the calibrated area is driven at until the camera "
+              "measures it; unmeasured at {:.2f} m from the centre stops the run".format(
+                  SEED_GIVE_UP_CENTER_M))
 
     print(
         f"[NET] Jetson = {JETSON_IP}"
@@ -5554,6 +5854,9 @@ def main():
     # --------------------------------------------------------
 
     target = TargetState(freeze_visual_updates=TARGET_INITIAL_ONLY)
+    if SEED_TARGET is not None:
+        target.seed(SEED_TARGET[0], SEED_TARGET[1], time.time())
+    far_sighting = FarSighting()
 
     obs_logger = ObsLogger(OBS_LOG_PATH)
     if OBS_LOG_PATH:
@@ -5656,12 +5959,15 @@ def main():
     center_controller = BottomCenterController()
     final_approach = FinalApproachController()
     pursuit = PursuitController()
+    handoff_deferred = False
+    path_blocked_ticks = 0
     blind_finish = BlindFinishController()
 
 
     e_stop_latched = False
 
     arrived_latched = False
+    arrival_reason = ""
 
     blocked_latched = False
     blocked_reason = ""
@@ -5910,6 +6216,22 @@ def main():
                                     float(vision_result["y"])
                                 )
                             )
+
+                elif (
+                    FAR_SEED
+                    and vision_reason == "OUTSIDE_CALIBRATION"
+                    and (not target.has_memory() or target.seeded)
+                ):
+                    far_stamp = vision_done_time if vision_done_time > 0.0 else now
+                    far_point = far_sighting.update(
+                        (vision_result or {}).get("coarse"), far_stamp)
+                    if far_point is not None:
+                        if target.class_name != "far_sighting":
+                            print("[SEED] box seen beyond the calibrated area at about "
+                                  "({:.2f}, {:+.2f}) m; the policy drives at it until the "
+                                  "camera can measure it".format(*far_point))
+                        target.seed(far_point[0], far_point[1], far_stamp,
+                                    source="far_sighting")
 
 
             # ==================================================
@@ -6348,20 +6670,60 @@ def main():
                 if TRAINING_CONTRACT and arrived_latched:
                     should_stop = True   # E1's turn now; never back to the PPO
 
+                path_block_m = float("inf")
+                if TRAINING_CONTRACT and not should_stop and target.has_memory():
+                    path_block_m = path_obstacle_distance(
+                        scan, target.x, target.y, CONTRACT_PATH_HALF_WIDTH_M)
+
                 if (
+                    TRAINING_CONTRACT
+                    and not should_stop
+                    and target.seeded
+                    and target.dist <= SEED_GIVE_UP_CENTER_M
+                ):
+                    # The camera finds the box well before this; if it still has
+                    # not, the estimate is wrong or something hides the box.
+                    blocked_latched = True
+                    blocked_reason = (
+                        "SEED_NOT_CONFIRMED: {:.2f} m from the {} estimate and the "
+                        "camera has not measured the box".format(target.dist, target.class_name))
+                    print("[STOPPED] " + blocked_reason)
+                    safety_reason = blocked_reason
+                    should_stop = True
+                elif (
                     TRAINING_CONTRACT
                     and not should_stop
                     and not pursuit.active
                     and target.has_memory()
+                    and not target.seeded       # only a box the camera measured
                     and target.dist <= CONTRACT_HANDOFF_CENTER_M
                 ):
-                    safety_reason = (
-                        "HANDOFF centre_dist={:.3f}m bearing={:+.1f}deg y={:+.3f}m".format(
-                            target.dist, math.degrees(target.bearing), target.y))
-                    print("[HANDOFF] " + safety_reason)
-                    contract_action.reset()
-                    anti_jitter.reset_motion()
-                    pursuit.start(now)
+                    if math.isfinite(path_block_m):
+                        # Not yet: the policy avoids, the steer-in would not.
+                        if not handoff_deferred:
+                            print("[HANDOFF] deferred: obstacle {:.2f} m along the "
+                                  "path to the box; the policy keeps driving".format(
+                                      path_block_m))
+                        handoff_deferred = True
+                    else:
+                        handoff_deferred = False
+                        safety_reason = (
+                            "HANDOFF centre_dist={:.3f}m bearing={:+.1f}deg y={:+.3f}m".format(
+                                target.dist, math.degrees(target.bearing), target.y))
+                        print("[HANDOFF] " + safety_reason)
+                        contract_action.reset()
+                        anti_jitter.reset_motion()
+                        pursuit.start(now)
+                elif TRAINING_CONTRACT and pursuit.active and not should_stop:
+                    path_blocked_ticks = (path_blocked_ticks + 1
+                                          if math.isfinite(path_block_m) else 0)
+                    if path_blocked_ticks >= CONTRACT_HANDBACK_TICKS:
+                        print("[HANDBACK] obstacle {:.2f} m along the path to the box; "
+                              "the policy steers around it".format(path_block_m))
+                        path_blocked_ticks = 0
+                        pursuit.reset()
+                        contract_action.reset()
+                        anti_jitter.reset_motion()
 
 
                 # ------------------------------------------------
@@ -6661,6 +7023,7 @@ def main():
                         vx_cmd = 0.0
                         wz_cmd = 0.0
                         arrived_latched = True
+                        arrival_reason = pursuit_reason
                         safety_reason = "ARRIVED_CONTRACT " + pursuit_reason
                         print("[ARRIVED] " + safety_reason)
                     else:
@@ -6669,7 +7032,8 @@ def main():
                         vx_cmd, wz_cmd, pursuit_safety = anti_jitter.apply_contract(
                             pursuit_vx, pursuit_wz, front_robust, front_min,
                             right_robust=right_side_robust,
-                            left_robust=left_side_robust)
+                            left_robust=left_side_robust,
+                            odom_vx=odom.vx, now=now)
                         safety_reason = pursuit_reason + " | " + pursuit_safety
 
                     last_cmd_vx = float(vx_cmd)
@@ -6878,7 +7242,8 @@ def main():
                         vx_cmd, wz_cmd, safety_reason = anti_jitter.apply_contract(
                             vx_cmd, wz_cmd, front_robust, front_min,
                             right_robust=right_side_robust,
-                            left_robust=left_side_robust)
+                            left_robust=left_side_robust,
+                            odom_vx=odom.vx, now=now)
                     else:
                         (
                             vx_cmd,
@@ -7267,6 +7632,7 @@ def main():
                 e_stop_latched = False
 
                 arrived_latched = False
+                arrival_reason = ""
 
                 prev_raw_action = np.zeros(
 
@@ -7380,6 +7746,11 @@ def main():
         print(
             "[INFO] ended"
         )
+
+    if ARRIVAL_REPORT_PATH:
+        write_arrival_report(ARRIVAL_REPORT_PATH, arrival_record(
+            arrived_latched, blocked_latched, arrival_reason, blocked_reason, target,
+            time.time(), last_front_robust, last_front_min))
 
     if EXIT_ON_ARRIVAL:
         if blocked_latched:

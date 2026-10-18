@@ -40,6 +40,39 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(self.calls, ['stop', 'status', 'home', 'status', 'status', 'grasp'])
         self.assertGreaterEqual(self.clock, 3.6)
 
+    def test_a_poll_between_two_e1_frames_does_not_wipe_the_last_reading(self):
+        # 2026-10-18: E1 sent every 1.4 s, a detection counts as fresh for 1 s,
+        # and the 1.1 s polls kept landing between frames: fresh, stale, fresh...
+        # The first status read is settle()'s stop check.
+        fresh = iter([True] + [True, False, True, False, True])
+
+        def read(host, cmd):
+            self.calls.append(cmd)
+            if cmd != 'status':
+                return {'ok': True, 'confirmed': True}
+            snapshot = copy.deepcopy(self.snapshot)
+            snapshot['detection']['fresh'] = next(fresh)
+            return snapshot
+
+        with patch('builtins.print'):
+            self.assertTrue(self.run_flow(read=read)['confirmed'])
+        self.assertEqual(self.calls.count('status'), 4)       # settle; fresh, stale, fresh -> grasp
+
+    def test_readings_too_far_apart_in_time_do_not_agree(self):
+        fresh = iter([True] + [True] + [False] * 5 + [True] + [False] * 20)
+
+        def read(host, cmd):
+            self.calls.append(cmd)
+            if cmd != 'status':
+                return {'ok': True, 'confirmed': True}
+            snapshot = copy.deepcopy(self.snapshot)
+            snapshot['detection']['fresh'] = next(fresh)
+            return snapshot
+
+        with patch('builtins.print'), self.assertRaises(RuntimeError):
+            self.run_flow(read=read)                          # 5.5 s apart: never paired
+        self.assertNotIn('grasp', self.calls)
+
     def test_moving_or_stale_feedback_never_moves_arm(self):
         for field, value in [('moving', True), ('board_rx_age_s', 2), ('stopped_for_s', 0.1)]:
             with self.subTest(field=field):

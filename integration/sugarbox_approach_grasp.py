@@ -66,6 +66,8 @@ ADJUST_LEAD_M = 0.012
 BLIND_CREEP_M = 0.03
 BLIND_CREEP_TRIES = 2
 BLIND_CREEP_LOOKS = 4       # fresh frames in a row that saw nothing (E1 runs at 1 Hz)
+# Two fresh E1 readings must agree within 8 mm, the second within this long of the first.
+AGREE_WITHIN_S = 4.0
 MODEL_HASHES = {
     'doorway_ft_final.zip': 'af5e9e1d5ce0115de8b4bbb321873c6a99686c82c0c69d060f881bbe97b64f35',
     'doorway_ft_final_vecnormalize.pkl': '3cd4ef9ab5b0fa38058b5142b1cc5b5df1ba9c440f325ff81b88d5e6ca7a8cdf',
@@ -331,7 +333,7 @@ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic
         read(host, 'home')
         # Discard travel-pose detections: the E1 camera runs at 1 Hz.
         sleep(2.5)
-        previous = None
+        previous, previous_at = None, 0.0
         move = None
         creep = False
         hints = []
@@ -343,12 +345,17 @@ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic
                 raise RuntimeError('E1/stationary state lost; no grasp')
             pos = target_position(status)
             if (pos is not None and previous is not None
+                    and now() - previous_at <= AGREE_WITHIN_S
                     and math.hypot(pos[0] - previous[0], pos[1] - previous[1]) <= 0.008):
                 result = read(host, 'grasp')
                 if result.get('confirmed') is not True:
                     raise RuntimeError('grasp was not confirmed')
                 return result
-            previous = pos
+            # A poll that lands between two E1 frames reads "not fresh"; it must not
+            # wipe the last fresh reading (2026-10-18: E1 sent every 1.4 s, fresh
+            # lasts 1 s, and the 1.1 s polls never saw two fresh readings in a row).
+            if pos is not None:
+                previous, previous_at = pos, now()
             saw_box = saw_box or pos is not None
             if pos is None and look is not None and adjustments < ADJUST_TRIES:
                 record = look(host)

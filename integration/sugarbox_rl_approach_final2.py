@@ -517,9 +517,10 @@ if not (math.isfinite(CONTRACT_HANDOFF_CENTER_M) and math.isfinite(CONTRACT_FINA
         and CONTRACT_HANDOFF_CENTER_M >= CONTRACT_FINAL_CENTER_X_M + 0.15):
     raise ValueError("handoff must be 0.60-1.20 m, final x {:.2f}-0.45 m, at least 0.15 m "
                      "apart".format(CONTRACT_FINAL_MIN_X_M))
-# A map estimate of the box to drive at before the camera has found it, chassis-
-# centre frame "x,y" (the runner computes it from the resident AMCL pose and the
-# placement box's map position). It never stops the robot anywhere: the steer-in
+# An estimate of the box to drive at before the camera has found it, chassis-
+# centre frame "x,y": for the placement box the runner computes it from the
+# resident AMCL pose and the box's map position, for the sugarbox it is where the
+# patrol saw it (2026-10-19). It never stops the robot anywhere: the steer-in
 # starts only on a box the camera confirmed, and reaching the handoff distance on
 # the estimate alone stops the run.
 SEED_MIN_M, SEED_MAX_M, SEED_MAX_BEARING_DEG = 0.30, 3.50, 60.0
@@ -531,6 +532,7 @@ if SEED_TARGET is not None and not (
         and abs(math.degrees(math.atan2(SEED_TARGET[1], SEED_TARGET[0])))
         <= SEED_MAX_BEARING_DEG):
     raise ValueError("SUGARBOX_SEED_TARGET must be 'x,y', 0.30-3.50 m away within 60 deg")
+SEED_SOURCE = "map_seed" if TARGET_KIND == "placement" else "patrol_seed"
 # A box the camera sees beyond its calibrated area (0.55-1.40 m ahead of the front
 # wheels, +-0.20 m) is otherwise ignored. With SUGARBOX_FAR_SEED=1 its extrapolated
 # position becomes a seed like the map estimate: the policy drives at it and the
@@ -550,26 +552,6 @@ SEED_GIVE_UP_CENTER_M = 0.80
 # (TURN_MIN_WZ); the policy's 0.78 rad/s cap would stall a pure turn.
 SEED_FACE_ENTER_DEG = 12.0
 SEED_FACE_EXIT_DEG = 5.0
-# SUGARBOX_SEARCH_SPIN=1 (placement): with no box in view at all, turn in place
-# about 26 deg at a time and look between turns, at most SEARCH_MAX_STEPS turns
-# (a full circle), then stop. After a grasp the placement box can be anywhere
-# around the robot (the user, 2026-10-18: "recognise the placement area, turn in
-# place, go to it").
-SEARCH_SPIN = os.environ.get("SUGARBOX_SEARCH_SPIN", "0") == "1"
-SEARCH_TURN_S = 0.45          # ~26 deg at TURN_MIN_WZ
-SEARCH_PAUSE_S = 1.8          # vision ~2.5 Hz, ~0.4 s late; a seed needs 3 sightings
-SEARCH_MAX_STEPS = 15
-# SUGARBOX_SEED_BACKOFF=1 (placement): a seed faced but nearer than
-# SEED_VIEW_MIN_M sits below the camera's calibrated area (it starts ~0.70 m
-# ahead of the centre), so back straight off at SEED_BACKOFF_VX until it is
-# SEED_VIEW_MIN_M + 5 cm away. 2026-10-18: a run ended 0.64 m from the box and
-# could not start again. At most SEED_BACKOFF_MAX_M in all, and only while the
-# LiDAR sees SEED_BACKOFF_REAR_CLEAR_M free behind the chassis.
-SEED_BACKOFF = os.environ.get("SUGARBOX_SEED_BACKOFF", "0") == "1"
-SEED_VIEW_MIN_M = 0.90
-SEED_BACKOFF_VX = 0.06
-SEED_BACKOFF_MAX_M = 0.40
-SEED_BACKOFF_REAR_CLEAR_M = 0.25
 # Written once when the run ends (how it ended, where the box was, the LiDAR
 # corridor ahead), so the runner can decide whether a release is safe.
 ARRIVAL_REPORT_PATH = os.environ.get("SUGARBOX_ARRIVAL_REPORT", "").strip()
@@ -5716,8 +5698,8 @@ def main():
               "odometry alone moves it after that")
     print(f"[TARGET] {TARGET_KIND} | model {YOLO_MODEL_PATH}")
     if SEED_TARGET is not None:
-        print("[SEED] map estimate x={:.3f} y={:+.3f} m; the camera must confirm the box "
-              "before the steer-in".format(*SEED_TARGET))
+        print("[SEED] {} x={:.3f} y={:+.3f} m; the camera must confirm the box "
+              "before the steer-in".format(SEED_SOURCE.replace("_", " "), *SEED_TARGET))
     if FAR_SEED:
         print("[SEED] a box seen beyond the calibrated area is driven at until the camera "
               "measures it; unmeasured at {:.2f} m from the centre stops the run".format(
@@ -5914,7 +5896,7 @@ def main():
 
     target = TargetState(freeze_visual_updates=TARGET_INITIAL_ONLY)
     if SEED_TARGET is not None:
-        target.seed(SEED_TARGET[0], SEED_TARGET[1], time.time())
+        target.seed(SEED_TARGET[0], SEED_TARGET[1], time.time(), source=SEED_SOURCE)
     far_sighting = FarSighting()
 
     obs_logger = ObsLogger(OBS_LOG_PATH)

@@ -7,12 +7,15 @@ say where it is even when the rear camera cannot see it. After a grasp the runne
 turns toward it, seeds the approach with it, and the rear camera takes over as
 soon as it finds the box. Nothing here moves the robot; the runner owns motion.
 
+The box's map position has one home: ncu's scene_layout.json on the robot, the
+same file his patrol plans with (the user, 2026-10-19). It is read from there.
+
 Two tools for the person setting up the field, both read-only:
 
     python integration/placement_dock.py --host <IP> --where --box-ahead-m 0.50
         map position of the point 0.50 m ahead of the chassis centre (park facing
-        the box, tape the distance to its centre, copy the result into
-        integration/placement_box_map.json)
+        the box, tape the distance to its centre, give the result to ncu for
+        bin.pose_map in scene_layout.json)
     python integration/placement_dock.py --host <IP> --measure-wall
         LiDAR distance to whatever is straight ahead, for --wall-m (park at the
         right release spot first, checked with graspctl release-preview)
@@ -32,7 +35,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from integration.sugarbox_lidar_geometry import LidarGeometry, robot_scan_samples
 
-BOX_MAP = ROOT / 'integration/placement_box_map.json'
+JETSON_ROOT = '/home/jetson/Documents/deploy_jetson2'
+# ncu's patrol scene on the Jetson (relative to JETSON_ROOT).
+SCENE = 'maps/demo_box_20261018_patrol'
 LOCALIZATION_HEALTH = '/dev/shm/g2_localization_health.json'
 # ncu's tape measurement: 18 x 13.5 x 6 cm, the long side facing the field.
 BOX_DEPTH_M = 0.135
@@ -70,13 +75,48 @@ def wrap(angle):
     return (angle + math.pi) % (2.0 * math.pi) - math.pi
 
 
-def load_box_map(path=BOX_MAP):
+def box_from_layout(layout, source='scene_layout.json'):
+    """The placement box from ncu's scene layout: {'x', 'y', 'verified', 'source'}.
+
+    bin.pose_map counts once ncu marks it valid for where the box stands now
+    (pose_map_valid_for_current_placement). Until then his moved-box candidate
+    stands in, unverified: the runner turns toward it but never drives at it.
+    On 2026-10-19 pose_map was still the corner the box was moved out of, 20 cm off.
+    """
+    box = layout.get('bin') if isinstance(layout, dict) else None
+    if not isinstance(box, dict) or layout.get('frame_id') != 'map':
+        raise ValueError('scene layout has no placement box in the map frame: ' + source)
+    if box.get('pose_map_valid_for_current_placement') is True:
+        point, verified = box.get('pose_map'), True
+    else:
+        point, verified = (box.get('placement_update') or {}).get(
+            'midpoint_pose_map_candidate'), False
+    if not isinstance(point, dict) or not finite(point.get('x'), point.get('y')):
+        raise ValueError('scene layout has no placement box position: ' + source)
+    return {'x': float(point['x']), 'y': float(point['y']), 'verified': verified,
+            'source': source}
+
+
+def load_box_map(path):
+    """The placement box from a local copy of scene_layout.json."""
     with open(path, encoding='utf-8') as f:
-        data = json.load(f)
-    if data.get('frame') != 'map' or not finite(data.get('x'), data.get('y')):
-        raise ValueError('placement box map needs frame "map" and finite x, y: ' + str(path))
-    return {'x': float(data['x']), 'y': float(data['y']),
-            'verified': data.get('verified') is True, 'source': str(data.get('source', ''))}
+        return box_from_layout(json.load(f), str(path))
+
+
+def fetch_layout(host, scene=SCENE):
+    """ncu's scene_layout.json as the robot has it."""
+    path = '{}/{}/scene_layout.json'.format(JETSON_ROOT, scene)
+    result = subprocess.run(
+        ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'jetson@' + host,
+         'cat ' + path], capture_output=True, text=True, timeout=30)
+    try:
+        return json.loads(result.stdout)
+    except ValueError:
+        raise ValueError('cannot read {} on the robot: {}'.format(path, result.stderr.strip()))
+
+
+def fetch_box(host, scene=SCENE):
+    return box_from_layout(fetch_layout(host, scene), 'robot:{}/scene_layout.json'.format(scene))
 
 
 def localization_pose(record):
@@ -266,6 +306,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--host', required=True)
+    parser.add_argument('--scene', default=SCENE)
     parser.add_argument('--where', action='store_true')
     parser.add_argument('--box-ahead-m', type=float, default=None)
     parser.add_argument('--measure-wall', action='store_true')
@@ -277,10 +318,11 @@ def main(argv=None):
         pose = localization_pose(read_localization(args.host))
         print('robot pose map x={:.3f} y={:.3f} yaw={:+.1f} deg'.format(
             pose[0], pose[1], math.degrees(pose[2])))
-        box = load_box_map()
+        box = fetch_box(args.host, args.scene)
         bearing, distance = box_bearing(pose, box)
-        print('placement_box_map.json point: {:.2f} m away, bearing {:+.1f} deg ({})'.format(
-            distance, math.degrees(bearing), 'verified' if box['verified'] else 'NOT verified'))
+        print('scene_layout box ({:.4f}, {:.4f}): {:.2f} m away, bearing {:+.1f} deg ({})'.format(
+            box['x'], box['y'], distance, math.degrees(bearing),
+            'verified' if box['verified'] else 'NOT verified'))
         if args.box_ahead_m is not None:
             x, y = point_ahead(pose, args.box_ahead_m)
             print('point {:.3f} m ahead of the chassis centre: map x={:.4f} y={:.4f}'.format(

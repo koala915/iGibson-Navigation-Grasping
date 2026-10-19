@@ -1,8 +1,12 @@
 """Placement-box docking geometry and checks: no ROS, robot or model."""
+import json
 import math
 from pathlib import Path
+import subprocess
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from integration import placement_dock as dock
@@ -52,10 +56,50 @@ class GeometryTests(unittest.TestCase):
                                dock.RELEASE_CENTER_X_M, delta=0.001)
         self.assertGreater(dock.PLACEMENT_FINAL_X_M, 0.15 + 0.03)   # chassis front + 3 cm
 
-    def test_committed_box_map_loads_and_is_not_yet_verified(self):
-        box = dock.load_box_map()
+
+class SceneLayoutTests(unittest.TestCase):
+    """The box position comes from ncu's scene_layout.json (2026-10-19)."""
+
+    def layout(self, valid=False):
+        # The shape of maps/demo_box_20261018_patrol/scene_layout.json (PR #5, acca195).
+        return {'frame_id': 'map', 'bin': {
+            'pose_map': {'x': 1.7584, 'y': 0.8763, 'yaw': 1.12},
+            'pose_map_valid_for_current_placement': valid,
+            'placement_update': {'midpoint_pose_map_candidate': {'x': 1.5599, 'y': 0.8333}}}}
+
+    def test_the_moved_box_candidate_stands_in_unverified(self):
+        box = dock.box_from_layout(self.layout())
+        self.assertEqual((box['x'], box['y'], box['verified']), (1.5599, 0.8333, False))
+
+    def test_a_pose_ncu_marks_valid_is_the_verified_position(self):
+        box = dock.box_from_layout(self.layout(valid=True))
+        self.assertEqual((box['x'], box['y'], box['verified']), (1.7584, 0.8763, True))
+
+    def test_a_layout_without_a_usable_box_is_refused(self):
+        broken = self.layout()
+        broken['bin']['placement_update'] = {}
+        for layout in ({}, {'frame_id': 'odom', 'bin': {}}, broken, None):
+            with self.subTest(layout=layout), self.assertRaises(ValueError):
+                dock.box_from_layout(layout)
+
+    def test_a_local_copy_reads_the_same(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'scene_layout.json'
+            path.write_text(json.dumps(self.layout()), encoding='utf-8')
+            box = dock.load_box_map(path)
+        self.assertEqual((box['x'], box['verified'], box['source']), (1.5599, False, str(path)))
+
+    def test_the_robot_copy_is_read_over_ssh(self):
+        done = subprocess.CompletedProcess([], 0, stdout=json.dumps(self.layout()), stderr='')
+        with patch.object(dock.subprocess, 'run', return_value=done) as remote:
+            box = dock.fetch_box('10.0.0.1')
+        self.assertIn('/home/jetson/Documents/deploy_jetson2/maps/demo_box_20261018_patrol/'
+                      'scene_layout.json', remote.call_args.args[0][-1])
         self.assertFalse(box['verified'])
-        self.assertTrue(math.isfinite(box['x']) and math.isfinite(box['y']))
+        missing = subprocess.CompletedProcess([], 1, stdout='', stderr='No such file')
+        with patch.object(dock.subprocess, 'run', return_value=missing), \
+             self.assertRaises(ValueError):
+            dock.fetch_box('10.0.0.1')
 
 
 class LocalizationTests(unittest.TestCase):

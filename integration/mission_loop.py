@@ -1,16 +1,27 @@
 #!/usr/bin/env python3
 """Competition loop on the Windows PC: patrol -> grasp -> place -> patrol again.
 
-    patrol    ncu's map patrol on the Jetson (deploy/ros/g2_map_patrol.py, PR #5)
-              while this PC watches the rear camera for the sugarbox
-    grasp     sugarbox_approach_grasp.py --target sugarbox (avoidance approach, E1)
-    place     sugarbox_approach_grasp.py --target placement --turn-to-box
-    back out  straight back BACK_OUT_M at 0.08 m/s: the patrol's map mask keeps
-              0.28 m around the placement box and refuses to start inside it
+    patrol    ncu's map patrol on the Jetson (deploy/ros/g2_map_patrol.py, PR #5),
+              lap after lap, while this PC watches the rear camera for the
+              sugarbox, beyond the calibrated strip too (it may stand anywhere)
+    grasp     sugarbox_approach_grasp.py --target sugarbox --seed (where the
+              patrol saw it), avoidance approach, E1
+    place     sugarbox_approach_grasp.py --target placement --turn-to-box: AMCL
+              only turns toward the box (its position from ncu's scene layout),
+              the camera does the rest
+    back out  straight back BACK_OUT_M: the patrol's map mask keeps 0.28 m around
+              the placement box and refuses to start inside it
+
+The design was settled with the user on 2026-10-19 (docs/planning/
+PATROL_LOOP_DECISIONS_2026-10-19.md). The loop runs until two whole laps find no
+sugarbox to fetch. A missed grasp with the arm in a known state backs out and
+patrols on (a spot that failed twice is left alone); a failed placement still
+holding the object looks around for the box once and tries again. Anything
+leaving the arm's state unknown stops the loop where it is and says why.
 
 One velocity owner at a time: the patrol is stopped with SIGTERM (it brakes and
 re-locks the service) before an approach connects, and it is never started while
-one runs. Any failure stops the loop where it is and says which stage failed.
+one runs.
 
 --no-patrol runs one object without the patrol, as on 2026-10-18 when it put the
 sugarbox in the placement box twice: grasp the sugarbox in front of the robot,
@@ -58,8 +69,8 @@ LOG_ROOT = ROOT / 'logs'
 # The E1 camera, on the hub it shares with the motor board; it drops off USB
 # after arm moves now and then (twice on 2026-10-18) and may need replugging.
 ARM_CAMERA = '/dev/v4l/by-id/usb-Sonix_Technology_Co.__Ltd._USB_2.0_Camera-video-index0'
-JETSON_ROOT = '/home/jetson/Documents/deploy_jetson2'
-SCENE = 'maps/demo_box_20261018_patrol'
+JETSON_ROOT = dock.JETSON_ROOT
+SCENE = dock.SCENE
 PATROL_OUTPUT = '/tmp/mission_patrol.json'
 PATROL_LOG = '/tmp/mission_patrol.log'
 STREAM_PORT = 5600
@@ -70,13 +81,30 @@ WATCH_IMGSZ = 1280
 WATCH_FRAMES = 3
 WATCH_MAX_ERROR_M = 0.25
 WATCH_MAX_GAP_S = 0.75
+# A sighting beyond the calibrated strip is extrapolated, so noisier; the same
+# tolerance as the approach's own far seed (FAR_SEED_MAX_ERROR_M).
+FAR_WATCH_MAX_ERROR_M = 0.40
 STREAM_STALE_S = 1.5
 # A sugarbox this close to the placement box's map position is one already
-# delivered (it shows over the 6 cm rim), not a new one to fetch.
+# delivered (it shows over the 6 cm rim), not a new one to fetch: the box's inner
+# corner 0.11 m, AMCL ~0.04 m, the rim hiding the sugarbox's foot ~0.07 m, margin.
 PLACED_EXCLUDE_M = 0.35
 BACK_OUT_M = 0.20
-BACK_OUT_MARGIN_M = 0.10
-MAX_PATROL_CYCLES = 4
+# The patrol refuses to start inside its map mask: back ROOM_STEP_M and ask
+# again, at most ROOM_MAX_M since the last stage (the user, 2026-10-19).
+ROOM_STEP_M = 0.10
+ROOM_MAX_M = 0.30
+# Two whole laps with nothing to fetch end the mission (the user, 2026-10-19).
+EMPTY_LAPS_TO_END = 2
+# Grasping failed this many times within SPOT_RADIUS_M: that spot is left alone.
+TRIES_PER_SPOT = 2
+SPOT_RADIUS_M = 0.25
+# Looking around for the placement box after a failed placement, still holding:
+# turns of SEARCH_STEP_RAD, SEARCH_LOOK_S of frames between them, about a circle.
+SEARCH_STEP_RAD = math.radians(26)
+SEARCH_STEPS = 14
+SEARCH_LOOK_S = 2.5
+PLACEMENT_IMGSZ = 640
 
 
 class MissionError(RuntimeError):
@@ -141,6 +169,14 @@ def patrol_report(host):
         return {'ok': False, 'error': 'no patrol report'}
 
 
+def patrol_refused(report):
+    """The patrol declined to start where the robot stands (outside its map mask,
+    e.g. next to the placement box) and never moved."""
+    error = str(report.get('error') or '')
+    return (report.get('ok') is not True and not report.get('pulses')
+            and ('navigation mask' in error or 'no reachable entry' in error))
+
+
 def stream_running(host, pc_ip, port=STREAM_PORT):
     # The [u] keeps pgrep from matching this very command line.
     pattern = '[u]dpsink host={} port={}'.format(pc_ip, port)
@@ -179,6 +215,27 @@ def detection_point(bbox, homography, rear_cam_to_front_m, hull):
     return ground[0] - rear_cam_to_front_m + GOAL_ORIGIN_OFFSET_X_M, ground[1]
 
 
+def in_seed_range(point):
+    x, y = point
+    return (runner.SEED_MIN_M <= math.hypot(x, y) <= runner.SEED_MAX_M
+            and abs(math.degrees(math.atan2(y, x))) <= runner.SEED_MAX_BEARING_DEG)
+
+
+def far_point(bbox, homography, rear_cam_to_front_m):
+    """Extrapolated floor point of a box beyond the calibrated area, centre frame.
+
+    Tens of cm off at times (the engine's coarse_ground): enough to stop the
+    patrol and drive toward, which is all it is used for. None outside the
+    approach's seed range.
+    """
+    x1, y1, x2, y2 = bbox
+    ground = pixel_to_ground((x1 + x2) / 2.0, y2, homography)
+    if ground is None:
+        return None
+    point = ground[0] - rear_cam_to_front_m + GOAL_ORIGIN_OFFSET_X_M, ground[1]
+    return point if in_seed_range(point) else None
+
+
 def map_point(pose, point):
     x, y, yaw = pose
     c, s = math.cos(yaw), math.sin(yaw)
@@ -192,17 +249,19 @@ class Confirm:
         self.reset()
 
     def reset(self):
-        self.points, self.stamp = [], None
+        self.points, self.stamp, self.far = [], None, False
 
-    def update(self, point, now):
+    def update(self, point, now, far=False):
         if point is None:
             if self.stamp is not None and now - self.stamp > WATCH_MAX_GAP_S:
                 self.reset()
             return False
+        tolerance = FAR_WATCH_MAX_ERROR_M if far or self.far else WATCH_MAX_ERROR_M
         if self.points and (now - self.stamp > WATCH_MAX_GAP_S or math.hypot(
-                point[0] - self.points[-1][0], point[1] - self.points[-1][1]) > WATCH_MAX_ERROR_M):
-            self.points = []
+                point[0] - self.points[-1][0], point[1] - self.points[-1][1]) > tolerance):
+            self.points, self.far = [], False
         self.points.append(point)
+        self.far = self.far or far
         self.stamp = now
         return len(self.points) >= WATCH_FRAMES
 
@@ -211,33 +270,69 @@ class Confirm:
                 sum(p[1] for p in self.points) / len(self.points))
 
 
-class SugarboxWatcher:
-    """Rear-camera YOLO for the sugarbox while the patrol drives."""
+class BoxWatcher:
+    """Rear-camera YOLO for one kind of box: the nearest calibrated sighting, else
+    the nearest one beyond the calibrated area."""
 
-    def __init__(self, homography_path):
+    def __init__(self, model_path, homography_path, imgsz):
         from ultralytics import YOLO
-        self.model = YOLO(str(runner.SUGARBOX_MODEL))
+        self.model, self.imgsz = YOLO(str(model_path)), imgsz
         self.H, self.rear_cam_to_front, self.hull = load_ground_calibration(homography_path)
 
     def look(self, frame):
-        result = self.model.predict(frame, imgsz=WATCH_IMGSZ, conf=WATCH_CONF, verbose=False)[0]
-        best = None
+        """(point, far) in the chassis-centre frame, or None with no box in view."""
+        result = self.model.predict(frame, imgsz=self.imgsz, conf=WATCH_CONF, verbose=False)[0]
+        near = far = None
         for box in result.boxes:
             bbox = tuple(float(v) for v in box.xyxy[0].tolist())
             if overlap_fraction(bbox, ARM_CAMERA_REGION) >= 0.5:
                 continue
             point = detection_point(bbox, self.H, self.rear_cam_to_front, self.hull)
-            if point is not None and (best is None or math.hypot(*point) < math.hypot(*best)):
-                best = point
-        return best
+            if point is not None:
+                if near is None or math.hypot(*point) < math.hypot(*near):
+                    near = point
+                continue
+            point = far_point(bbox, self.H, self.rear_cam_to_front)
+            if point is not None and (far is None or math.hypot(*point) < math.hypot(*far)):
+                far = point
+        if near is not None:
+            return near, False
+        return (far, True) if far is not None else None
 
 
-def patrol_until_sugarbox(host, scene, reader, watcher, box=None, now=time.monotonic):
-    """Patrol (restarting finished cycles) until the camera confirms a sugarbox.
+class SugarboxWatcher(BoxWatcher):
+    def __init__(self, homography_path):
+        super().__init__(runner.SUGARBOX_MODEL, homography_path, WATCH_IMGSZ)
 
-    The patrol is stopped before returning; on any error it is stopped too.
+
+class PlacementWatcher(BoxWatcher):
+    def __init__(self, homography_path):
+        super().__init__(runner.PLACEMENT_MODEL, homography_path, PLACEMENT_IMGSZ)
+
+
+def fresh_frame(reader, last_stamp, now):
+    """(frame, stamp) when a new frame is in, (None, last_stamp) while waiting."""
+    frame, stamp = reader.latest()
+    if now() - stamp > STREAM_STALE_S:
+        raise MissionError('rear camera stream lost')
+    if stamp == last_stamp:
+        time.sleep(0.01)
+        return None, last_stamp
+    return frame, stamp
+
+
+def patrol_until_sugarbox(host, scene, reader, watcher, box=None, skip=(), make_room=None,
+                          now=time.monotonic):
+    """Patrol lap after lap until the camera confirms a sugarbox worth fetching.
+
+    Returns {'point': chassis-centre (x, y) when confirmed, 'map': its map position
+    or None}, or None after EMPTY_LAPS_TO_END whole laps without one. Passed over:
+    a sugarbox at the placement box (delivered) and one at a spot in `skip`. A
+    patrol that refuses to start where the robot stands gets make_room() (a short
+    straight back-off) and another try. The patrol is stopped before returning,
+    and on any error too.
     """
-    confirm, pid, cycles, last_stamp = Confirm(), None, 0, None
+    confirm, pid, empty_laps, last_stamp = Confirm(), None, 0, None
     deadline = now() + 8.0
     while reader.latest()[0] is None:          # never patrol blind
         if now() > deadline:
@@ -247,44 +342,101 @@ def patrol_until_sugarbox(host, scene, reader, watcher, box=None, now=time.monot
         while True:
             if pid is None or not patrol_running(host, pid):
                 if pid is not None:
-                    report = patrol_report(host)
-                    if not report.get('ok'):
+                    report, pid = patrol_report(host), None
+                    if report.get('ok'):
+                        empty_laps += 1
+                        if empty_laps >= EMPTY_LAPS_TO_END:
+                            return None
+                    elif patrol_refused(report) and make_room is not None and make_room():
+                        print('[PATROL] refused to start here ({}); backed off, asking again'
+                              .format(report.get('error')), flush=True)
+                    else:
                         raise MissionError('patrol stopped: ' + str(report.get('error')))
-                cycles += 1
-                if cycles > MAX_PATROL_CYCLES:
-                    raise MissionError('no sugarbox in {} patrol cycles'.format(MAX_PATROL_CYCLES))
                 pid = start_patrol(host, scene)
-                print('[PATROL] cycle {} started (pid {})'.format(cycles, pid), flush=True)
-            frame, stamp = reader.latest()
-            if now() - stamp > STREAM_STALE_S:
-                raise MissionError('rear camera stream lost during the patrol')
-            if stamp == last_stamp:
-                time.sleep(0.01)
+                print('[PATROL] lap {} started (pid {})'.format(empty_laps + 1, pid), flush=True)
+            frame, last_stamp = fresh_frame(reader, last_stamp, now)
+            if frame is None:
                 continue
-            last_stamp = stamp
-            if not confirm.update(watcher.look(frame), stamp):
+            sighting = watcher.look(frame)
+            point, far = sighting if sighting is not None else (None, False)
+            if not confirm.update(point, last_stamp, far):
                 continue
-            seen = confirm.mean()
+            seen, far = confirm.mean(), confirm.far
             confirm.reset()
-            if box is not None and box['verified']:
-                try:
-                    pose = dock.localization_pose(dock.read_localization(host))
-                    where = map_point(pose, seen)
-                    if math.hypot(where[0] - box['x'], where[1] - box['y']) <= PLACED_EXCLUDE_M:
-                        print('[PATROL] sugarbox at the placement box: already delivered',
-                              flush=True)
-                        continue
-                except ValueError as exc:
-                    print('[PATROL] cannot place the sighting on the map ({}); taking it'
-                          .format(exc), flush=True)
-            print('[PATROL] sugarbox {:.2f} m ahead, {:+.2f} m left: stopping the patrol'
-                  .format(*seen), flush=True)
+            where = None
+            try:
+                where = map_point(dock.localization_pose(dock.read_localization(host)), seen)
+            except (ValueError, OSError, subprocess.SubprocessError) as exc:
+                print('[PATROL] cannot place the sighting on the map ({}); taking it'
+                      .format(exc), flush=True)
+            if where is not None:
+                if box is not None and math.hypot(where[0] - box['x'],
+                                                  where[1] - box['y']) <= PLACED_EXCLUDE_M:
+                    print('[PATROL] sugarbox at the placement box: already delivered',
+                          flush=True)
+                    continue
+                if any(math.hypot(where[0] - x, where[1] - y) <= SPOT_RADIUS_M for x, y in skip):
+                    print('[PATROL] sugarbox where grasping failed {} times: left alone'
+                          .format(TRIES_PER_SPOT), flush=True)
+                    continue
+            print('[PATROL] sugarbox {:.2f} m ahead, {:+.2f} m left{}: stopping the patrol'
+                  .format(seen[0], seen[1], ' (beyond the calibrated area, rough)' if far else ''),
+                  flush=True)
             stop_patrol(host, pid)
             pid = None
-            return seen
+            return {'point': seen, 'map': where}
     finally:
         if pid is not None and patrol_running(host, pid):
             stop_patrol(host, pid)
+
+
+def tried_out(failures):
+    """Map spots where grasping failed TRIES_PER_SPOT times (within SPOT_RADIUS_M)."""
+    return [p for p in failures
+            if sum(math.hypot(p[0] - q[0], p[1] - q[1]) <= SPOT_RADIUS_M
+                   for q in failures) >= TRIES_PER_SPOT]
+
+
+def approach_seed(host, sighting):
+    """Where the sighted sugarbox is now, chassis-centre frame, for --seed.
+
+    The patrol coasts, and may be turning, when it is stopped, so the sighting's
+    map position is projected back from the pose now; without a pose the sighting
+    itself stands. None outside the approach's seed range.
+    """
+    point = sighting['point']
+    if sighting.get('map') is not None:
+        try:
+            point = dock.relative_point(dock.localization_pose(dock.read_localization(host)),
+                                        sighting['map'])
+        except (ValueError, OSError, subprocess.SubprocessError) as exc:
+            print('[MISSION] seeding the approach from the raw sighting ({})'.format(exc),
+                  flush=True)
+    return tuple(point) if in_seed_range(point) else None
+
+
+def search_placement(host, reader, watcher, turn=None, now=time.monotonic):
+    """Turn in place SEARCH_STEP_RAD at a time, looking SEARCH_LOOK_S in between,
+    until the camera confirms the placement box (calibrated or not); at most
+    SEARCH_STEPS turns, about a full circle. Arm in travel. True when found."""
+    turn = turn or runner.turn
+    confirm, last_stamp = Confirm(), None
+    for step in range(SEARCH_STEPS + 1):
+        if step:
+            turn(host, SEARCH_STEP_RAD)
+        confirm.reset()
+        deadline = now() + SEARCH_LOOK_S
+        while now() < deadline:
+            frame, last_stamp = fresh_frame(reader, last_stamp, now)
+            if frame is None:
+                continue
+            sighting = watcher.look(frame)
+            point, far = sighting if sighting is not None else (None, False)
+            if confirm.update(point, last_stamp, far):
+                print('[SEARCH] placement box at about ({:.2f}, {:+.2f}) m after {} turn(s)'
+                      .format(*confirm.mean(), step), flush=True)
+                return True
+    return False
 
 
 def run_stage(host, argv, log_path=None):
@@ -341,13 +493,60 @@ def ensure_arm_camera(host, fix, look=runner.look, wait_s=25.0):
     return 'the arm-camera bridge did not come back: ' + arm_camera_state(host)
 
 
-def back_out(host, metres=BACK_OUT_M, scans=dock.read_scans, drive=runner.drive):
-    clear = [dock.rear_clearance(m['ranges'], m['angle_min'], m['angle_increment'])
-             for m in scans(host)]
-    clear = sorted(clear)[len(clear) // 2]
-    if clear < metres + BACK_OUT_MARGIN_M:
-        raise MissionError('only {:.2f} m free behind; not backing out'.format(clear))
-    drive(host, -metres, limit=0.30)
+class Room:
+    """Straight back-outs so the patrol may start again (the user, 2026-10-19).
+
+    leave() after a delivery or a missed grasp backs BACK_OUT_M. While the patrol
+    still refuses to start, make() backs ROOM_STEP_M more, up to ROOM_MAX_M in all
+    since the last stage; the runner checks the space behind before every step.
+    """
+
+    def __init__(self, host, back=None):
+        self.host, self.back, self.backed = host, back, 0.0
+
+    def _back(self, metres):
+        (self.back or runner.back_straight)(self.host, metres)
+
+    def leave(self):
+        self._back(BACK_OUT_M)
+        self.backed = BACK_OUT_M
+
+    def make(self):
+        if self.backed + ROOM_STEP_M > ROOM_MAX_M + 1e-9:
+            return False
+        self._back(ROOM_STEP_M)
+        self.backed += ROOM_STEP_M
+        return True
+
+    def reset(self):
+        self.backed = 0.0
+
+
+def arm_state(host):
+    """'holding', 'empty' or 'unknown': anything the service cannot vouch for."""
+    try:
+        chassis = runner.ctl(host, 'status').get('chassis', {})
+        holding = runner.ctl(host, 'health').get('holding')
+    except Exception as exc:
+        print('[MISSION] arm state unreadable: {}'.format(exc), flush=True)
+        return 'unknown'
+    if (chassis.get('arm_busy') is not False or chassis.get('moving') is not False
+            or chassis.get('arm_pose') not in ('travel', 'e1') or not isinstance(holding, bool)):
+        return 'unknown'
+    return 'holding' if holding else 'empty'
+
+
+def to_travel(host):
+    if runner.ctl(host, 'status').get('chassis', {}).get('arm_pose') != 'travel':
+        runner.ctl(host, 'stow')
+        if runner.ctl(host, 'status').get('chassis', {}).get('arm_pose') != 'travel':
+            raise MissionError('travel pose not confirmed; wheels not moved')
+
+
+def unlock(host):
+    """ncu's navigation locks the wheels and arm when it ends; the approach needs them."""
+    if runner.ctl(host, 'status').get('chassis', {}).get('maintenance') is True:
+        runner.service_command(host, 'maintenance-unlock')
 
 
 def preflight(args):
@@ -373,13 +572,13 @@ def preflight(args):
         except (ValueError, OSError, subprocess.SubprocessError) as exc:
             issues.append('localization: ' + str(exc))
         try:
-            box = dock.load_box_map(args.box_map)
+            box = dock.fetch_box(args.host, args.scene)
             if not box['verified']:
-                print('[WARN] placement box map not verified: the robot turns toward it but '
-                      'never drives to it unseen, and a delivered sugarbox cannot be told '
-                      'from a new one')
-        except (OSError, ValueError) as exc:
-            issues.append('placement box map: ' + str(exc))
+                print('[WARN] the placement box position in ncu\'s scene layout is not '
+                      'verified: the robot turns toward it but never drives at it unseen, '
+                      'and the delivered-sugarbox check uses the unverified position')
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            issues.append('placement box position: ' + str(exc))
     if resume != 'place':
         try:
             camera = ensure_arm_camera(args.host, fix=False)
@@ -450,15 +649,142 @@ def grasp_and_place(args, pc_ip, log_dir):
             print('[MISSION] final stop not delivered: {}; resident watchdog remains'.format(exc))
 
 
+def fetch_sugarbox(args, sighting, log_dir, n):
+    """GRASP: 'held', or 'missed' (nothing held, arm in a known state: patrol on).
+
+    Raises MissionError whenever the service cannot vouch for the arm, and when
+    the arm camera is off USB (someone has to replug it).
+    """
+    problem = ensure_arm_camera(args.host, fix=True)
+    if problem:
+        raise MissionError(problem)
+    unlock(args.host)
+    argv = ['--target', 'sugarbox', '--real', '--i-am-beside-the-robot',
+            '--obs-log', str(log_dir / 'grasp_{}_obs.jsonl'.format(n))]
+    seed = approach_seed(args.host, sighting)
+    if seed is not None:
+        argv += ['--seed', '{:.3f}'.format(seed[0]), '{:.3f}'.format(seed[1])]
+    code = run_stage(args.host, argv, log_dir / 'grasp_{}.log'.format(n))
+    state = arm_state(args.host)
+    if state == 'holding':
+        return 'held'
+    if state == 'unknown':
+        raise MissionError('grasp runner exit {}; the arm state is unknown'.format(code))
+    if code == 0:
+        raise MissionError('grasp reported done but nothing is held')
+    if arm_camera_state(args.host) == 'unplugged':
+        raise MissionError('grasp runner exit {}: the arm camera dropped off USB; replug '
+                           'it'.format(code))
+    to_travel(args.host)
+    return 'missed'
+
+
+def place_held(args, layout_copy, log_dir, n, new_reader, new_watcher):
+    """PLACE: turn toward the box and release over it. Still holding after a
+    failure: look around for the box once and try again from where it shows."""
+    argv = ['--target', 'placement', '--real', '--i-am-beside-the-robot']
+    if args.wall_m is not None:
+        argv += ['--wall-m', str(args.wall_m)]
+    code = run_stage(args.host, argv + [
+        '--turn-to-box', '--box-map', str(layout_copy),
+        '--obs-log', str(log_dir / 'place_{}_obs.jsonl'.format(n))],
+        log_dir / 'place_{}.log'.format(n))
+    state = arm_state(args.host)
+    if code == 0 and state == 'empty':
+        return
+    if state != 'holding':
+        raise MissionError('placement runner exit {}; the arm state is {}'.format(code, state))
+    to_travel(args.host)
+    print('[MISSION] placement failed (exit {}) still holding: looking around for the box'
+          .format(code), flush=True)
+    reader = new_reader()
+    try:
+        found = search_placement(args.host, reader, new_watcher())
+    finally:
+        reader.close()            # the approach opens its own receiver on this port
+    if not found:
+        raise MissionError('placement box not found in a full turn; still holding')
+    code = run_stage(args.host, argv + [
+        '--obs-log', str(log_dir / 'place_{}_retry_obs.jsonl'.format(n))],
+        log_dir / 'place_{}_retry.log'.format(n))
+    state = arm_state(args.host)
+    if code == 0 and state == 'empty':
+        return
+    raise MissionError('placement failed twice (exit {}); the arm is {}'.format(code, state))
+
+
+def patrol_mission(args, pc_ip, log_dir, room=None):
+    """Patrol, fetch, place, back out, patrol on: until two whole laps find nothing."""
+    from integration.rear_stream import StreamReader
+    log_dir.mkdir(parents=True, exist_ok=True)
+    stage, reader, delivered, failures, n = 'START', None, 0, [], 0
+    try:
+        layout = dock.fetch_layout(args.host, args.scene)
+        layout_copy = log_dir / 'scene_layout.json'
+        layout_copy.write_text(json.dumps(layout, indent=1), encoding='utf-8')
+        box = dock.box_from_layout(layout, str(layout_copy))
+        if not stream_running(args.host, pc_ip):
+            start_stream(args.host, pc_ip)
+        watcher = SugarboxWatcher(args.homography)
+        room = room or Room(args.host)
+
+        def new_reader():
+            return StreamReader(STREAM_PORT, args.gstreamer)
+
+        while args.max_deliveries is None or delivered < args.max_deliveries:
+            n += 1
+            stage = 'PATROL {}'.format(n)
+            reader = new_reader()
+            sighting = patrol_until_sugarbox(args.host, args.scene, reader, watcher, box,
+                                             skip=tried_out(failures), make_room=room.make)
+            reader.close()            # the approach opens its own receiver on this port
+            reader = None
+            if sighting is None:
+                print('[MISSION] no sugarbox in {} whole laps: done, {} delivered'.format(
+                    EMPTY_LAPS_TO_END, delivered), flush=True)
+                return 0
+            room.reset()
+            stage = 'GRASP {}'.format(n)
+            if fetch_sugarbox(args, sighting, log_dir, n) == 'missed':
+                if sighting['map'] is not None:
+                    failures.append(sighting['map'])
+                print('[MISSION] grasp {} missed: backing out, patrolling on'.format(n),
+                      flush=True)
+                stage = 'BACK_OUT {}'.format(n)
+                room.leave()
+                continue
+            stage = 'PLACE {}'.format(n)
+            place_held(args, layout_copy, log_dir, n, new_reader,
+                       lambda: PlacementWatcher(args.homography))
+            delivered += 1
+            print('[MISSION] {} delivered'.format(delivered), flush=True)
+            stage = 'BACK_OUT {}'.format(n)
+            room.leave()
+        print('[MISSION] {} delivered: done'.format(delivered), flush=True)
+        return 0
+    except (Exception, KeyboardInterrupt) as exc:
+        print('[MISSION] stopped in {}: {}'.format(stage, exc), flush=True)
+        print('[MISSION] logs in {}'.format(log_dir), flush=True)
+        return 2
+    finally:
+        if reader is not None:
+            reader.close()
+        try:
+            runner.stop(args.host)
+        except OSError as exc:
+            print('[MISSION] final stop not delivered: {}; resident watchdog remains'.format(exc))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--host', required=True)
-    parser.add_argument('--scene', default=SCENE, help='Jetson-side scene folder for the patrol')
-    parser.add_argument('--loops', type=int, default=1, help='objects to deliver (1..5)')
+    parser.add_argument('--scene', default=SCENE,
+                        help='Jetson-side scene folder: the patrol and the placement box position')
+    parser.add_argument('--max-deliveries', type=int, default=None,
+                        help='stop after this many (default: until two whole laps find none)')
     parser.add_argument('--wall-m', type=float, default=None,
                         help='taught wall distance for the placement stop (see placement_dock.py)')
-    parser.add_argument('--box-map', type=Path, default=dock.BOX_MAP)
     parser.add_argument('--homography', type=Path,
                         default=Path(resolve_asset_paths(str(ROOT))['homography']))
     parser.add_argument('--gstreamer', type=Path, default=runner.find_gstreamer())
@@ -474,9 +800,9 @@ def main(argv=None):
     parser.add_argument('--i-am-beside-the-robot', action='store_true')
     args = parser.parse_args(argv)
     ipaddress.IPv4Address(args.host)
-    if not 1 <= args.loops <= 5:
-        parser.error('--loops must be 1..5')
-    if args.no_patrol and args.loops != 1:
+    if args.max_deliveries is not None and args.max_deliveries < 1:
+        parser.error('--max-deliveries must be at least 1')
+    if args.no_patrol and args.max_deliveries is not None:
         parser.error('--no-patrol delivers one object; set the next one up and run again')
     if args.resume_at and not args.no_patrol:
         parser.error('--resume-at goes with --no-patrol')
@@ -491,60 +817,19 @@ def main(argv=None):
         print('[MISSION] PC {} | one object, no patrol{}'.format(
             pc_ip, '' if not args.resume_at else ' | resume at ' + args.resume_at))
     else:
-        print('[MISSION] PC {} | patrol {} | {} loop(s)'.format(pc_ip, args.scene, args.loops))
+        print('[MISSION] PC {} | patrol {} | {}'.format(
+            pc_ip, args.scene, 'until two laps find nothing' if args.max_deliveries is None
+            else 'at most {} deliveries'.format(args.max_deliveries)))
     if not args.real:
         print('[check] robot, cameras and files passed{}; no motion.'.format(
-            '' if args.no_patrol else ', localization, box map'))
+            '' if args.no_patrol else ', localization, box position'))
         return 0
     if not args.i_am_beside_the_robot:
         print('[REFUSED] --real requires --i-am-beside-the-robot')
         return 3
     if args.no_patrol:
         return grasp_and_place(args, pc_ip, log_dir)
-    from integration.rear_stream import StreamReader
-    box = dock.load_box_map(args.box_map)
-    place_argv = ['--target', 'placement', '--turn-to-box', '--box-map', str(args.box_map),
-                  '--real', '--i-am-beside-the-robot']
-    if args.wall_m is not None:
-        place_argv += ['--wall-m', str(args.wall_m)]
-    stage, reader = 'START', None
-    try:
-        if not stream_running(args.host, pc_ip):
-            start_stream(args.host, pc_ip)
-        watcher = SugarboxWatcher(args.homography)
-        for loop in range(1, args.loops + 1):
-            stage = 'PATROL {}'.format(loop)
-            reader = StreamReader(STREAM_PORT, args.gstreamer)
-            patrol_until_sugarbox(args.host, args.scene, reader, watcher, box)
-            reader.close()            # the approach opens its own receiver on this port
-            reader = None
-            stage = 'GRASP {}'.format(loop)
-            runner.service_command(args.host, 'maintenance-unlock')
-            code = run_stage(args.host, ['--target', 'sugarbox', '--real',
-                                         '--i-am-beside-the-robot'])
-            if code:
-                raise MissionError('grasp runner exit {}'.format(code))
-            if runner.ctl(args.host, 'health').get('holding') is not True:
-                raise MissionError('grasp reported done but nothing is held')
-            stage = 'PLACE {}'.format(loop)
-            code = run_stage(args.host, place_argv)
-            if code:
-                raise MissionError('placement runner exit {}'.format(code))
-            stage = 'BACK_OUT {}'.format(loop)
-            back_out(args.host)
-            print('[MISSION] loop {} delivered'.format(loop), flush=True)
-        stage = 'DONE'
-        return 0
-    except (Exception, KeyboardInterrupt) as exc:
-        print('[MISSION] stopped in {}: {}'.format(stage, exc), flush=True)
-        return 2
-    finally:
-        if reader is not None:
-            reader.close()
-        try:
-            runner.stop(args.host)
-        except OSError as exc:
-            print('[MISSION] final stop not delivered: {}; resident watchdog remains'.format(exc))
+    return patrol_mission(args, pc_ip, log_dir)
 
 
 if __name__ == '__main__':

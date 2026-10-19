@@ -575,13 +575,32 @@ class PlacementTests(unittest.TestCase):
         # The corner box is often beyond the calibrated area after a grasp.
         self.assertEqual(env['SUGARBOX_FAR_SEED'], '1')
 
-    def test_the_grasp_approach_never_drives_at_a_rough_far_estimate(self):
-        with patch.dict(runner.os.environ, {'SUGARBOX_FAR_SEED': '1'}, clear=True),              patch.object(runner, 'preflight', return_value=({}, [])),              patch.object(runner, 'ctl', side_effect=self.read),              patch.object(runner.subprocess, 'run') as process:
+    def dry_env(self, argv, inherited=None):
+        with patch.dict(runner.os.environ, inherited or {}, clear=True),              patch.object(runner, 'preflight', return_value=({}, [])),              patch.object(runner, 'ctl', side_effect=self.read),              patch.object(runner.subprocess, 'run') as process:
             process.return_value.returncode = 0
-            self.assertEqual(runner.main(['--dry-run']), 0)
-        env = process.call_args.kwargs['env']
-        for key in ('SUGARBOX_FAR_SEED', 'SUGARBOX_TARGET', 'SUGARBOX_ARRIVAL_REPORT'):
+            self.assertEqual(runner.main(['--dry-run'] + argv), 0)
+        return process.call_args.kwargs['env']
+
+    def test_the_grasp_approach_drives_at_a_far_sighting_too(self):
+        # 2026-10-19: the sugarbox may stand anywhere, so a box beyond the calibrated
+        # strip is driven at as for the placement box (never stopped on).
+        env = self.dry_env([])
+        self.assertEqual(env['SUGARBOX_FAR_SEED'], '1')
+        for key in ('SUGARBOX_TARGET', 'SUGARBOX_ARRIVAL_REPORT', 'SUGARBOX_SEED_TARGET'):
             self.assertNotIn(key, env)
+        env = self.dry_env(['--approach', 'legacy'], {'SUGARBOX_FAR_SEED': '1'})
+        self.assertNotIn('SUGARBOX_FAR_SEED', env)
+
+    def test_the_patrol_sighting_seeds_the_grasp_approach(self):
+        env = self.dry_env(['--seed', '1.2', '-0.3'])
+        self.assertEqual(env['SUGARBOX_SEED_TARGET'], '1.2000,-0.3000')
+        for argv in (['--seed', '0.2', '0'], ['--seed', '3.6', '0'], ['--seed', '1', '2'],
+                     ['--seed', 'nan', '0'], ['--seed', '1', '0', '--target', 'placement'],
+                     ['--seed', '1', '0', '--approach', 'legacy'],
+                     ['--seed', '1', '0', '--handoff-only']):
+            with self.subTest(argv=argv), patch.object(runner, 'ctl') as read,                  patch('sys.stderr'), self.assertRaises(SystemExit):
+                runner.main(argv)
+            read.assert_not_called()
 
     def test_preflight_picks_and_checks_the_placement_model(self):
         args = runner.argparse.Namespace(target='placement', sam=None, homography=None,
@@ -603,8 +622,9 @@ class PlacementTests(unittest.TestCase):
                 runner.main(argv)
             read.assert_not_called()
 
-    def run_real(self, argv=(), box=None, report=None):
+    def run_real(self, argv=(), box=None, report=None, pose=(0.0, 0.0, 0.0), backs=None):
         report = self.report if report is None else report
+        backs = [] if backs is None else backs
         def approach(command, env, timeout):
             if 'SUGARBOX_ARRIVAL_REPORT' in env:
                 Path(env['SUGARBOX_ARRIVAL_REPORT']).write_text(json.dumps(report))
@@ -613,8 +633,10 @@ class PlacementTests(unittest.TestCase):
              patch.object(runner, 'preflight', return_value=({}, [])), \
              patch.object(runner, 'ctl', side_effect=self.read), \
              patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'), \
-             patch.object(runner, 'face_box', return_value=(0.0, 0.0, 0.0)) as facing, \
-             patch.object(runner.dock, 'load_box_map', return_value=box), \
+             patch.object(runner, 'face_box', return_value=pose) as facing, \
+             patch.object(runner, 'placement_box', return_value=box), \
+             patch.object(runner, 'back_straight', side_effect=lambda h, m, **kw: backs.append(
+                 (round(m, 3), kw))), \
              patch.object(runner, 'place', return_value={'ok': True}) as placing, \
              patch.object(runner, 'handoff') as grasp, \
              patch.object(runner.subprocess, 'run', side_effect=approach) as process:
@@ -639,6 +661,55 @@ class PlacementTests(unittest.TestCase):
         code, process, _, _, _ = self.run_real(['--turn-to-box'], box=dict(verified, verified=False))
         self.assertEqual(code, 0)
         self.assertNotIn('SUGARBOX_SEED_TARGET', process.call_args.kwargs['env'])
+
+    def test_a_box_too_near_to_measure_is_backed_away_from_first(self):
+        backs = []
+        near = {'x': 0.60, 'y': 0.0, 'verified': True}
+        code, process, _, facing, _ = self.run_real(['--turn-to-box'], box=near, backs=backs)
+        self.assertEqual(code, 0)
+        self.assertEqual(backs, [(0.40, {'margin': 0.25, 'speed': 0.06})])   # capped
+        self.assertEqual(facing.call_count, 2)          # faced again from the new spot
+        backs.clear()
+        code, _, _, facing, _ = self.run_real(['--turn-to-box'], box={'x': 1.2, 'y': 0.0,
+                                                                      'verified': False},
+                                              backs=backs)
+        self.assertEqual((code, backs, facing.call_count), (0, [], 1))
+
+    def test_no_room_to_turn_backs_the_way_it_came_then_turns(self):
+        clear = iter([False, False, True, True])
+        poses = iter([(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 1.5)])
+        backs, turns = [], []
+        pose = runner.face_box(
+            'host', {'x': 0.0, 'y': 1.0},
+            localize=lambda host: {'ready': True, 'age': 0.1, 'state': {
+                'pose': list(next(poses)), 'turn_clear': next(clear)}},
+            rotate=lambda host, r: turns.append(r), back=lambda host, m: backs.append(m))
+        self.assertEqual(backs, [0.10, 0.10])
+        self.assertEqual(len(turns), 1)
+        self.assertEqual(pose, (0, 0, 1.5))
+        backs.clear()
+        with self.assertRaises(RuntimeError):
+            runner.face_box('host', {'x': 0.0, 'y': 1.0},
+                            localize=self.localize([(0, 0, 0)] * 5, turn_clear=False),
+                            rotate=lambda host, r: turns.append(r),
+                            back=lambda host, m: backs.append(m))
+        self.assertEqual(backs, [0.10] * 3)             # 0.30 m in all, then stop
+
+    def test_backing_goes_in_checked_steps(self):
+        moves = []
+        scans = lambda host: [{'ranges': [None], 'angle_min': 0.0, 'angle_increment': 0.01}] * 3
+        drive = lambda host, m, limit, speed: moves.append((round(m, 3), limit, speed))
+        with patch.object(runner.dock, 'rear_clearance', return_value=0.80):
+            runner.back_straight('host', 0.40, margin=0.25, speed=0.06, scans=scans, drive=drive)
+        self.assertEqual(moves, [(-0.2, 0.2, 0.06), (-0.2, 0.2, 0.06)])
+        moves.clear()
+        with patch.object(runner.dock, 'rear_clearance', return_value=0.25), \
+             self.assertRaises(RuntimeError):
+            runner.back_straight('host', 0.20, scans=scans, drive=drive)  # 0.20 + 0.10 needed
+        self.assertEqual(moves, [])
+        for metres in (0.0, -0.1, 0.7, float('nan')):
+            with self.subTest(metres=metres), self.assertRaises(ValueError):
+                runner.back_straight('host', metres, scans=scans, drive=drive)
 
     def test_placement_needs_a_held_object_and_an_unlocked_service(self):
         for change in ('empty', 'locked'):

@@ -1,6 +1,7 @@
 """Competition loop orchestration: no robot, camera, model or ssh."""
 import ast
 import importlib.util
+import json
 import math
 from pathlib import Path
 import shlex
@@ -26,11 +27,35 @@ class FakeReader:
 
 
 class FakeWatcher:
+    """Each look: None, an (x, y) calibrated sighting, or {'far': (x, y)} beyond it."""
+
     def __init__(self, points):
         self.points = list(points)
 
     def look(self, frame):
-        return self.points.pop(0) if self.points else None
+        point = self.points.pop(0) if self.points else None
+        if point is None:
+            return None
+        return (point['far'], True) if isinstance(point, dict) else (point, False)
+
+
+class ClockReader:
+    """Frames on a shared clock, so the stream never looks stale."""
+
+    def __init__(self, clock):
+        self.clock = clock
+
+    def latest(self):
+        self.clock[0] += 0.1
+        return np.zeros((2, 2, 3), np.uint8), self.clock[0]
+
+    def close(self):
+        pass
+
+
+LAYOUT = {'frame_id': 'map', 'bin': {
+    'pose_map': {'x': 1.76, 'y': 0.88}, 'pose_map_valid_for_current_placement': False,
+    'placement_update': {'midpoint_pose_map_candidate': {'x': 1.56, 'y': 0.83}}}}
 
 
 class PatrolTests(unittest.TestCase):
@@ -80,43 +105,101 @@ class PatrolTests(unittest.TestCase):
         self.assertAlmostEqual(x, 0.5)
         self.assertAlmostEqual(y, 2.0)
 
-    def run_patrol(self, points, running=None, report=None, box=None, pose=(0.0, 0.0, 0.0)):
+    def test_far_sightings_confirm_with_the_far_seeds_tolerance(self):
+        confirm = mission.Confirm()
+        self.assertFalse(confirm.update((1.6, 0.4), 0.0, far=True))
+        self.assertFalse(confirm.update((1.9, 0.4), 0.1, far=True))     # 0.30 apart: kept
+        self.assertTrue(confirm.update((1.7, 0.45), 0.2, far=True))
+        self.assertTrue(confirm.far)
+        confirm.reset()
+        confirm.update((1.0, 0.1), 0.0)
+        confirm.update((1.3, 0.1), 0.1)                       # measured: 0.30 starts over
+        self.assertFalse(confirm.update((1.3, 0.1), 0.2))
+
+    def test_far_point_extrapolates_within_the_seed_range(self):
+        H = np.array([[0, 0.01, 0], [0.01, 0, 0], [0, 0, 1]], dtype=float)
+        x, y = mission.far_point((80, 100, 120, 150), H, 0.20)
+        self.assertAlmostEqual(x, 1.50 - 0.20 + 0.135)
+        self.assertAlmostEqual(y, 1.00)
+        self.assertIsNone(mission.far_point((300, 100, 340, 200), H, 0.20))   # 3.7 m away
+
+    def run_patrol(self, points, running=None, reports=None, box=None, pose=(0.0, 0.0, 0.0),
+                   skip=(), make_room=None):
         started, stopped = [], []
         running = running if running is not None else (lambda host, pid: True)
+        reports = iter(reports or [{'ok': True}] * 10)
         with patch.object(mission, 'start_patrol',
                           side_effect=lambda host, scene: started.append(scene) or 40 + len(started)), \
              patch.object(mission, 'patrol_running', side_effect=running), \
              patch.object(mission, 'stop_patrol', side_effect=lambda host, pid: stopped.append(pid)), \
-             patch.object(mission, 'patrol_report', return_value=report or {'ok': True}), \
+             patch.object(mission, 'patrol_report', side_effect=lambda host: next(reports)), \
              patch.object(mission.dock, 'read_localization',
                           return_value={'ready': True, 'age': 0.1, 'state': {'pose': list(pose)}}), \
-             patch.object(mission.time, 'sleep'):
+             patch.object(mission.time, 'sleep'), patch('builtins.print'):
             seen = mission.patrol_until_sugarbox('host', 'scene', FakeReader(True),
-                                                 FakeWatcher(points), box,
-                                                 now=lambda: 0.0)
+                                                 FakeWatcher(points), box, skip=skip,
+                                                 make_room=make_room, now=lambda: 0.0)
         return seen, started, stopped
 
     def test_a_confirmed_sugarbox_stops_the_patrol(self):
-        seen, started, stopped = self.run_patrol([None, (1.0, 0.1), (1.0, 0.1), (1.0, 0.1)])
+        seen, started, stopped = self.run_patrol([None, (1.0, 0.1), (1.0, 0.1), (1.0, 0.1)],
+                                                 pose=(1.0, 0.0, 0.0))
         self.assertEqual(started, ['scene'])
         self.assertEqual(stopped, [41])
-        self.assertEqual([round(v, 6) for v in seen], [1.0, 0.1])
+        self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
+        self.assertEqual([round(v, 6) for v in seen['map']], [2.0, 0.1])
 
-    def test_the_delivered_sugarbox_is_not_fetched_again(self):
-        box = {'x': 1.0, 'y': 0.1, 'verified': True}
-        points = [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 3
-        seen, _, stopped = self.run_patrol(points, box=box)
-        self.assertEqual([round(v, 6) for v in seen], [0.8, -0.3])
+    def test_a_sugarbox_beyond_the_calibrated_area_stops_the_patrol_too(self):
+        seen, _, stopped = self.run_patrol([{'far': (1.8, 0.5)}] * 3)
+        self.assertEqual([round(v, 6) for v in seen['point']], [1.8, 0.5])
         self.assertEqual(stopped, [41])
 
-    def test_finished_cycles_restart_and_a_failed_patrol_stops_the_mission(self):
+    def test_the_delivered_sugarbox_is_not_fetched_again(self):
+        points = [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 3
+        for verified in (True, False):
+            with self.subTest(verified=verified):
+                box = {'x': 1.0, 'y': 0.1, 'verified': verified}
+                seen, _, stopped = self.run_patrol(list(points), box=box)
+                self.assertEqual([round(v, 6) for v in seen['point']], [0.8, -0.3])
+                self.assertEqual(stopped, [41])
+
+    def test_a_spot_where_grasping_failed_twice_is_left_alone(self):
+        points = [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 3
+        seen, _, _ = self.run_patrol(points, skip=[(1.05, 0.1)])
+        self.assertEqual([round(v, 6) for v in seen['point']], [0.8, -0.3])
+
+    def test_finished_laps_restart_and_two_empty_laps_end_the_search(self):
         alive = iter([False, True, True, True, True, True, True, True, True])
         _, started, _ = self.run_patrol([None, (1.0, 0.0), (1.0, 0.0), (1.0, 0.0)],
                                         running=lambda host, pid: next(alive))
         self.assertEqual(started, ['scene', 'scene'])
+        seen, started, _ = self.run_patrol([None] * 9, running=lambda host, pid: False)
+        self.assertIsNone(seen)
+        self.assertEqual(len(started), mission.EMPTY_LAPS_TO_END)
+
+    def test_a_failed_patrol_stops_the_mission(self):
         with self.assertRaises(mission.MissionError):
             self.run_patrol([None] * 5, running=lambda host, pid: False,
-                            report={'ok': False, 'error': 'AMCL uncertainty'})
+                            reports=[{'ok': False, 'error': 'AMCL uncertainty', 'pulses': 7}])
+
+    def test_a_refusal_to_start_makes_room_and_asks_again(self):
+        refused = {'ok': False, 'pulses': 0, 'error': 'no reachable entry to patrol route'}
+        alive, room = iter([False] + [True] * 9), []
+        seen, started, stopped = self.run_patrol(
+            [None, (1.0, 0.1), (1.0, 0.1), (1.0, 0.1)], running=lambda host, pid: next(alive),
+            reports=[refused], make_room=lambda: room.append('back') or True)
+        self.assertEqual((started, stopped, room), (['scene', 'scene'], [42], ['back']))
+        with self.assertRaises(mission.MissionError):
+            self.run_patrol([None] * 5, running=lambda host, pid: False, reports=[refused] * 3,
+                            make_room=lambda: False)
+
+    def test_a_refusal_means_it_never_moved(self):
+        self.assertTrue(mission.patrol_refused(
+            {'ok': False, 'pulses': 0, 'error': 'start outside navigation mask'}))
+        self.assertFalse(mission.patrol_refused(
+            {'ok': False, 'pulses': 3, 'error': 'start outside navigation mask'}))
+        self.assertFalse(mission.patrol_refused({'ok': False, 'pulses': 0, 'error': 'AMCL'}))
+        self.assertFalse(mission.patrol_refused({'ok': True}))
 
     def test_no_frames_never_starts_the_patrol(self):
         with patch.object(mission, 'start_patrol') as starting, \
@@ -127,21 +210,224 @@ class PatrolTests(unittest.TestCase):
         starting.assert_not_called()
 
 
-class BackOutTests(unittest.TestCase):
-    def scans(self, clearance):
-        return lambda host: [{'ranges': [], 'angle_min': 0.0, 'angle_increment': 0.01}] * 3
+class RoomTests(unittest.TestCase):
+    def test_backs_out_then_a_step_more_up_to_the_limit(self):
+        backs = []
+        room = mission.Room('host', back=lambda host, m: backs.append(round(m, 3)))
+        room.leave()
+        self.assertTrue(room.make())
+        self.assertFalse(room.make())                 # 0.20 + 0.10 = 0.30 m in all
+        self.assertEqual(backs, [0.2, 0.1])
+        room.reset()
+        self.assertEqual([room.make() for _ in range(4)], [True, True, True, False])
 
-    def test_backs_out_only_with_room_behind(self):
-        moves = []
-        with patch.object(mission.dock, 'rear_clearance', return_value=0.5):
-            mission.back_out('host', scans=self.scans(0.5),
-                             drive=lambda host, m, limit: moves.append((m, limit)))
-        self.assertEqual(moves, [(-0.20, 0.30)])
-        with patch.object(mission.dock, 'rear_clearance', return_value=0.25), \
-             self.assertRaises(mission.MissionError):
-            mission.back_out('host', scans=self.scans(0.25),
-                             drive=lambda host, m, limit: moves.append((m, limit)))
-        self.assertEqual(len(moves), 1)
+
+class StateTests(unittest.TestCase):
+    def state(self, chassis=None, holding=True, error=None):
+        status = {'chassis': dict({'arm_busy': False, 'moving': False, 'arm_pose': 'travel'},
+                                  **(chassis or {}))}
+
+        def ctl(host, command):
+            if error:
+                raise error
+            return status if command == 'status' else {'holding': holding}
+        with patch.object(mission.runner, 'ctl', side_effect=ctl), patch('builtins.print'):
+            return mission.arm_state('host')
+
+    def test_only_a_settled_known_arm_counts(self):
+        self.assertEqual(self.state(), 'holding')
+        self.assertEqual(self.state({'arm_pose': 'e1'}, holding=False), 'empty')
+        for chassis, holding in (({'arm_busy': True}, True), ({'moving': True}, True),
+                                 ({'arm_pose': 'unknown'}, False), ({}, None)):
+            with self.subTest(chassis=chassis, holding=holding):
+                self.assertEqual(self.state(chassis, holding), 'unknown')
+        self.assertEqual(self.state(error=RuntimeError('graspctl failed')), 'unknown')
+
+    def test_a_spot_counts_after_two_failures_close_together(self):
+        self.assertEqual(mission.tried_out([(1.0, 1.0)]), [])
+        self.assertEqual(len(mission.tried_out([(1.0, 1.0), (1.1, 1.0)])), 2)
+        self.assertEqual(mission.tried_out([(1.0, 1.0), (2.0, 2.0)]), [])
+
+    def test_the_seed_is_reprojected_from_the_pose_after_stopping(self):
+        sighting = {'point': (1.0, 0.0), 'map': (2.0, 1.0)}
+        with patch.object(mission.dock, 'read_localization', return_value={
+                'ready': True, 'age': 0.1, 'state': {'pose': [1.5, 1.0, 0.0]}}):
+            self.assertEqual([round(v, 6) for v in mission.approach_seed('h', sighting)],
+                             [0.5, 0.0])
+        with patch.object(mission.dock, 'read_localization', return_value=None), \
+             patch('builtins.print'):
+            self.assertEqual(mission.approach_seed('h', sighting), (1.0, 0.0))
+        self.assertIsNone(mission.approach_seed('h', {'point': (0.1, 0.0), 'map': None}))
+
+
+class SearchTests(unittest.TestCase):
+    def search(self, seen_after_turns):
+        clock, turned = [0.0], []
+
+        class Watcher:
+            def look(self, frame):
+                return ((1.5, 0.2), False) if len(turned) >= seen_after_turns else None
+        with patch('builtins.print'):
+            found = mission.search_placement('host', ClockReader(clock), Watcher(),
+                                             turn=lambda host, r: turned.append(r),
+                                             now=lambda: clock[0])
+        return found, turned
+
+    def test_turns_until_the_box_shows(self):
+        found, turned = self.search(2)
+        self.assertTrue(found)
+        self.assertEqual(turned, [mission.SEARCH_STEP_RAD] * 2)
+
+    def test_gives_up_after_about_a_full_circle(self):
+        found, turned = self.search(99)
+        self.assertFalse(found)
+        self.assertEqual(len(turned), mission.SEARCH_STEPS)
+        self.assertGreaterEqual(math.degrees(sum(turned)), 360)
+
+
+class StageTests(unittest.TestCase):
+    def setUp(self):
+        self.args = mission.argparse.Namespace(host='10.0.0.1', wall_m=None,
+                                               homography=Path('h.json'), gstreamer=None)
+        self.calls = []
+
+    def stage(self, codes):
+        codes = iter(codes)
+        return lambda host, argv, log_path=None: self.calls.append(
+            (argv[1], '--turn-to-box' in argv, Path(log_path).name, list(argv))) or next(codes)
+
+    def fetch(self, code, state, camera='ok'):
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(mission, 'ensure_arm_camera', return_value=None), \
+             patch.object(mission, 'unlock'), \
+             patch.object(mission, 'approach_seed', return_value=(1.2, -0.3)), \
+             patch.object(mission, 'run_stage', side_effect=self.stage([code])), \
+             patch.object(mission, 'arm_state', return_value=state), \
+             patch.object(mission, 'arm_camera_state', return_value=camera), \
+             patch.object(mission, 'to_travel', side_effect=lambda h: self.calls.append('travel')):
+            return mission.fetch_sugarbox(self.args, {'point': (1.2, -0.3), 'map': None},
+                                          Path(folder), 3)
+
+    def test_a_held_object_goes_on_to_the_placement(self):
+        self.assertEqual(self.fetch(0, 'holding'), 'held')
+        argv = self.calls[0][3]
+        self.assertEqual(argv[argv.index('--seed') + 1:argv.index('--seed') + 3],
+                         ['1.200', '-0.300'])
+        self.assertEqual(self.calls[0][2], 'grasp_3.log')
+
+    def test_a_clean_miss_stows_and_patrols_on(self):
+        self.assertEqual(self.fetch(2, 'empty'), 'missed')
+        self.assertEqual(self.calls[-1], 'travel')
+
+    def test_anything_doubtful_stops(self):
+        for code, state, camera in ((2, 'unknown', 'ok'), (0, 'empty', 'ok'),
+                                    (2, 'empty', 'unplugged')):
+            with self.subTest(code=code, state=state, camera=camera), \
+                 self.assertRaises(mission.MissionError):
+                self.fetch(code, state, camera)
+        self.assertNotIn('travel', self.calls)
+
+    def place(self, codes, states, found=True):
+        states = iter(states)
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(mission, 'run_stage', side_effect=self.stage(codes)), \
+             patch.object(mission, 'arm_state', side_effect=lambda h: next(states)), \
+             patch.object(mission, 'to_travel'), patch('builtins.print'), \
+             patch.object(mission, 'search_placement',
+                          side_effect=lambda h, r, w: self.calls.append('search') or found):
+            mission.place_held(self.args, Path(folder) / 'scene_layout.json', Path(folder), 2,
+                               lambda: ClockReader([0.0]), lambda: 'watcher')
+
+    def test_a_placement_turns_toward_the_box_first(self):
+        self.place([0], ['empty'])
+        self.assertEqual([c[:3] for c in self.calls], [('placement', True, 'place_2.log')])
+
+    def test_still_holding_after_a_failure_looks_around_once_and_retries(self):
+        self.place([2, 0], ['holding', 'empty'])
+        self.assertEqual([c if c == 'search' else c[:3] for c in self.calls],
+                         [('placement', True, 'place_2.log'), 'search',
+                          ('placement', False, 'place_2_retry.log')])
+        for codes, states, found in (([2], ['holding'], False),
+                                     ([2, 2], ['holding', 'holding'], True),
+                                     ([2], ['empty'], True), ([2], ['unknown'], True)):
+            with self.subTest(codes=codes, states=states, found=found), \
+                 self.assertRaises(mission.MissionError):
+                self.calls = []
+                self.place(codes, states, found)
+
+
+class MissionTests(unittest.TestCase):
+    """The patrol loop's order, with every stage faked."""
+
+    def run_mission(self, sightings, grasps, argv=(), place_error=None):
+        order = []
+        sightings, grasps = iter(sightings), iter(grasps)
+        args = mission.argparse.Namespace(host='10.0.0.1', scene='scene', homography=Path('h'),
+                                          gstreamer=None, wall_m=None, max_deliveries=None)
+        for key, value in argv:
+            setattr(args, key, value)
+
+        class FakeRoom:
+            def leave(self):
+                order.append('leave')
+
+            def make(self):
+                return False
+
+            def reset(self):
+                order.append('reset')
+
+        def patrol(host, scene, reader, watcher, box, skip=(), make_room=None):
+            order.append(('patrol', len(skip)))
+            return next(sightings)
+
+        def place(*a):
+            order.append('place')
+            if place_error:
+                raise place_error
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(mission.dock, 'fetch_layout', return_value=LAYOUT), \
+             patch.object(mission, 'stream_running', return_value=True), \
+             patch.object(mission, 'SugarboxWatcher'), \
+             patch('integration.rear_stream.StreamReader'), \
+             patch.object(mission, 'patrol_until_sugarbox', side_effect=patrol), \
+             patch.object(mission, 'fetch_sugarbox',
+                          side_effect=lambda *a: order.append('grasp') or next(grasps)), \
+             patch.object(mission, 'place_held', side_effect=place), \
+             patch.object(mission.runner, 'stop') as stopping, patch('builtins.print'):
+            code = mission.patrol_mission(args, '10.0.0.2', Path(folder), room=FakeRoom())
+            copied = json.loads((Path(folder) / 'scene_layout.json').read_text(encoding='utf-8'))
+        stopping.assert_called_once()
+        self.assertEqual(copied, LAYOUT)               # what this run turned by, kept
+        return code, order
+
+    def test_it_runs_until_two_empty_laps(self):
+        spot = {'point': (1.0, 0.0), 'map': (0.5, 0.5)}
+        code, order = self.run_mission([spot, spot, None], ['held', 'held'])
+        self.assertEqual(code, 0)
+        self.assertEqual(order, [('patrol', 0), 'reset', 'grasp', 'place', 'leave',
+                                 ('patrol', 0), 'reset', 'grasp', 'place', 'leave',
+                                 ('patrol', 0)])
+
+    def test_a_missed_grasp_backs_out_and_a_spot_missed_twice_is_skipped(self):
+        spot = {'point': (1.0, 0.0), 'map': (0.5, 0.5)}
+        code, order = self.run_mission([spot, spot, None], ['missed', 'missed'])
+        self.assertEqual(code, 0)
+        self.assertEqual(order, [('patrol', 0), 'reset', 'grasp', 'leave',
+                                 ('patrol', 0), 'reset', 'grasp', 'leave',
+                                 ('patrol', 2)])
+
+    def test_max_deliveries_stops_after_the_last_one(self):
+        spot = {'point': (1.0, 0.0), 'map': None}
+        code, order = self.run_mission([spot], ['held'], argv=[('max_deliveries', 1)])
+        self.assertEqual((code, order[-1], order.count('place')), (0, 'leave', 1))
+
+    def test_a_doubtful_stage_stops_the_loop_where_it_is(self):
+        spot = {'point': (1.0, 0.0), 'map': None}
+        code, order = self.run_mission([spot], ['held'],
+                                       place_error=mission.MissionError('arm state unknown'))
+        self.assertEqual(code, 2)
+        self.assertNotIn('leave', order)
 
 
 class MainTests(unittest.TestCase):
@@ -165,48 +451,34 @@ class MainTests(unittest.TestCase):
             self.assertEqual(mission.main(['--host', '10.0.0.1', '--real']), 3)
         stage.assert_not_called()
 
-    def test_one_loop_runs_patrol_grasp_place_back_out_in_order(self):
-        order = []
-        holding = iter([True])
+    def test_real_patrol_mode_runs_the_patrol_mission(self):
         with patch.object(mission, 'preflight', return_value=[]), \
              patch.object(mission, 'pc_address', return_value='10.0.0.2'), \
-             patch.object(mission, 'stream_running', return_value=True), \
-             patch.object(mission, 'SugarboxWatcher'), \
-             patch('integration.rear_stream.StreamReader'), \
-             patch.object(mission.dock, 'load_box_map', return_value={'verified': False}), \
-             patch.object(mission, 'patrol_until_sugarbox',
-                          side_effect=lambda *a: order.append('patrol')), \
-             patch.object(mission.runner, 'service_command',
-                          side_effect=lambda host, c: order.append(c)), \
-             patch.object(mission, 'run_stage',
-                          side_effect=lambda host, argv: order.append(argv[1]) or 0), \
-             patch.object(mission.runner, 'ctl',
-                          side_effect=lambda host, c: {'holding': next(holding)}), \
-             patch.object(mission, 'back_out', side_effect=lambda host: order.append('back')), \
-             patch.object(mission.runner, 'stop'):
-            code = mission.main(['--host', '10.0.0.1', '--real', '--i-am-beside-the-robot'])
-        self.assertEqual(code, 0)
-        self.assertEqual(order, ['patrol', 'maintenance-unlock', 'sugarbox', 'placement', 'back'])
+             patch.object(mission, 'patrol_mission', return_value=0) as patrolling, \
+             patch.object(mission, 'grasp_and_place') as one, patch('builtins.print'):
+            self.assertEqual(mission.main(['--host', '10.0.0.1', '--real',
+                                           '--i-am-beside-the-robot']), 0)
+        patrolling.assert_called_once()
+        self.assertIsNone(patrolling.call_args.args[0].max_deliveries)   # until laps run dry
+        one.assert_not_called()
 
-    def test_a_failed_grasp_stops_before_placing(self):
-        order = []
-        with patch.object(mission, 'preflight', return_value=[]), \
-             patch.object(mission, 'pc_address', return_value='10.0.0.2'), \
-             patch.object(mission, 'stream_running', return_value=True), \
-             patch.object(mission, 'SugarboxWatcher'), \
-             patch('integration.rear_stream.StreamReader'), \
-             patch.object(mission.dock, 'load_box_map', return_value={'verified': False}), \
-             patch.object(mission, 'patrol_until_sugarbox'), \
-             patch.object(mission.runner, 'service_command'), \
-             patch.object(mission, 'run_stage',
-                          side_effect=lambda host, argv: order.append(argv[1]) or 2), \
-             patch.object(mission, 'back_out') as backing, \
-             patch.object(mission.runner, 'stop') as stopping:
-            code = mission.main(['--host', '10.0.0.1', '--real', '--i-am-beside-the-robot'])
-        self.assertEqual(code, 2)
-        self.assertEqual(order, ['sugarbox'])
-        backing.assert_not_called()
-        stopping.assert_called_once()
+    def test_preflight_with_patrol_reads_the_box_from_the_robot(self):
+        args = mission.argparse.Namespace(
+            host='10.0.0.1', no_patrol=False, resume_at=None, scene='scene',
+            homography=ROOT / 'detection/rear_ground_homography.json', gstreamer=__file__)
+        with patch.object(mission.runner, 'ctl', side_effect=lambda h, c: (
+                {'holding': False} if c == 'health'
+                else {'chassis': {'arm_pose': 'travel', 'moving': False}})), \
+             patch.object(mission.dock, 'read_localization', return_value={
+                 'ready': True, 'age': 0.1, 'state': {'pose': [0, 0, 0]}}), \
+             patch.object(mission, 'ensure_arm_camera', return_value=None), \
+             patch('builtins.print'):
+            with patch.object(mission.dock, 'fetch_box',
+                              return_value={'x': 1, 'y': 1, 'verified': False}) as fetching:
+                self.assertEqual(mission.preflight(args), [])
+            fetching.assert_called_once_with('10.0.0.1', 'scene')
+            with patch.object(mission.dock, 'fetch_box', side_effect=ValueError('no layout')):
+                self.assertEqual(mission.preflight(args), ['placement box position: no layout'])
 
 
 class NoPatrolTests(unittest.TestCase):
@@ -238,7 +510,7 @@ class NoPatrolTests(unittest.TestCase):
              patch.object(mission.runner, 'service_command') as unlock, \
              patch.object(mission, 'run_stage', side_effect=stage), \
              patch.object(mission, 'patrol_until_sugarbox') as patrol, \
-             patch.object(mission, 'back_out') as backing, \
+             patch.object(mission.runner, 'back_straight') as backing, \
              patch.object(mission.runner, 'stop') as stopping, \
              patch('builtins.print') as printed:
             code = mission.main(['--host', '10.0.0.1', '--no-patrol', '--real',
@@ -290,13 +562,14 @@ class NoPatrolTests(unittest.TestCase):
         self.assertIn('--resume-at place', text)
 
     def test_one_object_per_run_and_resume_only_without_patrol(self):
-        for argv in (['--no-patrol', '--loops', '2'], ['--resume-at', 'place']):
+        for argv in (['--no-patrol', '--max-deliveries', '2'], ['--resume-at', 'place'],
+                     ['--max-deliveries', '0']):
             with self.subTest(argv=argv), patch('sys.stderr'), self.assertRaises(SystemExit):
                 mission.main(['--host', '10.0.0.1'] + argv)
 
     def test_preflight_without_patrol_needs_no_localization(self):
         args = mission.argparse.Namespace(
-            host='10.0.0.1', no_patrol=True, resume_at=None, box_map=mission.dock.BOX_MAP,
+            host='10.0.0.1', no_patrol=True, resume_at=None, scene=mission.SCENE,
             homography=ROOT / 'detection/rear_ground_homography.json', gstreamer=__file__)
         with patch.object(mission.runner, 'ctl', side_effect=lambda h, c: (
                 {'holding': False} if c == 'health'

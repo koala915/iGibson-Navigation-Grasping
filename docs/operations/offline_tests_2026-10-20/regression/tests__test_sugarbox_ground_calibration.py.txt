@@ -1,0 +1,26 @@
+test_defaults_use_committed_repo_assets (__main__.AssetPathTests.test_defaults_use_committed_repo_assets) ... ok
+test_individual_and_asset_directory_overrides_are_preserved (__main__.AssetPathTests.test_individual_and_asset_directory_overrides_are_preserved) ... ok
+test_sam_runner_name_and_pr7_alias_are_supported (__main__.AssetPathTests.test_sam_runner_name_and_pr7_alias_are_supported) ... ok
+test_committed_json_reads_all_inliers_and_enforces_range (__main__.GroundCalibrationTests.test_committed_json_reads_all_inliers_and_enforces_range) ... ok
+test_e1_or_other_declared_calibration_type_is_refused (__main__.GroundCalibrationTests.test_e1_or_other_declared_calibration_type_is_refused) ... ok
+test_existing_pixel_margin_is_preserved (__main__.GroundCalibrationTests.test_existing_pixel_margin_is_preserved) ... ok
+test_invalid_or_nonfinite_accepted_samples_are_refused (__main__.GroundCalibrationTests.test_invalid_or_nonfinite_accepted_samples_are_refused) ... ok
+test_invalid_query_or_hull_never_authorizes_target (__main__.GroundCalibrationTests.test_invalid_query_or_hull_never_authorizes_target) ... ok
+test_invalid_samples_do_not_fall_back_to_legacy_points (__main__.GroundCalibrationTests.test_invalid_samples_do_not_fall_back_to_legacy_points) ... ok
+test_legacy_pixel_arrays_remain_supported (__main__.GroundCalibrationTests.test_legacy_pixel_arrays_remain_supported) ... ok
+test_malformed_coordinate_metadata_is_refused (__main__.GroundCalibrationTests.test_malformed_coordinate_metadata_is_refused) ... ok
+test_matching_partial_metadata_remains_supported (__main__.GroundCalibrationTests.test_matching_partial_metadata_remains_supported) ... ok
+test_missing_file_is_refused (__main__.GroundCalibrationTests.test_missing_file_is_refused) ... ok
+test_missing_pixels_cannot_disable_range_gate (__main__.GroundCalibrationTests.test_missing_pixels_cannot_disable_range_gate) ... ok
+test_missing_singular_or_nonfinite_matrix_is_refused (__main__.GroundCalibrationTests.test_missing_singular_or_nonfinite_matrix_is_refused) ... ok
+test_nonfinite_legacy_pixels_are_refused (__main__.GroundCalibrationTests.test_nonfinite_legacy_pixels_are_refused) ... ok
+test_nonfinite_offset_is_refused (__main__.GroundCalibrationTests.test_nonfinite_offset_is_refused) ... ok
+test_rejected_samples_do_not_expand_hull (__main__.GroundCalibrationTests.test_rejected_samples_do_not_expand_hull) ... ok
+test_too_few_duplicate_collinear_or_rejected_points_are_refused (__main__.GroundCalibrationTests.test_too_few_duplicate_collinear_or_rejected_points_are_refused) ... ok
+test_wrong_declared_coordinate_axes_origin_or_input_is_refused (__main__.GroundCalibrationTests.test_wrong_declared_coordinate_axes_origin_or_input_is_refused) ... ok
+test_wrong_declared_resolution_is_refused (__main__.GroundCalibrationTests.test_wrong_declared_resolution_is_refused) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.750s
+
+OK

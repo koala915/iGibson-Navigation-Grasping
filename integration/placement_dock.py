@@ -97,6 +97,35 @@ def box_from_layout(layout, source='scene_layout.json'):
             'source': source}
 
 
+def walls_from_layout(layout):
+    """The room's wall polygon [(x, y), ...] in the map frame, or None if absent."""
+    polygon = layout.get('room_polygon') if isinstance(layout, dict) else None
+    if (not isinstance(polygon, list) or len(polygon) < 3
+            or not all(isinstance(p, (list, tuple)) and len(p) == 2 and finite(*p)
+                       for p in polygon)):
+        return None
+    return [(float(x), float(y)) for x, y in polygon]
+
+
+def wall_distance(point, walls):
+    """Distance from a map point to the nearest wall: positive inside the wall
+    polygon, negative beyond it."""
+    x, y = point
+    inside, distances = False, []
+    for (x1, y1), (x2, y2) in zip(walls, walls[1:] + walls[:1]):
+        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
+            inside = not inside
+        dx, dy = x2 - x1, y2 - y1
+        t = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy or 1.0)))
+        distances.append(math.hypot(x - (x1 + t * dx), y - (y1 + t * dy)))
+    return min(distances) if inside else -min(distances)
+
+
+def near_wall(point, walls, margin):
+    """True for a map point outside the wall polygon or within `margin` of a wall."""
+    return wall_distance(point, walls) <= margin
+
+
 def load_box_map(path):
     """The placement box from a local copy of scene_layout.json."""
     with open(path, encoding='utf-8') as f:
@@ -221,26 +250,77 @@ def corridor_distance(ranges, angle_min, angle_increment,
     return robust_nearest(values)
 
 
-# Chassis footprint around the centre, as the approach drops self-returns
-# (sugarbox_training_contract.CHASSIS_HALF_*: mast, arm base and wiring).
-CHASSIS_HALF_LENGTH_M = 0.15
-CHASSIS_HALF_WIDTH_M = 0.15
+# The robot's outline (x forward, y left from the chassis centre, x1 y1 x2 y2):
+# ncu's surveyed body rectangles in the LiDAR self-return profile (robot file
+# deploy/ros/lidar_self_returns_2026-10-18.json). Each one, not the box around
+# them all: the right-side cables stick out 0.29 m only mid-body, and a box
+# carried that width to a rear corner the robot does not have (2026-10-19).
+BODY_RECTANGLES = ((-0.15, -0.14, 0.22, 0.14), (-0.18, -0.22, -0.06, -0.13),
+                   (-0.20, 0.10, -0.15, 0.14), (-0.05, -0.29, 0.02, -0.21),
+                   (0.04, -0.29, 0.075, -0.21), (-0.23, -0.205, -0.18, -0.135))
+# Backing straight must leave the whole outline this far inside the room's walls
+# (AMCL ~4 cm, and the margin the old LiDAR check kept).
+BACK_WALL_MARGIN_M = 0.08
 
 
-def rear_clearance(ranges, angle_min, angle_increment,
-                   half_width_m=CORRIDOR_HALF_WIDTH_M, geometry=LIDAR):
-    """Free distance behind the chassis's back edge, in its own-width corridor."""
-    values = []
-    for sample in robot_scan_samples(ranges, angle_min, angle_increment, geometry):
-        if sample.range_m is None:
-            continue
-        x = sample.range_m * math.cos(sample.angle_rad)
-        y = sample.range_m * math.sin(sample.angle_rad)
-        if abs(x) <= CHASSIS_HALF_LENGTH_M and abs(y) <= CHASSIS_HALF_WIDTH_M:
-            continue                      # the robot itself
-        if x < -CHASSIS_HALF_LENGTH_M and abs(y) <= half_width_m:
-            values.append(-x - CHASSIS_HALF_LENGTH_M)
-    return robust_nearest(values)
+def to_map(pose, point):
+    """Chassis-centre frame point -> map."""
+    x, y, yaw = pose
+    c, s = math.cos(yaw), math.sin(yaw)
+    return x + c * point[0] - s * point[1], y + s * point[0] + c * point[1]
+
+
+# The placement box is below the LiDAR's scan plane too (0.06 m): backing keeps its
+# footprint, a disc of its half diagonal, clear as well; an unverified map
+# position (the moved-box candidate) gets BIN_UNVERIFIED_SLACK_M more.
+BIN_HALF_DIAGONAL_M = 0.112
+BIN_UNVERIFIED_SLACK_M = 0.20
+BIN_APPROACH_M = 0.02
+
+
+def bin_obstacle(box):
+    """(x, y, radius) of the placement box for back_path_problem, None without one."""
+    if not box:
+        return None
+    return (box['x'], box['y'],
+            BIN_HALF_DIAGONAL_M + (0.0 if box.get('verified') else BIN_UNVERIFIED_SLACK_M))
+
+
+def segment_distance(point, start, end):
+    px, py = point
+    (ax, ay), (bx, by) = start, end
+    dx, dy = bx - ax, by - ay
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy or 1.0)))
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+
+
+def back_path_problem(pose, metres, walls, margin=BACK_WALL_MARGIN_M, obstacles=()):
+    """None when backing `metres` straight keeps the robot inside the room, else why not.
+
+    The LiDAR cannot see behind the robot: the body blocks its rear half (the
+    user, 2026-10-19; what it returned there was the robot's own right-rear
+    corner, read as an obstacle 1 cm away with ~30 cm free). The field has only
+    walls (the user, 2026-10-19), so the map and the AMCL pose decide. The room
+    is convex: an outline inside it at the start and at the end stays inside on
+    the way.
+    """
+    for x1, y1, x2, y2 in BODY_RECTANGLES:
+        for cx, cy in ((x1, y1), (x1, y2), (x2, y1), (x2, y2)):
+            start, end = to_map(pose, (cx, cy)), to_map(pose, (cx - metres, cy))
+            if near_wall(end, walls, margin):
+                return 'backing {:.2f} m would bring the robot within {:.2f} m of a wall'.format(
+                    metres, margin)
+            for ox, oy, radius in obstacles:
+                # Only coming nearer counts: right after a release the front is at
+                # the box already, and backing straight away is the way out. A front
+                # corner just past the box centre first closes by a hair as it backs
+                # by (2026-10-20, second delivery: refused); that is not coming nearer.
+                nearest = segment_distance((ox, oy), start, end)
+                if (nearest <= radius + margin
+                        and nearest < math.hypot(ox - start[0], oy - start[1]) - BIN_APPROACH_M):
+                    return ('backing {:.2f} m would sweep the robot within {:.2f} m of the '
+                            'placement box'.format(metres, margin))
+    return None
 
 
 def wall_correction(measured_m, taught_m):

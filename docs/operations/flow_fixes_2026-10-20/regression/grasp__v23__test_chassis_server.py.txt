@@ -1,0 +1,57 @@
+== wheel mapping is imported from the motor server, not copied ==
+  [ok] vx 0.15 m/s maps to 30 on all four wheels
+  [ok] zero velocity maps to zero
+  [ok] motor clamp 60, watchdog 0.5 s
+  [ok] integration/ is searched after grasp/v23, so it cannot shadow a grasp module
+
+== protocol: exactly the motor server's ==
+  [ok] velocity command drives the wheels
+  [ok] a repeated command does not rewrite the board
+  [ok] stop zeroes the wheels
+  [ok] a message without action is a stop, even when it carries a speed
+  [ok] old action/speed format is refused and stops the wheels
+  [ok] NaN vx is refused and stops the wheels
+  [ok] non-numeric vx is refused and stops the wheels
+  [ok] a JSON list is refused and stops the wheels
+
+== watchdog ==
+  [ok] 0.4 s of silence keeps driving
+  [ok] 0.6 s of silence stops the wheels
+  [ok] a stopped chassis is not rewritten
+
+== shutdown is final ==
+  [ok] a command that arrives after shutdown cannot restart the wheels
+
+== R1: no arm motion while the wheels turn or settle ==
+  [ok] a chassis that never moved lets the arm go at once
+  [ok] refused while the wheels turn, and the arm is not claimed
+  [ok] refused 0.3 s after the stop
+  [ok] allowed 0.6 s after the stop, zeros streaming meanwhile
+  [ok] two refusals counted
+  [ok] a watchdog stop starts the settle window too
+  [ok] and it ends 0.5 s after that stop
+
+== R2: velocity is dropped while the arm moves ==
+  [ok] velocity during the arm never reaches the board
+  [ok] stop is still accepted during the arm
+  [ok] the drop is counted
+  [ok] the wheels answer again once the arm is done
+
+== R3: one lock around every packet ==
+  [ok] the write runs with the lock held, once, after a double install
+  [ok] two threads writing 400 packets never interleave a byte
+
+== TCP front end (real sockets on localhost) ==
+  [ok] start() zeroes whatever speed the board held
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\grasp\v23\test_chassis_server.py", line 486, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\grasp\v23\test_chassis_server.py", line 250, in main
+    cli = socket.create_connection(("127.0.0.1", srv.port), timeout=2)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\socket.py", line 865, in create_connection
+    raise exceptions[0]
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\socket.py", line 850, in create_connection
+    sock.connect(sa)
+PermissionError: [WinError 10013] 嘗試存取通訊端被拒絕，因為存取權限不足。

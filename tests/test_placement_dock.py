@@ -82,6 +82,25 @@ class SceneLayoutTests(unittest.TestCase):
             with self.subTest(layout=layout), self.assertRaises(ValueError):
                 dock.box_from_layout(layout)
 
+    def test_the_room_walls_come_from_the_layout(self):
+        layout = dict(self.layout(), room_polygon=[[0, 0], [2, 0], [2, 2], [0, 2]])
+        self.assertEqual(dock.walls_from_layout(layout), [(0, 0), (2, 0), (2, 2), (0, 2)])
+        for broken in ({}, dict(layout, room_polygon=[[0, 0], [1, 1]]),
+                       dict(layout, room_polygon=[[0, 0], [2, 0], [2, 'x']])):
+            with self.subTest(broken=broken):
+                self.assertIsNone(dock.walls_from_layout(broken))
+
+    def test_near_a_wall_or_beyond_it(self):
+        room = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
+        for point, near in (((1.0, 1.0), False), ((0.2, 1.0), False), ((0.1, 1.0), True),
+                            ((1.95, 1.95), True), ((-0.3, 1.0), True), ((1.0, 2.5), True)):
+            with self.subTest(point=point):
+                self.assertEqual(dock.near_wall(point, room, 0.15), near)
+        # ncu's room is turned 26 deg in the map
+        tilted = [(-0.70, 0.03), (1.08, -0.83), (1.96, 0.99), (0.18, 1.85)]
+        self.assertFalse(dock.near_wall((0.63, 0.51), tilted, 0.15))     # the middle
+        self.assertTrue(dock.near_wall((0.19, -0.37), tilted, 0.15))     # on a wall
+
     def test_a_local_copy_reads_the_same(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'scene_layout.json'
@@ -150,11 +169,42 @@ class LidarTests(unittest.TestCase):
         ranges = scan(wall(0.60) + [(0.30, 0.25), (0.30, -0.25)])
         self.assertAlmostEqual(dock.corridor_distance(ranges, ANGLE_MIN, STEP), 0.50, delta=0.005)
 
-    def test_rear_clearance_skips_the_robot_itself(self):
-        echoes = [(-0.12, y / 100) for y in range(-10, 11)]          # mast and wiring
-        ranges = scan(wall(-0.55) + echoes)
-        self.assertAlmostEqual(dock.rear_clearance(ranges, ANGLE_MIN, STEP), 0.40, delta=0.005)
-        self.assertEqual(dock.rear_clearance(scan(echoes), ANGLE_MIN, STEP), float('inf'))
+    def test_backing_is_checked_against_the_walls_on_the_map(self):
+        room = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
+        facing_east = (1.0, 1.0, 0.0)                 # backing goes west
+        self.assertIsNone(dock.back_path_problem(facing_east, 0.20, room))
+        # rear edge 1.0 - 0.23 - 0.60 = 0.17 m off the west wall: still fine
+        self.assertIsNone(dock.back_path_problem(facing_east, 0.60, room))
+        # 1.0 - 0.23 - 0.70 = 0.07 m: inside the 0.08 m margin
+        self.assertIn('within', dock.back_path_problem(facing_east, 0.70, room))
+        # the right-side cables: facing north, the robot's right is east
+        self.assertIn('within', dock.back_path_problem((1.75, 1.0, math.pi / 2), 0.10, room))
+        x, y = dock.to_map((1.0, 1.0, math.pi / 2), (1.0, 0.5))
+        self.assertAlmostEqual(x, 0.5)
+        self.assertAlmostEqual(y, 2.0)
+
+    def test_backing_never_sweeps_into_the_placement_box(self):
+        # The box is below the LiDAR's scan plane too (2026-10-20 review).
+        room = [(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]
+        facing_east = (1.5, 1.5, 0.0)                 # backing goes west
+        behind = dock.bin_obstacle({'x': 1.05, 'y': 1.5, 'verified': True})
+        self.assertIn('placement box', dock.back_path_problem(facing_east, 0.20, room,
+                                                              obstacles=[behind]))
+        # Released over it, the box is ahead: backing straight away is the way out.
+        ahead = dock.bin_obstacle({'x': 1.85, 'y': 1.5, 'verified': True})
+        self.assertIsNone(dock.back_path_problem(facing_east, 0.20, room, obstacles=[ahead]))
+        # 2026-10-20, second delivery: the unverified map box 0.21 m ahead, 0.05 m left,
+        # the front corners just past its centre. Backing away was refused.
+        pose = (1.45, 0.652, 0.799)
+        unverified = dock.bin_obstacle({'x': 1.5599, 'y': 0.8333, 'verified': False})
+        self.assertIsNone(dock.back_path_problem(pose, 0.20, room, obstacles=[unverified]))
+        # An unverified position keeps a wider berth.
+        side = {'x': 1.30, 'y': 1.95, 'verified': True}
+        self.assertIsNone(dock.back_path_problem(facing_east, 0.20, room,
+                                                 obstacles=[dock.bin_obstacle(side)]))
+        self.assertIsNotNone(dock.back_path_problem(
+            facing_east, 0.20, room, obstacles=[dock.bin_obstacle(dict(side, verified=False))]))
+        self.assertIsNone(dock.bin_obstacle(None))
 
     def test_wall_correction_moves_only_small_known_errors(self):
         self.assertEqual(dock.wall_correction(0.480, 0.470), 0.0)

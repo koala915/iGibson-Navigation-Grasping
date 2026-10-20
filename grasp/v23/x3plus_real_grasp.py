@@ -1620,6 +1620,19 @@ class DetectionReceiver:
                 return self._pos.copy(), self._height, True, self._pose_stamp
             return self._default_pos.copy(), self._default_height, False, None
 
+    def snapshot_with_receipt(self):
+        """Atomic detection plus its own monotonic receipt, for fast E1 polling.
+
+        This is a receipt timestamp, not a camera capture timestamp. Callers
+        must still apply the service's frame-lag allowance after motion.
+        """
+        with self._lock:
+            fresh = self._last_update_ts > 0.0 and not self._is_stale()
+            if fresh:
+                return (self._pos.copy(), self._height, True, self._pose_stamp,
+                        self._last_update_ts)
+            return self._default_pos.copy(), self._default_height, False, None, 0.0
+
     def close(self):
         self._stop.set()
         try:

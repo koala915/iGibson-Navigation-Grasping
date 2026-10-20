@@ -1,0 +1,1597 @@
+--- a/integration/mission_loop.py
++++ b/integration/mission_loop.py
+@@ -68,6 +68,7 @@
+ _spec.loader.exec_module(runner)
+ 
+ RUNNER = ROOT / 'integration/sugarbox_approach_grasp.py'
++_runtime = None  # owned by one top-level mission, closed on every exit
+ LOG_ROOT = ROOT / 'logs'
+ # The E1 camera, on the hub it shares with the motor board; it drops off USB
+ # after arm moves now and then (twice on 2026-10-18) and may need replugging.
+@@ -470,8 +471,11 @@
+     the nearest one beyond the calibrated area."""
+ 
+     def __init__(self, model_path, homography_path, imgsz, conf):
+-        from ultralytics import YOLO
+-        self.model, self.imgsz, self.conf = YOLO(str(model_path)), imgsz, conf
++        self.runtime, self.model_path = _runtime, model_path
++        self.imgsz, self.conf = imgsz, conf
++        if self.runtime is None:
++            from ultralytics import YOLO
++            self.model = YOLO(str(model_path))
+         self.H, self.rear_cam_to_front, self.hull = load_ground_calibration(homography_path)
+ 
+     def look(self, frame):
+@@ -480,10 +484,14 @@
+         The arm camera's corner of the frame is dropped after detection, so a
+         picture of raw YOLO results still shows it boxed.
+         """
+-        result = self.model.predict(frame, imgsz=self.imgsz, conf=self.conf, verbose=False)[0]
++        if self.runtime is None:
++            result = self.model.predict(frame, imgsz=self.imgsz, conf=self.conf, verbose=False)[0]
++            boxes = [box.xyxy[0].tolist() for box in result.boxes]
++        else:
++            boxes = self.runtime.detect(self.model_path, frame, self.imgsz, self.conf)
+         near = far = None
+-        for box in result.boxes:
+-            bbox = tuple(float(v) for v in box.xyxy[0].tolist())
++        for box in boxes:
++            bbox = tuple(float(v) for v in box)
+             if overlap_fraction(bbox, ARM_CAMERA_REGION) >= 0.5:
+                 continue
+             point = detection_point(bbox, self.H, self.rear_cam_to_front, self.hull)
+@@ -790,6 +798,10 @@
+ 
+     With log_path its output goes to the terminal and to that file as it comes.
+     """
++    if _runtime is not None:
++        if host != _runtime.host:
++            raise MissionError('resident runtime belongs to another robot')
++        return _runtime.run_stage(runner, argv, log_path or _runtime.log_dir / 'stage.log')
+     command = [sys.executable, '-u', str(RUNNER), '--host', host] + argv
+     print('[MISSION] ' + ' '.join(command[2:]), flush=True)
+     if log_path is None:
+@@ -971,6 +983,8 @@
+ 
+ def grasp_and_place(args, pc_ip, log_dir):
+     """One object, no patrol: the flow that delivered twice on 2026-10-18."""
++    if getattr(args, 'resident', False) and _runtime is None:
++        return with_runtime(args, pc_ip, log_dir, grasp_and_place)
+     log_dir.mkdir(parents=True, exist_ok=True)
+     place_argv = ['--target', 'placement', '--real', '--i-am-beside-the-robot',
+                   '--obs-log', str(log_dir / 'place_obs.jsonl')] + stage_options(args)
+@@ -1103,6 +1117,8 @@
+ 
+ def patrol_mission(args, pc_ip, log_dir, room=None, new_link=VisionLink):
+     """Patrol, fetch, place, back out, patrol on: until two whole laps find nothing."""
++    if getattr(args, 'resident', False) and _runtime is None:
++        return with_runtime(args, pc_ip, log_dir, patrol_mission, room=room, new_link=new_link)
+     from integration.rear_stream import StreamReader
+     log_dir.mkdir(parents=True, exist_ok=True)
+     stage, reader, link, delivered, failures, n = 'START', None, None, 0, [], 0
+@@ -1122,7 +1138,7 @@
+         room = room or Room(args.host, walls)
+ 
+         def new_reader():
+-            return StreamReader(STREAM_PORT, args.gstreamer)
++            return _runtime.reader() if _runtime is not None else StreamReader(STREAM_PORT, args.gstreamer)
+ 
+         while args.max_deliveries is None or delivered < args.max_deliveries:
+             n += 1
+@@ -1185,6 +1201,60 @@
+             print('[MISSION] final stop not delivered: {}; resident watchdog remains'.format(exc))
+ 
+ 
++def with_runtime(args, pc_ip, log_dir, mission, **kwargs):
++    """One camera/model lifetime, including warm-up, before any patrol starts."""
++    from integration.mission_runtime import MissionRuntime, resident_session
++    from integration.robot_rpc import RobotSession
++    global _runtime
++    if _runtime is not None:
++        raise MissionError('a mission runtime is already active')
++    runtime, robot = None, RobotSession(args.host)
++    try:
++        runner.stop(args.host)
++        if not stream_running(args.host, pc_ip):
++            start_stream(args.host, pc_ip)
++        runtime = MissionRuntime(args.host, args.gstreamer, log_dir)
++        with resident_session(runner, runtime):
++            _runtime = runtime
++            runner._ROBOT_SESSION = robot
++            runtime.reader().close()  # fill the single receiver during warm-up
++            assets = resolve_asset_paths(str(ROOT))
++            environments = []
++            for kind, model, size in [('sugarbox', runner.SUGARBOX_MODEL, WATCH_IMGSZ),
++                                      ('placement', runner.PLACEMENT_MODEL, PLACEMENT_IMGSZ)]:
++                _paths, issues = runner.preflight(argparse.Namespace(
++                    target=kind, sam=Path(assets['sam']), homography=args.homography,
++                    gstreamer=args.gstreamer, turn_to_box=False, host=args.host))
++                if issues:
++                    raise MissionError('resident {} preflight: {}'.format(kind, '; '.join(issues)))
++                env = dict(os.environ, SUGARBOX_RUN_MODE='DRY_RUN', SUGARBOX_WAIT_GO='1',
++                           SUGARBOX_YOLO_MODEL=str(model.resolve()),
++                           SUGARBOX_SAM_MODEL=str(Path(assets['sam']).resolve()),
++                           SUGARBOX_HOMOGRAPHY=str(args.homography.resolve()),
++                           SUGARBOX_RL_MODEL=str((ROOT / 'integration/nav_best_model/doorway_ft_final.zip').resolve()),
++                           SUGARBOX_VECNORMALIZE=str((ROOT / 'integration/nav_best_model/doorway_ft_final_vecnormalize.pkl').resolve()),
++                           SUGARBOX_YOLO_IMGSZ=str(size), SUGARBOX_TARGET=kind,
++                           GSTREAMER_LAUNCH_EXE=str(Path(args.gstreamer).resolve()))
++                environments.append(env)
++            print('[MISSION] warming models once; camera remains connected between stages', flush=True)
++            runtime.prepare(environments)
++            return mission(args, pc_ip, log_dir, **kwargs)
++    except (Exception, KeyboardInterrupt) as exc:
++        print('[MISSION] resident runtime stopped: {}'.format(exc), flush=True)
++        return 2
++    finally:
++        _runtime = None
++        runner._ROBOT_SESSION = None
++        robot.close()
++        # Even a failure while preparing the models leaves the robot stopped.
++        try:
++            runner.stop(args.host)
++        except OSError:
++            pass
++        if runtime is not None:
++            runtime.close()
++
++
+ def main(argv=None):
+     parser = argparse.ArgumentParser(description=__doc__,
+                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+@@ -1207,6 +1277,8 @@
+     parser.add_argument('--log-dir', type=Path, default=None,
+                         help='where each stage writes its output (default logs/mission_<time>)')
+     parser.add_argument('--real', action='store_true')
++    parser.add_argument('--isolated-stages', action='store_false', dest='resident', default=True,
++                        help='fallback: separate model process/receiver per stage')
+     parser.add_argument('--i-am-beside-the-robot', action='store_true')
+     args = parser.parse_args(argv)
+     ipaddress.IPv4Address(args.host)
+--- a/integration/sugarbox_approach_grasp.py
++++ b/integration/sugarbox_approach_grasp.py
+@@ -68,6 +68,8 @@
+ BLIND_CREEP_LOOKS = 4       # fresh frames in a row that saw nothing (E1 runs at 1 Hz)
+ # Two fresh E1 readings must agree within 8 mm, the second within this long of the first.
+ AGREE_WITHIN_S = 4.0
++E1_FRAME_LAG_S = 1.5  # same bound as grasp/v23/grasp_service.py, never bypass it
++E1_POLL_S = 0.20
+ # Straight back-offs (the user, 2026-10-19), at most BACK_STEP_M a step. Nothing
+ # sees behind the robot (the LiDAR's rear half is blocked by the body), so before
+ # every step the AMCL pose and the room's walls on the map must leave the whole
+@@ -102,6 +104,15 @@
+ def ctl(host, command):
+     if command not in ARM_COMMANDS:
+         raise ValueError('unsupported arm command')
++    session = globals().get('_ROBOT_SESSION')
++    if session is not None:
++        started = time.monotonic()
++        try:
++            return session.request(host, command, ARM_COMMANDS[command])
++        finally:
++            runtime = globals().get('_MISSION_RUNTIME')
++            if runtime is not None:
++                runtime.metric('service', started, command=command)
+     result = subprocess.run(
+         ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
+          'jetson@' + host, 'python3 ' + REMOTE_CTL + ' ' + command],
+@@ -122,6 +133,9 @@
+     """
+     if command not in ('maintenance-lock', 'maintenance-unlock'):
+         raise ValueError('unsupported service command')
++    session = globals().get('_ROBOT_SESSION')
++    if session is not None:
++        return session.request(host, command, 15)
+     script = ("import socket;s=socket.socket(socket.AF_UNIX);s.settimeout(10);"
+               "s.connect({!r});s.sendall({!r});print(s.makefile().readline())").format(
+                   SERVICE_SOCKET, (command + '\n').encode())
+@@ -408,6 +422,19 @@
+         sleep(0.5)
+ 
+ 
++def e1_receipt(status):
++    """Receipt ID only for a fresh detection acquired after motion plus frame lag."""
++    detection = status.get('detection') or {}
++    receipt = detection.get('receipt_monotonic')
++    since, sample = status.get('stationary_since_monotonic'), status.get('sample_monotonic')
++    if (not all(isinstance(v, (int, float)) and not isinstance(v, bool)
++                and math.isfinite(v) for v in (receipt, since, sample))
++            or detection.get('fresh') is not True
++            or not 0 < since + E1_FRAME_LAG_S <= receipt <= sample):
++        return None
++    return receipt, since
++
++
+ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic,
+             look=None, drive=None):
+     """Stop, E1, and grasp on two agreeing fresh readings inside the grasp range.
+@@ -422,10 +449,15 @@
+     creeps = 0
+     while True:
+         settle(host, read, send_stop, sleep, now)
+-        read(host, 'home')
++        home = read(host, 'home')
++        home_done = now()
++        fast = home.get('e1_frame_receipts') is True
+         # Discard travel-pose detections: the E1 camera runs at 1 Hz.
+-        sleep(2.5)
++        if not fast:
++            sleep(2.5)  # older deployed service has no atomic frame identity
+         previous, previous_at = None, 0.0
++        previous_receipt, stationary_since = None, None
++        last_report = None
+         move = None
+         creep = False
+         hints = []
+@@ -436,9 +468,26 @@
+             if not stationary(status) or status.get('chassis', {}).get('arm_pose') != 'e1':
+                 raise RuntimeError('E1/stationary state lost; no grasp')
+             pos = target_position(status)
++            receipt = e1_receipt(status) if fast else None
++            if fast:
++                if receipt is None:
++                    pos = None
++                elif stationary_since is not None and receipt[1] != stationary_since:
++                    raise RuntimeError('motion epoch changed during E1 confirmation; no grasp')
++                else:
++                    stationary_since = receipt[1]
++                    if receipt[0] == previous_receipt:
++                        sleep(E1_POLL_S)
++                        continue  # the same detection is never another agreeing frame
++                    if previous_receipt is not None and receipt[0] < previous_receipt:
++                        raise RuntimeError('E1 receipt clock moved backwards; no grasp')
++                    previous_receipt = receipt[0]
+             if (pos is not None and previous is not None
+                     and now() - previous_at <= AGREE_WITHIN_S
+                     and math.hypot(pos[0] - previous[0], pos[1] - previous[1]) <= 0.008):
++                runtime = globals().get('_MISSION_RUNTIME')
++                if runtime is not None:
++                    runtime.metric('e1_confirmed', home_done, receipt_mode=fast)
+                 result = read(host, 'grasp')
+                 if result.get('confirmed') is not True:
+                     raise RuntimeError('grasp was not confirmed')
+@@ -450,7 +499,17 @@
+                 previous, previous_at = pos, now()
+             saw_box = saw_box or pos is not None
+             if pos is None and look is not None and adjustments < ADJUST_TRIES:
++                if fast and now() - home_done < 2.5:
++                    sleep(E1_POLL_S)
++                    continue  # no old frame-report may initiate an adjustment
+                 record = look(host)
++                if fast:
++                    stamp = record.get('t') if isinstance(record, dict) else None
++                    if (not isinstance(stamp, (int, float)) or not math.isfinite(stamp)
++                            or last_report == stamp):
++                        sleep(E1_POLL_S)
++                        continue
++                    last_report = stamp
+                 step = adjust_distance(record)
+                 print('[E1] {} -> {}'.format(
+                     'no report' if record is None else
+@@ -476,7 +535,7 @@
+                     break
+             else:
+                 hints = []
+-            sleep(1.1)
++            sleep(E1_POLL_S if fast else 1.1)
+         if move is None:
+             raise RuntimeError('no stable fresh E1 target; stopped without grasp')
+         if creep:
+@@ -651,6 +710,9 @@
+     runner readies the robot (stow, turn toward the box); it connects to no motor
+     before go() (SUGARBOX_WAIT_GO). 2026-10-19: each stage took ~25 s to its first
+     usable frame, with everything done one after the other."""
++    runtime = globals().get('_MISSION_RUNTIME')
++    if runtime is not None:
++        return runtime.start_engine(env)
+     return subprocess.Popen([sys.executable, '-u', str(APPROACH)],
+                             env=dict(env, SUGARBOX_WAIT_GO='1'), stdin=subprocess.PIPE,
+                             text=True)
+@@ -669,6 +731,9 @@
+ 
+ def kill_tree(proc):
+     """The engine and its camera receiver: one left behind holds the camera port."""
++    if hasattr(proc, 'abort'):
++        proc.abort()
++        return
+     if os.name == 'nt':
+         subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)],
+                        capture_output=True)
+--- a/integration/sugarbox_rl_approach_final2.py
++++ b/integration/sugarbox_rl_approach_final2.py
+@@ -1941,12 +1941,10 @@
+                 dict(self.latency_info),
+             )
+ 
+-    def release(self):
++    def release(self, timeout=1.0):
+         self.running = False
+-        try:
+-            self.thread.join(timeout=1.0)
+-        except Exception:
+-            pass
++        self.thread.join(timeout=timeout)
++        return not self.thread.is_alive()
+ 
+ 
+ # ============================================================
+@@ -2428,9 +2426,7 @@
+         )
+ 
+ 
+-    def close(
+-        self
+-    ):
++    def close(self, terminate=True):
+ 
+         try:
+ 
+@@ -2452,7 +2448,13 @@
+ 
+         try:
+ 
+-            self.client.terminate()
++            # A Twisted reactor cannot be restarted. Resident model jobs must
++            # disconnect this stage's subscriptions without killing the shared
++            # event loop needed by the next stage.
++            if terminate:
++                self.client.terminate()
++            else:
++                self.client.close()
+ 
+         except Exception:
+             pass
+@@ -5778,7 +5780,7 @@
+ # MAIN
+ # ============================================================
+ 
+-def main():
++def main(resources=None, go_stream=None, headless=False):
+ 
+     if RUN_MODE not in {
+ 
+@@ -5884,7 +5886,7 @@
+     print()
+     print("[CAMERA] Opening rear camera (it fills while the models load)...")
+ 
+-    reader = LatestFrameReader(
++    reader = resources.reader() if resources is not None else LatestFrameReader(
+         width=FRAME_W,
+         height=FRAME_H,
+         udp_port=CAMERA_UDP_PORT,
+@@ -5910,21 +5912,28 @@
+         print("[GROUND] H =")
+         print(H)
+ 
+-        policy = BackgroundLoad(load_policy_and_vecnormalize) if RUN_MODE != "VISION" else None
++        policy_load = load_policy_and_vecnormalize if resources is None else lambda: resources.policy(
++            sys.modules[__name__])
++        policy = BackgroundLoad(policy_load) if RUN_MODE != "VISION" else None
+ 
+         print()
+         print("[MODEL] Loading YOLO...")
+-        yolo_model = YOLO(YOLO_MODEL_PATH)
++        yolo_model = YOLO(YOLO_MODEL_PATH) if resources is None else None
+         print("[MODEL] YOLO classes:")
+-        print(yolo_model.names)
++        if yolo_model is not None:
++            print(yolo_model.names)
+ 
+         print()
+         print("[MODEL] Loading SAM2...")
+-        sam_model = SAM(SAM2_MODEL_PATH)
++        if resources is None:
++            sam_model = SAM(SAM2_MODEL_PATH)
++        else:
++            yolo_model, sam_model = resources.models(sys.modules[__name__])
+         print("[MODEL] SAM2 ready")
+ 
+         started = time.time()
+-        warm_up_models(yolo_model, sam_model)
++        if resources is None:
++            warm_up_models(yolo_model, sam_model)
+         print("[MODEL] warm-up pass {:.1f} s: the first real frame runs at full "
+               "speed".format(time.time() - started))
+ 
+@@ -5933,7 +5942,7 @@
+             ros_bridge = RosSensorBridge(JETSON_IP, ROSBRIDGE_PORT)
+             ros_bridge.start()
+ 
+-        go = wait_for_go(sys.stdin) if WAIT_GO else {"seed": None}
++        go = wait_for_go(sys.stdin if go_stream is None else go_stream) if WAIT_GO else {"seed": None}
+         if go is not None and go["seed"] is not None:
+             seed_target = go["seed"]
+             print("[SEED] {} x={:.3f} y={:+.3f} m from the runner".format(
+@@ -5947,14 +5956,14 @@
+         # A receiver left behind would hold the camera port for the next stage.
+         reader.release()
+         if ros_bridge is not None:
+-            ros_bridge.close()
++            ros_bridge.close(terminate=resources is None)
+         raise
+ 
+     if go is None:
+         print("[GO] the runner did not start the run; the motors were never connected")
+         reader.release()
+         if ros_bridge is not None:
+-            ros_bridge.close()
++            ros_bridge.close(terminate=resources is None)
+         return 5
+ 
+     vision_worker = AsyncVisionWorker(
+@@ -7694,10 +7703,8 @@
+                         x0:x0 + inset_w
+                     ] = inset
+ 
+-                cv2.imshow(
+-                    "Sugarbox RL Approach",
+-                    live_display
+-                )
++                if not headless:
++                    cv2.imshow("Sugarbox RL Approach", live_display)
+ 
+ 
+             # ==================================================
+@@ -7798,7 +7805,7 @@
+             # ==================================================
+ 
+             key = (
+-                cv2.waitKey(1)
++                (cv2.waitKey(1) if not headless else -1)
+                 &
+                 0xFF
+             )
+@@ -7934,13 +7941,17 @@
+ 
+         if ros_bridge is not None:
+ 
+-            ros_bridge.close()
++            ros_bridge.close(terminate=resources is None)
+ 
+ 
+         try:
+-            vision_worker.release()
++            if resources is None:
++                vision_worker.release()
++            elif not vision_worker.release(timeout=10.0):
++                resources.poisoned = True
+         except Exception:
+-            pass
++            if resources is not None:
++                resources.poisoned = True
+ 
+         reader.release()
+ 
+--- a/integration/rear_stream.py
++++ b/integration/rear_stream.py
+@@ -20,12 +20,15 @@
+ class StreamReader:
+     """Keep only the newest decoded frame from the rear UDP/H264 stream."""
+ 
+-    def __init__(self, port, gst):
++    def __init__(self, port, gst, publish=None):
++        self.publish = publish
+         self.proc = subprocess.Popen(
+             [str(gst), "-q", "udpsrc", f"port={port}",
+              "caps=application/x-rtp,media=video,encoding-name=H264,payload=96",
+              "!", "rtph264depay", "!", "h264parse", "!", "avdec_h264", "!", "videoconvert", "!",
+-             f"video/x-raw,format=BGR,width={W},height={H}", "!", "fdsink", "fd=1", "sync=false"],
++             f"video/x-raw,format=BGR,width={W},height={H}", "!", "queue", "max-size-buffers=1",
++             "max-size-bytes=0", "max-size-time=0", "leaky=downstream", "!",
++             "fdsink", "fd=1", "sync=false"],
+             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+         self.frame, self.stamp = None, 0.0
+         self.lock = threading.Lock()
+@@ -40,6 +43,8 @@
+             with self.lock:
+                 self.frame = np.frombuffer(buf, np.uint8).reshape(H, W, 3).copy()
+                 self.stamp = time.monotonic()
++                if self.publish is not None:
++                    self.publish(self.frame, wall=time.time(), monotonic=self.stamp)
+ 
+     def latest(self):
+         with self.lock:
+--- a/grasp/v23/grasp_service.py
++++ b/grasp/v23/grasp_service.py
+@@ -124,9 +124,16 @@
+         recv = getattr(self.controller, "detection", None)
+         if recv is None:
+             return None
+-        pos, height, fresh, _stamp = recv.snapshot()
+-        return {"pos": [round(float(v), 4) for v in pos],
+-                "height": height, "fresh": bool(fresh)}
++        if hasattr(recv, "snapshot_with_receipt"):
++            pos, height, fresh, _stamp, receipt = recv.snapshot_with_receipt()
++        else:
++            pos, height, fresh, _stamp = recv.snapshot()
++            receipt = None
++        result = {"pos": [round(float(v), 4) for v in pos],
++                  "height": height, "fresh": bool(fresh)}
++        if receipt is not None:
++            result["receipt_monotonic"] = receipt
++        return result
+ 
+     def detection_received_at(self) -> float:
+         """Monotonic receipt time of the latest detection; 0.0 when none/no receiver."""
+@@ -172,6 +179,8 @@
+                 "chassis_tcp_ready": self.chassis_tcp_ready,
+                 "chassis": self.chassis.status() if self.chassis else None,
+                 "odom": self.odom_bridge.status() if self.odom_bridge else None,
++                "sample_monotonic": time.monotonic(),
++                "stationary_since_monotonic": self.still_since(),
+                 "rss_mb": round(rss_mb(), 1),
+                 "uptime_s": round(time.time() - self.started, 1)}
+ 
+@@ -204,7 +213,11 @@
+                         "hint": "the arm was not moved: without the encoders the "
+                                 "rate limit would count from a guess"}
+             self._sync_rate_limit(deg)
+-            return fn()
++            result = fn()
++            if isinstance(result, dict) and hasattr(
++                    getattr(self.controller, 'detection', None), 'snapshot_with_receipt'):
++                result['e1_frame_receipts'] = True
++            return result
+         finally:
+             self._arm_moved_at = time.monotonic()
+             if self.chassis is not None:
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -138,6 +138,22 @@
+ | `README.md` | 兩種模式開啟流程、各檔用途、校正清單 |
+ 
+ 總控各階段（含投放重試、`--resume-at place`）共用同一份 `--homography`／`--gstreamer`，動作前走原有 maintenance 解鎖，服務拒絕時仍停止。巡航候選只有位姿歷史涵蓋影格可能拍攝到推論結束期間、且位置／角度近乎不動時，才能用地圖排除牆邊／已投放物；其餘先停車重看。這是串流延遲上限 0.30 s 的保守假設，尚非來源時間同步。總控與接近端預檢要求車上 ncu G2 v23 的獨立 health、service PID、holding、chassis TCP readiness 與 maintenance 欄位；本 repo 舊的 arm-only service 不可整份覆蓋車上服務。`graspctl health` 使用 `/tmp/grasp_health.sock`，`release-preview` 由相容服務執行。離線修正與驗證見 `docs/operations/flow_fixes_2026-10-20/CHANGELOG.md`。
++
++**2026-10-20 等待時間優化（離線通過，尚未上車）**：`mission_loop.py` 預設使用
++`mission_runtime.py`：任務開始時預檢並暖機一次，後相機只開一個接收器，YOLO／SAM2／PPO
++保留在同一個背景程序；巡航辨識、接近、投放沿用模型。各段仍重新建立引擎模組、目標、
++里程歷史與控制器，只接受取得使用權後的新接收影格；上一段推論執行緒結束前不重用資源。
++僅送出 go 後才連接馬達，程序異常／逾時終止，不重送動作。`robot_rpc.py` 用單一 SSH
++連線呼叫既有常駐 socket，不取得序列埠。ROS 各段解除訂閱／連線，保留程序共用事件迴圈。
++`--isolated-stages` 可回到原先各段獨立程序。實機啟動旗標與安全閘不變。
++
++E1 若 home 回應明確有 `e1_frame_receipts=true`，狀態可提供原子讀取的辨識 receipt、
++狀態時間與停止起點，就每 0.20 s 查詢，等兩筆不同且在停止後 1.5 s 以上收到的有效辨識
++即接續；服務端原有 2.5 s／停穩／姿態／夾取閘仍有效。舊服務沒有能力欄位時維持固定
++2.5 s＋1.1 s 輪詢，不自行猜測新影格。這是接收時間與既有影像延遲上限，**不是相機拍攝
++來源時間同步**；巡航的保守位姿排除規則維持。車上 G2 服務／receiver 必須選擇性套用新增
++metadata，不能整包覆蓋。每段時間、服務查詢與接近耗時存 `logs/<任務>/timings.jsonl`；
++詳細驗證與限制見 `docs/operations/latency_fixes_2026-10-20/CHANGELOG.md`。
+ 
+ **2026-10-12 起總指揮預設 `--approach enoch`**：enoch 的訓練一致模式（`sugarbox_training_contract.py`，
+ 目標／LiDAR 以車體中心為原點、動作延遲 0），PPO 負責遠程避障，最後一段交給慢速轉向對準
+--- a/.github/workflows/tests.yml
++++ b/.github/workflows/tests.yml
+@@ -74,6 +74,9 @@
+       - name: Cross-stage safety and resident protocol contracts
+         run: python tests/test_flow_contracts.py
+ 
++      - name: Resident model lifetime, fresh frames and E1 timing
++        run: python tests/test_mission_runtime.py
++
+       - name: Patrol seed confirmation before approach
+         run: python tests/test_sugarbox_seed_target.py
+ 
+--- a/tests/test_mission_loop.py
++++ b/tests/test_mission_loop.py
+@@ -846,7 +846,7 @@
+              patch.object(mission.runner, 'back_straight') as backing, \
+              patch.object(mission.runner, 'stop') as stopping, \
+              patch('builtins.print') as printed:
+-            code = mission.main(['--host', '10.0.0.1', '--no-patrol', '--real',
++            code = mission.main(['--host', '10.0.0.1', '--no-patrol', '--isolated-stages', '--real',
+                                  '--i-am-beside-the-robot', '--log-dir', folder] + argv)
+             text = ' '.join(str(c.args[0]) for c in printed.call_args_list if c.args)
+         patrol.assert_not_called()
+--- a/grasp/v23/x3plus_real_grasp.py
++++ b/grasp/v23/x3plus_real_grasp.py
+@@ -1619,6 +1619,19 @@
+             if fresh:
+                 return self._pos.copy(), self._height, True, self._pose_stamp
+             return self._default_pos.copy(), self._default_height, False, None
++
++    def snapshot_with_receipt(self):
++        """Atomic detection plus its own monotonic receipt, for fast E1 polling.
++
++        This is a receipt timestamp, not a camera capture timestamp. Callers
++        must still apply the service's frame-lag allowance after motion.
++        """
++        with self._lock:
++            fresh = self._last_update_ts > 0.0 and not self._is_stale()
++            if fresh:
++                return (self._pos.copy(), self._height, True, self._pose_stamp,
++                        self._last_update_ts)
++            return self._default_pos.copy(), self._default_height, False, None, 0.0
+ 
+     def close(self):
+         self._stop.set()
+--- /dev/null
++++ b/integration/mission_runtime.py
+@@ -0,0 +1,400 @@
++"""Mission-scoped model process and one rear-camera receiver. No hardware at import.
++
++Only immutable assets and decoded frames survive a stage. A fresh engine module
++and all of its controllers are built for every run. A failed/overrunning worker
++is terminated, never replayed; the caller must stop the mission.
++"""
++from contextlib import contextmanager, redirect_stdout, redirect_stderr
++import importlib.util
++import json
++import multiprocessing as mp
++import os
++from pathlib import Path
++import struct
++import subprocess
++import sys
++import threading
++import time
++import traceback
++
++ROOT = Path(__file__).resolve().parents[1]
++ENGINE = ROOT / 'integration/sugarbox_rl_approach_final2.py'
++HEADER = struct.Struct('<Qdd')  # sequence, wall receipt, monotonic receipt
++WIDTH, HEIGHT = 640, 480
++
++
++class SharedFrames:
++    def __init__(self, context=None):
++        context = context or mp.get_context('spawn')
++        self.buffer = context.RawArray('B', HEADER.size + WIDTH * HEIGHT * 3)
++        self.lock = context.RLock()
++
++    @contextmanager
++    def locked(self):
++        # A terminated worker may have died while copying a frame. Never leave
++        # the receiver or the next reader blocked forever on an orphaned lock.
++        if not self.lock.acquire(timeout=1.0):
++            raise RuntimeError('rear frame lock unavailable; mission must stop')
++        try:
++            yield
++        finally:
++            self.lock.release()
++
++    def publish(self, frame, wall=None, monotonic=None):
++        if tuple(frame.shape) != (HEIGHT, WIDTH, 3) or str(frame.dtype) != 'uint8':
++            raise ValueError('rear frame must be uint8 640x480 BGR')
++        wall = time.time() if wall is None else wall
++        monotonic = time.monotonic() if monotonic is None else monotonic
++        with self.locked():
++            view = memoryview(self.buffer).cast('B')
++            sequence = HEADER.unpack_from(view)[0] + 1
++            view[HEADER.size:] = frame.tobytes()
++            HEADER.pack_into(view, 0, sequence, wall, monotonic)
++
++    def snapshot(self, since=0.0, clock='monotonic'):
++        import numpy as np
++        with self.locked():
++            view = memoryview(self.buffer).cast('B')
++            sequence, wall, mono = HEADER.unpack_from(view)
++            if not sequence or mono <= since:
++                return None, 0.0
++            raw = bytes(view[HEADER.size:])
++        return np.frombuffer(raw, np.uint8).reshape(HEIGHT, WIDTH, 3), (
++            wall if clock == 'wall' else mono)
++
++    def lease(self):
++        return FrameLease(self, time.monotonic())
++
++
++class FrameLease:
++    """A new stage cannot consume a frame from before it acquired its lease."""
++    def __init__(self, frames, since):
++        self.frames, self.since, self.closed = frames, since, False
++
++    def latest(self):
++        return (None, 0.0) if self.closed else self.frames.snapshot(self.since)
++
++    def read(self):
++        frame, stamp = (None, 0.0) if self.closed else self.frames.snapshot(self.since, 'wall')
++        return frame is not None, frame, stamp
++
++    def close(self):
++        self.closed = True
++
++    release = close
++
++
++class Resources:
++    def __init__(self, frames):
++        self.frames, self.assets, self.warmed = frames, {}, set()
++        self.identities, self.poisoned = {}, False
++
++    def _key(self, kind, paths):
++        paths = tuple(str(Path(p).resolve()) for p in paths)
++        identities = tuple((Path(p).stat().st_size, Path(p).stat().st_mtime_ns) for p in paths)
++        key = (kind,) + paths
++        if key in self.identities and self.identities[key] != identities:
++            raise RuntimeError('asset changed during mission; restart after preflight: ' + str(paths))
++        self.identities[key] = identities
++        return key
++
++    def get(self, kind, paths, load):
++        if self.poisoned:
++            raise RuntimeError('model worker did not finish its previous stage safely')
++        key = self._key(kind, paths)
++        if key not in self.assets:
++            self.assets[key] = load()
++        return self.assets[key]
++
++    def models(self, module):
++        yolo = self.get('yolo', [module.YOLO_MODEL_PATH], lambda: module.YOLO(module.YOLO_MODEL_PATH))
++        sam = self.get('sam', [module.SAM2_MODEL_PATH], lambda: module.SAM(module.SAM2_MODEL_PATH))
++        key = (module.YOLO_MODEL_PATH, module.SAM2_MODEL_PATH, module.YOLO_IMGSZ)
++        if key not in self.warmed:
++            module.warm_up_models(yolo, sam)
++            self.warmed.add(key)
++        return yolo, sam
++
++    def policy(self, module):
++        pair = self.get('ppo', [module.RL_MODEL_PATH, module.VECNORMALIZE_PATH],
++                        module.load_policy_and_vecnormalize)
++        if pair[1].training or pair[1].norm_reward:
++            raise RuntimeError('cached VecNormalize must remain inference-only')
++        return pair
++
++    def reader(self):
++        return self.frames.lease()
++
++
++def load_stage(env):
++    """Re-evaluate configuration in a new namespace; heavy imports stay cached."""
++    previous = dict(os.environ)
++    try:
++        os.environ.clear()
++        os.environ.update(env)
++        name = 'integration._mission_approach_stage'
++        spec = importlib.util.spec_from_file_location(name, ENGINE)
++        module = importlib.util.module_from_spec(spec)
++        sys.modules[name] = module  # dataclasses resolve their defining module
++        spec.loader.exec_module(module)
++        return module
++    finally:
++        os.environ.clear()
++        os.environ.update(previous)
++
++
++class GoInput:
++    def __init__(self, connection, generation):
++        self.connection, self.generation = connection, generation
++
++    def readline(self):
++        message = self.connection.recv()
++        if message.get('op') != 'go' or message.get('generation') != self.generation:
++            return '{}\n'
++        return message['line']
++
++
++def worker(connection, frames, stage_loader=load_stage):
++    resources = Resources(frames)
++    try:
++        while True:
++            message = connection.recv()
++            operation, generation = message['op'], message['generation']
++            if operation == 'close':
++                return
++            if operation not in ('prepare', 'detect', 'run'):
++                connection.send({'generation': generation, 'ok': False,
++                                 'error': 'unexpected worker command; mission stopped'})
++                return
++            with open(message['log'], 'a', encoding='utf-8', buffering=1) as log, \
++                    redirect_stdout(log), redirect_stderr(log):
++                try:
++                    if operation == 'prepare':
++                        for env in message['environments']:
++                            module = stage_loader(env)
++                            resources.models(module)
++                            resources.policy(module)
++                        result = None
++                    elif operation == 'detect':
++                        from ultralytics import YOLO
++                        model = resources.get('yolo', [message['model']],
++                                              lambda: YOLO(message['model']))
++                        prediction = model.predict(message['frame'], imgsz=message['imgsz'],
++                                                   conf=message['conf'], verbose=False)[0]
++                        result = [box.xyxy[0].tolist() for box in prediction.boxes]
++                    elif operation == 'run':
++                        module = stage_loader(message['env'])
++                        result = module.main(resources=resources,
++                                             go_stream=GoInput(connection, generation), headless=True)
++                        if not isinstance(result, int) or isinstance(result, bool):
++                            raise RuntimeError('engine ended without an explicit result')
++                        if resources.poisoned:
++                            raise RuntimeError('vision thread did not exit; refusing cached reuse')
++                    else:
++                        raise ValueError('unsupported worker operation')
++                    connection.send({'generation': generation, 'ok': True, 'result': result})
++                except BaseException:
++                    traceback.print_exc()
++                    connection.send({'generation': generation, 'ok': False,
++                                     'error': 'model worker failed; see ' + message['log']})
++                    return
++    except (EOFError, BrokenPipeError):
++        return
++    finally:
++        connection.close()
++
++
++class EngineLease:
++    def __init__(self, runtime, generation):
++        self.runtime, self.generation = runtime, generation
++        self.stdin, self.returncode = self, None
++        self.started = time.monotonic()
++        self.log = runtime.stage_log
++        self.offset = 0
++
++    def drain_log(self):
++        if self.log.exists():
++            with self.log.open('r', encoding='utf-8', errors='replace') as output:
++                output.seek(self.offset)
++                text = output.read()
++                self.offset = output.tell()
++            if text:
++                print(text, end='', flush=True)
++
++    def write(self, line):
++        if self.returncode is not None:
++            raise RuntimeError('engine lease already ended')
++        self.runtime.connection.send({'op': 'go', 'generation': self.generation, 'line': line})
++
++    def close(self):
++        pass  # runner closes stdin after its single go message, not the worker
++
++    def poll(self):
++        self.drain_log()
++        if self.returncode is not None:
++            return self.returncode
++        if self.runtime.connection.poll():
++            try:
++                reply = self.runtime.receive(self.generation)
++            except Exception:
++                self.returncode = 2
++                raise
++            self.returncode = int(reply)
++            self.runtime.active = None
++            self.drain_log()
++        elif not self.runtime.process.is_alive():
++            self.returncode = 2
++            self.runtime.active = None
++        return self.returncode
++
++    def wait(self, timeout=None):
++        deadline = None if timeout is None else time.monotonic() + timeout
++        while self.poll() is None:
++            if deadline is not None and time.monotonic() >= deadline:
++                raise subprocess.TimeoutExpired('resident approach', timeout)
++            time.sleep(0.02)
++        self.runtime.metric('approach', self.started, exit_code=self.returncode)
++        return self.returncode
++
++    def abort(self):
++        self.runtime.abort()
++        self.returncode = 2
++
++
++class Tee:
++    def __init__(self, terminal, log):
++        self.terminal, self.log = terminal, log
++
++    def write(self, text):
++        self.terminal.write(text)
++        self.log.write(text)
++        return len(text)
++
++    def flush(self):
++        self.terminal.flush()
++        self.log.flush()
++
++
++class MissionRuntime:
++    def __init__(self, host, gst, log_dir, process_target=worker):
++        self.host, self.gst, self.log_dir = host, gst, Path(log_dir)
++        self.log_dir.mkdir(parents=True, exist_ok=True)
++        self.context = mp.get_context('spawn')
++        self.frames = SharedFrames(self.context)
++        self.connection, child = self.context.Pipe()
++        self.process = self.context.Process(target=process_target, args=(child, self.frames), daemon=True)
++        self.process.start()
++        child.close()
++        self.active, self.receiver, self.generation = None, None, 0
++        self.closed = False
++        self.owner_thread = threading.get_ident()
++        self.stage_log = self.log_dir / 'runtime.log'
++        self.metrics = self.log_dir / 'timings.jsonl'
++
++    def metric(self, event, started, **fields):
++        with self.metrics.open('a', encoding='utf-8') as output:
++            output.write(json.dumps(dict(event=event, seconds=round(time.monotonic()-started, 4),
++                                         **fields), ensure_ascii=False) + '\n')
++
++    def send(self, operation, **fields):
++        if threading.get_ident() != self.owner_thread or self.active is not None:
++            raise RuntimeError('a mission stage already owns the worker')
++        if not self.process.is_alive():
++            raise RuntimeError('model worker unavailable; do not replay motion')
++        self.generation += 1
++        self.connection.send(dict(op=operation, generation=self.generation,
++                                  log=str(self.stage_log), **fields))
++        return self.generation
++
++    def receive(self, generation, timeout=120):
++        if not self.connection.poll(timeout):
++            self.abort()
++            raise RuntimeError('model worker timed out; mission stopped')
++        try:
++            reply = self.connection.recv()
++        except (EOFError, OSError):
++            self.abort()
++            raise RuntimeError('model worker connection lost; mission stopped')
++        if reply.get('generation') != generation or reply.get('ok') is not True:
++            self.abort()
++            raise RuntimeError(reply.get('error', 'wrong worker generation; mission stopped'))
++        return reply['result']
++
++    def prepare(self, environments):
++        started = time.monotonic()
++        self.receive(self.send('prepare', environments=environments), timeout=180)
++        self.metric('models_ready', started)
++
++    def reader(self):
++        if self.receiver is None:
++            from integration.rear_stream import StreamReader
++            self.receiver = StreamReader(5600, self.gst, publish=self.frames.publish)
++        return self.frames.lease()
++
++    def detect(self, model, frame, imgsz, conf):
++        return self.receive(self.send('detect', model=str(model), frame=frame, imgsz=imgsz, conf=conf),
++                            timeout=15)
++
++    def start_engine(self, env):
++        if self.active is not None:
++            raise RuntimeError('a mission stage already owns the worker')
++        if self.receiver is None:
++            self.reader().close()
++        self.stage_log.write_text('', encoding='utf-8')
++        generation = self.send('run', env=dict(env, SUGARBOX_WAIT_GO='1'))
++        self.active = EngineLease(self, generation)
++        return self.active
++
++    def run_stage(self, runner, argv, log_path):
++        if self.active is not None:
++            raise RuntimeError('cannot start two stages')
++        previous_log = self.stage_log
++        self.stage_log = Path(log_path).with_suffix('.engine.log')
++        started = time.monotonic()
++        code = None
++        try:
++            with open(log_path, 'w', encoding='utf-8', buffering=1) as output, \
++                    redirect_stdout(Tee(sys.stdout, output)):
++                code = runner.main(['--host', self.host] + list(argv))
++                return code
++        finally:
++            if self.active is not None:
++                self.abort()
++            self.metric('stage', started, target=argv[argv.index('--target')+1],
++                        log=str(log_path), exit_code=code)
++            self.stage_log = previous_log
++
++    def abort(self):
++        if self.process.is_alive():
++            self.process.terminate()
++            self.process.join(timeout=5)
++            if self.process.is_alive():
++                self.process.kill()
++                self.process.join(timeout=5)
++        self.active = None
++
++    def close(self):
++        if self.closed:
++            return
++        self.closed = True
++        try:
++            if self.process.is_alive() and self.active is None:
++                self.send('close')
++                self.process.join(timeout=3)
++        finally:
++            self.abort()
++            self.connection.close()
++            if self.receiver is not None:
++                self.receiver.close()
++
++
++@contextmanager
++def resident_session(runner, runtime):
++    if getattr(runner, '_MISSION_RUNTIME', None) is not None:
++        raise RuntimeError('mission runtime already installed')
++    runner._MISSION_RUNTIME = runtime
++    try:
++        yield runtime
++    finally:
++        runner._MISSION_RUNTIME = None
++        runtime.close()
+--- /dev/null
++++ b/integration/robot_rpc.py
+@@ -0,0 +1,96 @@
++"""One SSH connection for bounded resident commands. Never retries a command.
++
++The server uses only Jetson Python 3.6's standard library and existing sockets;
++it neither imports a controller nor owns a serial port.
++"""
++import json
++import queue
++import shlex
++import subprocess
++import threading
++
++SERVER = r'''
++import json, socket, sys
++allowed = {'status':15, 'health':2, 'home':60, 'stow':60, 'grasp':180,
++           'release':120, 'release-preview':120, 'maintenance-lock':10,
++           'maintenance-unlock':10}
++for line in sys.stdin:
++    request = json.loads(line)
++    command = request['command']
++    if command not in allowed:
++        raise ValueError('unsupported command')
++    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
++    connection.settimeout(allowed[command])
++    try:
++        connection.connect('/tmp/grasp_health.sock' if command == 'health'
++                           else '/tmp/grasp_service.sock')
++        connection.sendall((command+'\n').encode())
++        reply = json.loads(connection.makefile('r').readline())
++        result = {'id':request['id'], 'reply':reply}
++    except Exception as exc:
++        result = {'id':request['id'], 'error':str(exc)}
++    finally:
++        connection.close()
++    sys.stdout.write(json.dumps(result)+'\n')
++    sys.stdout.flush()
++'''
++
++
++class RobotSession:
++    def __init__(self, host, popen=subprocess.Popen):
++        self.host, self.process, self.sequence = host, None, 0
++        self.popen, self.lock, self.replies = popen, threading.Lock(), queue.Queue()
++        self.closed = False
++
++    def _start(self):
++        self.process = self.popen(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
++                                  'jetson@' + self.host, 'python3 -u -c ' + shlex.quote(SERVER)],
++                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
++                                 stderr=subprocess.DEVNULL, text=True, bufsize=1)
++        threading.Thread(target=self._read, daemon=True).start()
++
++    def _read(self):
++        try:
++            for line in self.process.stdout:
++                self.replies.put(json.loads(line))
++        except (OSError, ValueError) as exc:
++            self.replies.put(exc)
++        finally:
++            self.replies.put(EOFError('resident command channel ended'))
++
++    def request(self, host, command, timeout):
++        if host != self.host:
++            raise ValueError('resident command channel belongs to another robot')
++        with self.lock:
++            if self.closed:
++                raise RuntimeError('resident command channel closed; command was not replayed')
++            try:
++                if self.process is None:
++                    self._start()
++                self.sequence += 1
++                self.process.stdin.write(json.dumps({'id': self.sequence, 'command': command})+'\n')
++                self.process.stdin.flush()
++                reply = self.replies.get(timeout=timeout)
++                if (not isinstance(reply, dict) or reply.get('id') != self.sequence
++                        or 'error' in reply or not isinstance(reply.get('reply'), dict)):
++                    raise RuntimeError('resident command reply invalid: ' + str(reply))
++                if reply['reply'].get('ok') is not True:
++                    raise RuntimeError('{} refused: {}'.format(command, reply['reply']))
++                if command == 'grasp' and reply['reply'].get('confirmed') is not True:
++                    raise RuntimeError('grasp was not confirmed')
++                return reply['reply']
++            except (Exception, KeyboardInterrupt):
++                self.close()
++                raise
++
++    def close(self):
++        if self.closed:
++            return
++        self.closed = True
++        if self.process is not None:
++            try:
++                self.process.stdin.close()
++                self.process.wait(timeout=1)
++            except (OSError, subprocess.TimeoutExpired):
++                self.process.kill()
++                self.process.wait(timeout=3)
+--- /dev/null
++++ b/tests/test_mission_runtime.py
+@@ -0,0 +1,485 @@
++"""Resident resource lifetime, fresh-frame and E1 regressions. No robot/network/GPU."""
++import ast
++import copy
++import importlib.util
++import io
++import json
++import multiprocessing as mp
++from pathlib import Path
++import queue
++import tempfile
++import time
++from types import SimpleNamespace
++import unittest
++from unittest.mock import Mock, patch
++
++import numpy as np
++
++ROOT = Path(__file__).resolve().parents[1]
++import sys
++sys.path.insert(0, str(ROOT))
++from integration import mission_runtime as runtime
++from integration.robot_rpc import RobotSession, SERVER
++
++spec = importlib.util.spec_from_file_location('runtime_runner', ROOT / 'integration/sugarbox_approach_grasp.py')
++runner = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(runner)
++
++
++def fake_stage(env):
++    """Production worker protocol with lightweight resources and a fresh local target."""
++    directory = Path(env['fixture'])
++    module = SimpleNamespace(YOLO_MODEL_PATH=str(directory / env['target']),
++        SAM2_MODEL_PATH=str(directory / 'sam'), RL_MODEL_PATH=str(directory / 'ppo'),
++        VECNORMALIZE_PATH=str(directory / 'norm'), YOLO_IMGSZ=640)
++    module.YOLO = lambda path: {'kind': 'yolo', 'path': path, 'uses': 0}
++    module.SAM = lambda path: {'kind': 'sam', 'path': path, 'uses': 0}
++    module.load_policy_and_vecnormalize = lambda: (object(), SimpleNamespace(training=False, norm_reward=False))
++    module.warm_up_models = lambda yolo, sam: print('WARM ' + Path(yolo['path']).name, flush=True)
++    local_state = []
++
++    def main(resources=None, go_stream=None, headless=False):
++        assert headless and not local_state
++        local_state.append('new target')
++        yolo, sam = resources.models(module)
++        assert yolo['uses'] < 2  # the same cached model, but new stage-local state
++        yolo['uses'] += 1
++        resources.policy(module)
++        message = json.loads(go_stream.readline())
++        assert message.get('go') is True
++        print('FAKE RUN ' + env['target'], flush=True)
++        if env.get('hang'):
++            time.sleep(10)
++        return int(env.get('returncode', 0))
++    module.main = main
++    return module
++
++
++def fake_worker(connection, frames):
++    runtime.worker(connection, frames, stage_loader=fake_stage)
++
++
++class FrameTests(unittest.TestCase):
++    def test_only_new_frames_cross_a_stage_boundary_and_receipt_time_is_preserved(self):
++        frames = runtime.SharedFrames()
++        frame = np.zeros((480, 640, 3), np.uint8)
++        frames.publish(frame, wall=100.0, monotonic=10.0)
++        lease = runtime.FrameLease(frames, 10.0)
++        self.assertEqual(lease.latest(), (None, 0.0))
++        frame[0, 0, 0] = 42
++        frames.publish(frame, wall=100.2, monotonic=10.2)
++        received, stamp = lease.latest()
++        self.assertEqual((received[0, 0, 0], stamp), (42, 10.2))
++        self.assertEqual(lease.read()[2], 100.2)
++        received_copy = received.copy()
++        frames.publish(np.ones_like(frame), wall=101, monotonic=11)
++        self.assertTrue(np.array_equal(received, received_copy))
++        lease.close()
++        self.assertEqual(lease.latest(), (None, 0.0))
++        self.assertEqual(runtime.FrameLease(frames, 10.5).latest()[1], 11)
++
++    def test_wrong_frame_format_is_refused(self):
++        frames = runtime.SharedFrames()
++        for frame in (np.zeros((10, 10, 3), np.uint8), np.zeros((480, 640, 3))):
++            with self.assertRaises(ValueError):
++                frames.publish(frame)
++
++    def test_leases_close_without_closing_the_shared_receiver(self):
++        resource = runtime.SharedFrames()
++        a, b = runtime.FrameLease(resource, 0), runtime.FrameLease(resource, 0)
++        a.close()
++        resource.publish(np.zeros((480, 640, 3), np.uint8))
++        self.assertIsNotNone(b.latest()[0])
++
++    def test_a_lock_orphaned_by_worker_termination_has_a_bounded_failure(self):
++        frames = runtime.SharedFrames()
++        frames.lock = Mock()
++        frames.lock.acquire.return_value = False
++        with self.assertRaisesRegex(RuntimeError, 'lock unavailable'):
++            frames.snapshot()
++        with self.assertRaisesRegex(RuntimeError, 'lock unavailable'):
++            frames.publish(np.zeros((480,640,3), np.uint8))
++        frames.lock.release.assert_not_called()
++        frames.lock.acquire.assert_called_with(timeout=1.0)
++
++
++class ResourceTests(unittest.TestCase):
++    def test_assets_load_once_and_changes_require_a_new_mission(self):
++        cache = runtime.Resources(None)
++        with tempfile.TemporaryDirectory() as folder:
++            path = Path(folder) / 'weight'
++            path.write_bytes(b'123')
++            loader = Mock(return_value=object())
++            a = cache.get('yolo', [path], loader)
++            self.assertIs(cache.get('yolo', [path], loader), a)
++            loader.assert_called_once()
++            path.write_bytes(b'changed')
++            with self.assertRaisesRegex(RuntimeError, 'asset changed'):
++                cache.get('yolo', [path], loader)
++
++    def test_inference_only_normalization_and_poisoned_worker_are_enforced(self):
++        cache = runtime.Resources(None)
++        with tempfile.TemporaryDirectory() as folder:
++            p = Path(folder) / 'weight'
++            p.touch()
++            module = SimpleNamespace(RL_MODEL_PATH=p, VECNORMALIZE_PATH=p,
++                load_policy_and_vecnormalize=lambda: (object(), SimpleNamespace(training=True, norm_reward=False)))
++            with self.assertRaisesRegex(RuntimeError, 'inference-only'):
++                cache.policy(module)
++            cache.poisoned = True
++            with self.assertRaisesRegex(RuntimeError, 'previous stage'):
++                cache.get('yolo', [p], lambda: object())
++
++    def test_new_stage_keeps_ros_reactor_alive_but_drops_its_subscriptions(self):
++        source = ast.parse((ROOT/'integration/sugarbox_rl_approach_final2.py').read_text(encoding='utf-8'))
++        cls = next(n for n in source.body if isinstance(n, ast.ClassDef) and n.name == 'RosSensorBridge')
++        method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'close')
++        namespace = {}
++        exec(compile(ast.Module(body=[method], type_ignores=[]), '<ros-close>', 'exec'), namespace)
++        bridge = SimpleNamespace(client=Mock(), scan_topic=Mock(), odom_topic=Mock())
++        namespace['close'](bridge, terminate=False)
++        bridge.scan_topic.unsubscribe.assert_called_once()
++        bridge.odom_topic.unsubscribe.assert_called_once()
++        bridge.client.close.assert_called_once()
++        bridge.client.terminate.assert_not_called()
++        namespace['close'](bridge)
++        bridge.client.terminate.assert_called_once()
++
++    def test_detection_receipt_is_read_atomically_with_the_position(self):
++        import threading
++        source = ast.parse((ROOT/'grasp/v23/x3plus_real_grasp.py').read_text(encoding='utf-8'))
++        cls = next(n for n in source.body if isinstance(n, ast.ClassDef) and n.name == 'DetectionReceiver')
++        method = next(n for n in cls.body if isinstance(n, ast.FunctionDef) and n.name == 'snapshot_with_receipt')
++        namespace = {}
++        exec(compile(ast.Module(body=[method], type_ignores=[]), '<receipt>', 'exec'), namespace)
++        receiver = SimpleNamespace(_lock=threading.Lock(), _last_update_ts=12.0,
++            _is_stale=lambda: False, _pos=np.array([0.26, 0, 0.03]), _height=0.06,
++            _pose_stamp=('e1',), _default_pos=np.zeros(3), _default_height=0.0)
++        data = namespace['snapshot_with_receipt'](receiver)
++        self.assertEqual((data[2], data[4]), (True, 12.0))
++        receiver._pos[:] = 1
++        self.assertAlmostEqual(data[0][0], 0.26)
++        receiver._is_stale = lambda: True
++        data = namespace['snapshot_with_receipt'](receiver)
++        self.assertEqual((data[2], data[4]), (False, 0.0))
++
++
++class ProcessTests(unittest.TestCase):
++    def setUp(self):
++        self.folder = tempfile.TemporaryDirectory()
++        self.addCleanup(self.folder.cleanup)
++        self.path = Path(self.folder.name)
++        for name in ('sugarbox', 'placement', 'sam', 'ppo', 'norm'):
++            (self.path / name).touch()
++        self.runtime = runtime.MissionRuntime('fake', 'not-started', self.path,
++                                              process_target=fake_worker)
++        self.addCleanup(self.runtime.close)
++        self.env = {'fixture': str(self.path), 'target': 'sugarbox'}
++        self.runtime.prepare([self.env, dict(self.env, target='placement')])
++        # A fake receiver prevents this process test from opening UDP/GStreamer.
++        self.runtime.receiver = Mock()
++
++    def run_engine(self, **env):
++        engine = self.runtime.start_engine(dict(self.env, **env))
++        self.assertIsNone(engine.poll())       # no run before explicit go
++        engine.write('{"go":true}\n')
++        return engine, engine.wait(timeout=10)
++
++    def test_warm_assets_survive_two_jobs_while_each_job_has_new_state(self):
++        process = self.runtime.process.pid
++        with patch('builtins.print'):
++            _, first = self.run_engine()
++            _, second = self.run_engine()
++        self.assertEqual((first, second), (0, 0))
++        self.assertEqual(self.runtime.process.pid, process)
++        log = (self.path / 'runtime.log').read_text(encoding='utf-8')
++        # start_engine intentionally starts a fresh engine log, prepare has its
++        # own log in real missions. Model warm-up itself must never repeat.
++        self.assertNotIn('WARM', log)
++
++    def test_second_owner_is_refused_and_abort_ends_the_worker(self):
++        engine = self.runtime.start_engine(self.env)
++        with self.assertRaisesRegex(RuntimeError, 'already owns'):
++            self.runtime.start_engine(self.env)
++        engine.abort()
++        self.assertFalse(self.runtime.process.is_alive())
++        with self.assertRaisesRegex(RuntimeError, 'unavailable'):
++            self.runtime.start_engine(self.env)
++
++    def test_timeout_cancels_the_worker_and_cannot_replay(self):
++        engine = self.runtime.start_engine(dict(self.env, hang=True))
++        engine.write('{"go":true}\n')
++        with self.assertRaises(runner.subprocess.TimeoutExpired):
++            engine.wait(timeout=0.1)
++        engine.abort()
++        self.assertFalse(self.runtime.process.is_alive())
++
++    def test_wrong_generation_cannot_start_an_engine(self):
++        engine = self.runtime.start_engine(self.env)
++        self.runtime.connection.send({'op': 'go', 'generation': engine.generation+1,
++                                      'line': '{"go":true}\n'})
++        with patch('builtins.print'), self.assertRaises(RuntimeError):
++            engine.wait(timeout=10)
++        self.assertFalse(self.runtime.process.is_alive())
++
++    def test_runtime_run_stage_closes_every_engine_before_the_next_stage(self):
++        starts = []
++        fake_runner = SimpleNamespace()
++        def main(argv):
++            self.assertEqual(argv[:2], ['--host', 'fake'])
++            engine = fake_runner._MISSION_RUNTIME.start_engine(self.env)
++            starts.append(engine)
++            engine.write('{"go":true}\n')
++            return engine.wait(timeout=10)
++        fake_runner.main = main
++        with patch('builtins.print'), runtime.resident_session(fake_runner, self.runtime):
++            self.assertEqual(self.runtime.run_stage(fake_runner, ['--target','sugarbox'], self.path/'one.log'), 0)
++            self.assertIsNone(self.runtime.active)
++            self.assertEqual(self.runtime.run_stage(fake_runner, ['--target','sugarbox'], self.path/'two.log'), 0)
++        self.assertFalse(self.runtime.process.is_alive())
++        self.assertIsNone(fake_runner._MISSION_RUNTIME)
++        self.assertTrue((self.path/'one.engine.log').is_file())
++        records = [json.loads(line) for line in (self.path/'timings.jsonl').read_text().splitlines()]
++        self.assertEqual([r['event'] for r in records],
++                         ['models_ready','approach','stage','approach','stage'])
++
++    def test_one_receiver_survives_all_reader_leases(self):
++        self.runtime.receiver = None
++        receiver = Mock()
++        with patch('integration.rear_stream.StreamReader', return_value=receiver) as factory:
++            first = self.runtime.reader()
++            first.close()
++            second = self.runtime.reader()
++            self.runtime.frames.publish(np.zeros((480,640,3), np.uint8),
++                                        monotonic=second.since+0.001)
++            self.assertIsNotNone(second.latest()[0])
++            factory.assert_called_once()
++            receiver.close.assert_not_called()
++            second.close()
++        self.runtime.close()
++        receiver.close.assert_called_once()
++
++    def test_worker_fault_is_terminal_and_never_reuses_the_previous_job(self):
++        engine = self.runtime.start_engine(dict(self.env, returncode=None))
++        engine.write('{"go":true}\n')
++        with patch('builtins.print'), self.assertRaises(RuntimeError):
++            engine.wait(timeout=10)
++        with self.assertRaisesRegex(RuntimeError, 'unavailable'):
++            self.runtime.start_engine(self.env)
++
++
++class FakeProcess:
++    def __init__(self, alter=lambda message: message):
++        self.alter, self.lines, self.sent = alter, queue.Queue(), []
++        self.stdin = SimpleNamespace(write=self.write, flush=lambda: None, close=lambda: self.lines.put(None))
++        self.stdout = iter(self.lines.get, None)
++
++    def write(self, text):
++        request = json.loads(text)
++        self.sent.append(request)
++        reply = self.alter({'id': request['id'], 'reply': {'ok': True, 'confirmed': True}})
++        if reply is not None:
++            self.lines.put(json.dumps(reply)+'\n')
++
++    def wait(self, timeout=None):
++        return 0
++
++    def kill(self):
++        self.lines.put(None)
++
++
++class RpcTests(unittest.TestCase):
++    def session(self, alter=lambda message: message):
++        process = FakeProcess(alter)
++        factory = Mock(return_value=process)
++        session = RobotSession('fake', popen=factory)
++        self.addCleanup(session.close)
++        return session, process, factory
++
++    def test_read_and_action_commands_share_one_ssh_connection(self):
++        session, process, factory = self.session()
++        for command in ('status', 'home', 'health'):
++            self.assertTrue(session.request('fake', command, 1)['ok'])
++        factory.assert_called_once()
++        self.assertEqual([r['id'] for r in process.sent], [1, 2, 3])
++
++    def test_timeout_refusal_and_wrong_reply_are_never_replayed(self):
++        for alter in (lambda r: None, lambda r: dict(r, id=999),
++                      lambda r: dict(r, reply={'ok': False}),
++                      lambda r: dict(r, reply={'ok': True, 'confirmed': False})):
++            session, process, factory = self.session(alter)
++            with self.assertRaises((RuntimeError, queue.Empty)):
++                session.request('fake', 'grasp', 0.01)
++            with self.assertRaises(RuntimeError):
++                session.request('fake', 'grasp', 0.01)
++            self.assertEqual(len(process.sent), 1)
++            factory.assert_called_once()
++
++    def test_other_robot_is_refused_without_starting_a_connection(self):
++        session, _, factory = self.session()
++        with self.assertRaises(ValueError):
++            session.request('other', 'status', 1)
++        factory.assert_not_called()
++
++    def test_remote_program_is_python36_and_uses_health_socket(self):
++        ast.parse(SERVER, feature_version=(3, 6))
++        connection = Mock()
++        connection.makefile.return_value = io.StringIO('{"ok":true}\n')
++        import socket
++        output = io.StringIO()
++        with patch.object(socket, 'AF_UNIX', 1, create=True), \
++                patch.object(socket, 'socket', return_value=connection), \
++                patch('sys.stdin', io.StringIO('{"id":1,"command":"health"}\n')), \
++                patch('sys.stdout', output):
++            exec(SERVER, {})
++        connection.connect.assert_called_once_with('/tmp/grasp_health.sock')
++        connection.settimeout.assert_called_once_with(2)
++        self.assertTrue(json.loads(output.getvalue())['reply']['ok'])
++
++
++class FastE1Tests(unittest.TestCase):
++    def setUp(self):
++        self.clock, self.calls = 0.0, []
++        self.status = {'chassis': {'moving': False, 'arm_busy': False,
++            'motors': [0, 0, 0, 0], 'board_rx_age_s': 0.01, 'stopped_for_s': 1, 'arm_pose': 'e1'},
++            'odom': {'valid': True, 'failures': 0, 'twist': [0, 0, 0]},
++            'detection': {'fresh': True, 'pos': [0.26, 0, 0.0325]},
++            'sample_monotonic': 100, 'stationary_since_monotonic': 100}
++
++    def sleep(self, seconds):
++        self.clock += seconds
++
++    def read(self, host, command):
++        self.calls.append(command)
++        if command != 'status':
++            return {'ok': True, 'confirmed': True, 'e1_frame_receipts': True}
++        result = copy.deepcopy(self.status)
++        result['sample_monotonic'] = 100+self.clock
++        result['detection']['receipt_monotonic'] = 100 + int(self.clock/0.4)*0.4
++        return result
++
++    def flow(self, read=None, look=None, drive=None):
++        return runner.handoff('fake', read=read or self.read, send_stop=lambda host: None,
++            sleep=self.sleep, now=lambda: self.clock, look=look, drive=drive)
++
++    def test_two_new_post_motion_detections_can_finish_before_the_fixed_wait_path(self):
++        self.assertTrue(self.flow()['confirmed'])
++        self.assertLess(self.clock, 3.6)
++        self.assertGreaterEqual(self.clock, 1.5)
++        self.assertEqual(self.calls.count('grasp'), 1)
++
++    def test_one_repeated_detection_is_never_two_agreeing_frames(self):
++        def read(host, command):
++            result = self.read(host, command)
++            if command == 'status':
++                result['sample_monotonic'] = 120+self.clock
++                result['detection']['receipt_monotonic'] = 102
++            return result
++        with self.assertRaises(RuntimeError):
++            self.flow(read)
++        self.assertNotIn('grasp', self.calls)
++
++    def test_missing_or_pre_motion_metadata_does_not_grasp(self):
++        for receipt in (None, 100.1, float('nan'), True):
++            self.setUp()
++            def read(host, command):
++                result = self.read(host, command)
++                if command == 'status':
++                    result['detection']['receipt_monotonic'] = receipt
++                return result
++            with self.subTest(receipt=receipt), self.assertRaises(RuntimeError):
++                self.flow(read)
++            self.assertNotIn('grasp', self.calls)
++
++    def test_same_blank_frame_cannot_trigger_repeated_creep(self):
++        def read(host, command):
++            result = self.read(host, command)
++            if command == 'status':
++                result['detection']['fresh'] = False
++            return result
++        drive = Mock()
++        with patch('builtins.print'), self.assertRaises(RuntimeError):
++            self.flow(read, look=lambda host: {'t': 1.0, 'age': 0.1, 'seen': False}, drive=drive)
++        drive.assert_not_called()
++
++    def test_motion_epoch_change_is_a_failure_even_if_the_next_frame_agrees(self):
++        def read(host, command):
++            result = self.read(host, command)
++            if command == 'status' and self.clock >= 2:
++                result['stationary_since_monotonic'] = 99
++            return result
++        with self.assertRaisesRegex(RuntimeError, 'motion epoch'):
++            self.flow(read)
++        self.assertNotIn('grasp', self.calls)
++
++
++class MissionWiringTests(unittest.TestCase):
++    def setUp(self):
++        spec = importlib.util.spec_from_file_location('resident_mission', ROOT/'integration/mission_loop.py')
++        self.mission = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(self.mission)
++        self.args = SimpleNamespace(host='fake', gstreamer=Path(__file__), homography=Path(__file__))
++
++    def test_warm_up_happens_before_patrol_and_cleanup_restores_both_contexts(self):
++        mission, order = self.mission, []
++        resident = Mock()
++        resident.host = 'fake'
++        def prepare(envs):
++            order.append(('prepare', len(envs)))
++            for env in envs:
++                self.assertEqual(Path(env['SUGARBOX_RL_MODEL']),
++                                 ROOT/'integration/nav_best_model/doorway_ft_final.zip')
++                self.assertEqual(Path(env['SUGARBOX_VECNORMALIZE']),
++                                 ROOT/'integration/nav_best_model/doorway_ft_final_vecnormalize.pkl')
++        resident.prepare.side_effect = prepare
++        def run(args, pc, folder):
++            order.append('patrol')
++            self.assertIs(mission._runtime, resident)
++            self.assertIs(mission.runner._MISSION_RUNTIME, resident)
++            self.assertIsNotNone(mission.runner._ROBOT_SESSION)
++            mission.run_stage('fake', ['--target','sugarbox'], Path(folder)/'stage.log')
++            return 0
++        with tempfile.TemporaryDirectory() as folder, \
++                patch.object(runtime, 'MissionRuntime', return_value=resident), \
++                patch('integration.robot_rpc.RobotSession') as robot, \
++                patch.object(mission, 'stream_running', return_value=True), \
++                patch.object(mission.runner, 'preflight', return_value=({}, [])), \
++                patch.object(mission.runner, 'stop') as stop, patch('builtins.print'):
++            self.assertEqual(mission.with_runtime(self.args, 'fake', Path(folder), run), 0)
++        self.assertEqual(order, [('prepare',2), 'patrol'])
++        self.assertIsNone(mission._runtime)
++        self.assertIsNone(mission.runner._MISSION_RUNTIME)
++        self.assertIsNone(mission.runner._ROBOT_SESSION)
++        robot.return_value.close.assert_called_once()
++        resident.run_stage.assert_called_once()
++        self.assertTrue(stop.called)
++
++    def test_warm_up_failure_never_enters_patrol(self):
++        mission = self.mission
++        resident, run = Mock(), Mock()
++        resident.prepare.side_effect = RuntimeError('model load failed')
++        with tempfile.TemporaryDirectory() as folder, \
++                patch.object(runtime, 'MissionRuntime', return_value=resident), \
++                patch('integration.robot_rpc.RobotSession'), \
++                patch.object(mission, 'stream_running', return_value=True), \
++                patch.object(mission.runner, 'preflight', return_value=({}, [])), \
++                patch.object(mission.runner, 'stop'), patch('builtins.print'):
++            self.assertEqual(mission.with_runtime(self.args, 'fake', Path(folder), run), 2)
++        run.assert_not_called()
++        self.assertIsNone(mission._runtime)
++        resident.close.assert_called()
++
++    def test_patrol_uses_the_resident_detector_without_a_second_model(self):
++        resident = Mock()
++        resident.detect.return_value = []
++        with patch.object(self.mission, '_runtime', resident), \
++                patch.object(self.mission, 'load_ground_calibration', return_value=(np.eye(3),0.2,[])):
++            watcher = self.mission.SugarboxWatcher(Path('fixture'))
++            self.assertIsNone(watcher.look(np.zeros((480,640,3), np.uint8)))
++        resident.detect.assert_called_once()
++        self.assertEqual(resident.detect.call_args.args[0], self.mission.runner.SUGARBOX_MODEL)
++
++
++if __name__ == '__main__':
++    mp.freeze_support()
++    unittest.main()

@@ -1,0 +1,236 @@
+...[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[ADJUST] 1/3: E1 sees the box outside its grasp band; forward 0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[ADJUST] 2/3: E1 sees the box outside its grasp band; forward 0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[ADJUST] 3/3: E1 sees the box outside its grasp band; forward 0.035 m
+...E...[config] target=sugarbox approach=legacy blind_stop_x=0.3 yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[E1] seen=True border=['bottom'] estimate=None age=0.4s -> -0.020 m
+[E1] seen=True border=['bottom'] estimate=None age=0.4s -> -0.020 m
+[ADJUST] 1/3: E1 sees the box outside its grasp band; back 0.020 m
+.........E..............[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[check] files, model hashes, Python imports and status passed; no motion. Camera/ROS live dry-run is still required before the first real run.
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[check] files, model hashes, Python imports and status passed; no motion. Camera/ROS live dry-run is still required before the first real run.
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.34
+[config] target=sugarbox approach=legacy blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[STOP] approach did not report stopped arrival; no E1/grasp
+[config] target=sugarbox approach=legacy blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+{"confirmed": true}
+[config] target=sugarbox approach=legacy blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+{"confirmed": true}
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+.[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[ADJUST] 1/3: E1 sees the box outside its grasp band; forward 0.035 m
+.[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[FACE] placement box edge 0.53 m away, nearer than the camera measures: back 0.40 m
+......[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[FACE] the scene layout box position is not verified: turned toward it only; the camera has to find the box from here
+[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+.[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +4.1 deg
+..[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+{"confirmed": true}
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +4.1 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+.......[BLOCKED] placement needs a held object (or --empty-test)
+[BLOCKED] maintenance lock is on (ncu's navigation sets it when it ends); mission_loop.py unlocks it, or send maintenance-unlock
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}
+[WALL] 0.505 m ahead, taught 0.470 m -> +0.035 m
+[WALL] 0.472 m ahead, taught 0.470 m -> ok
+....
+======================================================================
+ERROR: test_bad_calibration_blocks_real_run_before_stow (__main__.HandoffTests.test_bad_calibration_blocks_real_run_before_stow)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_sugarbox_approach_grasp.py", line 523, in test_bad_calibration_blocks_real_run_before_stow
+    placeholder.write_text('', encoding='utf-8')
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1047, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmplhzvqrt0\\asset'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 637, in _rmtree_unsafe
+    os.rmdir(path)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmplhzvqrt0'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_sugarbox_approach_grasp.py", line 521, in test_bad_calibration_blocks_real_run_before_stow
+    with tempfile.TemporaryDirectory() as folder:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 950, in __exit__
+    self.cleanup()
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 954, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 934, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 639, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 906, in onexc
+    _resetperms(path)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 286, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 277, in _dont_follow_symlinks
+    func(path, *args)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmplhzvqrt0'
+
+======================================================================
+ERROR: test_gstreamer_prefers_the_bundled_binary_over_the_launcher (__main__.HandoffTests.test_gstreamer_prefers_the_bundled_binary_over_the_launcher)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+FileNotFoundError: [WinError 3] 系統找不到指定的路徑。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3h4ij70l\\Lib\\site-packages\\gstreamer_cli\\bin'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+FileNotFoundError: [WinError 3] 系統找不到指定的路徑。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3h4ij70l\\Lib\\site-packages\\gstreamer_cli'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+FileNotFoundError: [WinError 3] 系統找不到指定的路徑。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3h4ij70l\\Lib\\site-packages'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_sugarbox_approach_grasp.py", line 392, in test_gstreamer_prefers_the_bundled_binary_over_the_launcher
+    path.parent.mkdir(parents=True)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1315, in mkdir
+    self.parent.mkdir(parents=True, exist_ok=True)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1315, in mkdir
+    self.parent.mkdir(parents=True, exist_ok=True)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1315, in mkdir
+    self.parent.mkdir(parents=True, exist_ok=True)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3h4ij70l\\Lib'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 637, in _rmtree_unsafe
+    os.rmdir(path)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3h4ij70l'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_sugarbox_approach_grasp.py", line 387, in test_gstreamer_prefers_the_bundled_binary_over_the_launcher
+    with tempfile.TemporaryDirectory() as folder:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 950, in __exit__
+    self.cleanup()
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 954, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 934, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 639, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 906, in onexc
+    _resetperms(path)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 286, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 277, in _dont_follow_symlinks
+    func(path, *args)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3h4ij70l'
+
+----------------------------------------------------------------------
+Ran 56 tests in 1.746s
+
+FAILED (errors=2)
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=legacy blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28 seed=(1.200, -0.300)
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[FACE] the scene layout box position is not verified: turned toward it only; the camera has to find the box from here
+[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}

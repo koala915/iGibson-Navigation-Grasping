@@ -7,6 +7,7 @@ from pathlib import Path
 import shlex
 import tempfile
 import unittest
+import unittest.mock
 from unittest.mock import patch
 
 import numpy as np
@@ -53,9 +54,52 @@ class ClockReader:
         pass
 
 
-LAYOUT = {'frame_id': 'map', 'bin': {
+class FakeLink:
+    """The vision permit link: what was sent, a fixed pose (None: no pose), and the
+    patrol process as the Jetson end reports it (`running(host, pid)`)."""
+
+    def __init__(self, pose=(0.0, 0.0, 0.0), running=None):
+        self.pose, self.sent, self.allowed, self.closed = pose, [], False, False
+        self.running, self.watched, self.dead = running, [], False
+
+    def send(self, allow, age):
+        self.sent.append(allow)
+        self.allowed = allow
+
+    def pose_now(self):
+        return self.pose
+
+    def frame_pose(self, stamp, moving=True):
+        # This fake never moves: the frame was taken where the robot stands.
+        return None if self.pose is None else (self.pose, 0.0, 0.0)
+
+    def watch(self, pid):
+        self.watched.append(pid)
+
+    def patrol_alive(self, pid):
+        if self.running is None or pid not in self.watched:
+            return None
+        return self.running('host', pid)
+
+    def alive(self):
+        return not self.dead
+
+    def close(self):
+        self.closed = True
+
+
+LAYOUT = {'frame_id': 'map', 'room_polygon': [[-1, -1], [3, -1], [3, 3], [-1, 3]], 'bin': {
     'pose_map': {'x': 1.76, 'y': 0.88}, 'pose_map_valid_for_current_placement': False,
     'placement_update': {'midpoint_pose_map_candidate': {'x': 1.56, 'y': 0.83}}}}
+
+
+def resident_reply(host, command):
+    """Required fields of ncu's G2 status/health protocol, not an arm-only fake."""
+    chassis = {'arm_pose': 'travel', 'moving': False, 'maintenance': False}
+    if command == 'health':
+        return {'ok': True, 'stack_version': 'v23', 'service_pid': 123,
+                'chassis_tcp_ready': True, 'holding': False, 'chassis': chassis}
+    return {'chassis': chassis}
 
 
 class PatrolTests(unittest.TestCase):
@@ -69,7 +113,9 @@ class PatrolTests(unittest.TestCase):
         inner = shlex.split(line.split('nohup /bin/bash -c ')[1])[0]
         for part in ('exec /usr/bin/python deploy/ros/g2_map_patrol.py',
                      '--destination patrol-cycle', '--boundary-micro', '--real',
-                     '--output /tmp/mission_patrol.json'):
+                     '--output /tmp/mission_patrol.json',
+                     '--vision-permit /dev/shm/mission_vision_permit.json',
+                     '--forward-pulse-max 0.6'):
             self.assertIn(part, inner)
 
     def test_three_consistent_sightings_confirm_like_the_approach_lock(self):
@@ -123,57 +169,276 @@ class PatrolTests(unittest.TestCase):
         self.assertAlmostEqual(y, 1.00)
         self.assertIsNone(mission.far_point((300, 100, 340, 200), H, 0.20))   # 3.7 m away
 
-    def run_patrol(self, points, running=None, reports=None, box=None, pose=(0.0, 0.0, 0.0),
-                   skip=(), make_room=None):
-        started, stopped = [], []
+    def run_patrol(self, points=(), running=None, reports=None, box=None, pose=(0.0, 0.0, 0.0),
+                   skip=(), make_room=None, watcher=None, walls=None, clear_frames=1, link=None,
+                   guard=None):
+        clock, started, stopped = [0.0], [], []
         running = running if running is not None else (lambda host, pid: True)
         reports = iter(reports or [{'ok': True}] * 10)
-        with patch.object(mission, 'start_patrol',
+        link = link or FakeLink(pose, running)
+        guard = list(skip) if guard is None else guard
+        self.started, self.stopped = started, stopped
+        with patch.object(mission, 'START_CLEAR_FRAMES', clear_frames), \
+             patch.object(mission, 'PATROL_CHECK_S', 0.0), \
+             patch.object(mission, 'start_patrol',
                           side_effect=lambda host, scene: started.append(scene) or 40 + len(started)), \
              patch.object(mission, 'patrol_running', side_effect=running), \
              patch.object(mission, 'stop_patrol', side_effect=lambda host, pid: stopped.append(pid)), \
              patch.object(mission, 'patrol_report', side_effect=lambda host: next(reports)), \
-             patch.object(mission.dock, 'read_localization',
-                          return_value={'ready': True, 'age': 0.1, 'state': {'pose': list(pose)}}), \
              patch.object(mission.time, 'sleep'), patch('builtins.print'):
-            seen = mission.patrol_until_sugarbox('host', 'scene', FakeReader(True),
-                                                 FakeWatcher(points), box, skip=skip,
-                                                 make_room=make_room, now=lambda: 0.0)
-        return seen, started, stopped
+            seen = mission.patrol_until_sugarbox(
+                'host', 'scene', ClockReader(clock), watcher or FakeWatcher(points), link, box,
+                skip=skip, guard=guard, make_room=make_room, walls=walls, now=lambda: clock[0])
+        return seen, started, stopped, link
 
-    def test_a_confirmed_sugarbox_stops_the_patrol(self):
-        seen, started, stopped = self.run_patrol([None, (1.0, 0.1), (1.0, 0.1), (1.0, 0.1)],
-                                                 pose=(1.0, 0.0, 0.0))
-        self.assertEqual(started, ['scene'])
-        self.assertEqual(stopped, [41])
+    def test_a_candidate_parks_the_robot_and_counts_once_confirmed_there(self):
+        seen, started, stopped, link = self.run_patrol(
+            [None, (1.0, 0.1)] + [(1.0, 0.1)] * 3, pose=(1.0, 0.0, 0.0))
+        self.assertEqual((started, stopped), (['scene'], [41]))
+        # Granted before the patrol starts, withdrawn on the first candidate, and
+        # kept withdrawn while the parked camera confirms.
+        self.assertEqual(link.sent[:2], [True, False])
+        self.assertNotIn(True, link.sent[2:])
         self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
         self.assertEqual([round(v, 6) for v in seen['map']], [2.0, 0.1])
 
-    def test_a_sugarbox_beyond_the_calibrated_area_stops_the_patrol_too(self):
-        seen, _, stopped = self.run_patrol([{'far': (1.8, 0.5)}] * 3)
+    def test_a_sugarbox_beyond_the_calibrated_area_parks_it_too(self):
+        seen, _, stopped, _ = self.run_patrol([None] + [{'far': (1.8, 0.5)}] * 4)
         self.assertEqual([round(v, 6) for v in seen['point']], [1.8, 0.5])
         self.assertEqual(stopped, [41])
 
-    def test_the_delivered_sugarbox_is_not_fetched_again(self):
-        points = [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 3
+    def test_the_patrol_never_starts_with_a_candidate_in_view(self):
+        seen, started, stopped, link = self.run_patrol([(1.0, 0.1)] * 4)
+        self.assertEqual((started, stopped), ([], []))
+        self.assertNotIn(True, link.sent)
+        self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
+
+    def test_the_delivered_sugarbox_never_stops_the_patrol(self):
+        points = [None] + [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 4
         for verified in (True, False):
             with self.subTest(verified=verified):
                 box = {'x': 1.0, 'y': 0.1, 'verified': verified}
-                seen, _, stopped = self.run_patrol(list(points), box=box)
+                seen, _, stopped, link = self.run_patrol(list(points), box=box)
                 self.assertEqual([round(v, 6) for v in seen['point']], [0.8, -0.3])
                 self.assertEqual(stopped, [41])
+                self.assertEqual(link.sent[:5], [True] * 4 + [False])
+
+    def test_a_sighting_against_a_wall_is_a_clip_not_a_sugarbox(self):
+        # 2026-10-19: the black clips holding the wall panels read up to 0.73.
+        room = [(-1.0, -1.0), (3.0, -1.0), (3.0, 3.0), (-1.0, 3.0)]
+        points = [None] + [(2.9, 0.0)] * 3 + [{'far': (3.5, 0.5)}] * 2 + [(1.0, 0.1)] * 4
+        seen, _, stopped, link = self.run_patrol(points, walls=room)
+        self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
+        self.assertEqual(stopped, [41])
+        self.assertEqual(link.sent[:7], [True] * 6 + [False])
 
     def test_a_spot_where_grasping_failed_twice_is_left_alone(self):
-        points = [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 3
-        seen, _, _ = self.run_patrol(points, skip=[(1.05, 0.1)])
+        # A skipped box to the side may be passed over; one directly ahead is
+        # now a collision hazard, not a clear frame (test_flow_contracts).
+        points = [None] + [(1.0, 0.5)] * 3 + [(0.8, -0.3)] * 4
+        seen, _, stopped, _ = self.run_patrol(points, skip=[(1.05, 0.5)])
         self.assertEqual([round(v, 6) for v in seen['point']], [0.8, -0.3])
+        self.assertEqual(stopped, [41])
+
+    def test_an_unconfirmed_candidate_is_passed_over_and_the_patrol_goes_on(self):
+        seen, started, stopped, _ = self.run_patrol(
+            [None, (1.0, 0.1)], running=lambda host, pid: pid == 41)
+        self.assertIsNone(seen)                       # then two whole laps with nothing
+        self.assertEqual((len(started), stopped), (3, [41]))
+        # A clip passes over only sightings in its band by a wall (2026-10-20 review).
+        room = [(-1.0, -1.0), (3.0, -1.0), (3.0, 1.2), (-1.0, 1.2)]
+        self.assertTrue(mission.passed_over((1.0, 1.0), None, (), [(1.1, 1.0)], room))
+        self.assertFalse(mission.passed_over((1.0, 0.8), None, (), [(1.1, 1.0)], room))
+        self.assertFalse(mission.passed_over((1.0, 1.0), None, (), [(1.5, 1.0)], room))
+        self.assertFalse(mission.passed_over(None, {'x': 0, 'y': 0}, [(0, 0)], [(0, 0)]))
+
+    def test_a_camera_that_keeps_seeing_unconfirmed_candidates_stops_the_mission(self):
+        class Flicker:
+            """A candidate whenever the patrol drives, each somewhere new (so none is
+            passed over as already rejected), gone once the robot parks."""
+            def look(watcher, frame):
+                if len(self.started) > len(self.stopped):
+                    return (1.0 + 0.5 * len(self.stopped), 0.1), False
+                return None
+        with patch.object(mission, 'MAX_FALSE_STOPS_PER_LAP', 1), \
+             patch.object(mission, 'CONFIRM_S', 0.6), self.assertRaises(mission.MissionError):
+            self.run_patrol(watcher=Flicker())
+        self.assertEqual(len(self.stopped), 2)
+
+    def test_the_patrol_starts_only_after_several_clear_frames(self):
+        # One frame where YOLO misses a box right ahead must not start the patrol.
+        points = [None, (1.0, 0.1), None, None, None] + [(1.0, 0.1)] * 4
+        seen, started, _, _ = self.run_patrol(points, clear_frames=3)
+        self.assertEqual(started, [])
+        self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
+        seen, started, _, _ = self.run_patrol([None] * 3 + [(1.0, 0.1)] * 4, clear_frames=3)
+        self.assertEqual(started, ['scene'])
+
+    def test_no_permit_and_no_start_without_a_pose(self):
+        class Pose(FakeLink):
+            """No pose for the first looks, then one."""
+            def __init__(link):
+                super().__init__()
+                link.asked = 0
+
+            def pose_now(link):
+                link.asked += 1
+                return None if 2 <= link.asked <= 5 else (0.0, 0.0, 0.0)
+        link = Pose()
+        seen, started, _, _ = self.run_patrol([None] * 7 + [(1.0, 0.1)] * 4, link=link)
+        # Four clear frames without a pose sent nothing; the three after it, a permit.
+        self.assertEqual(link.sent[:4], [True] * 3 + [False])
+        self.assertEqual(started, ['scene'])
+        self.assertIsNotNone(seen)
+        with patch.object(mission.time, 'sleep'), self.assertRaises(mission.MissionError):
+            clock = iter(range(100))
+            mission.patrol_until_sugarbox('host', 'scene', ClockReader([0.0]), FakeWatcher([]),
+                                          FakeLink(None), now=lambda: next(clock))
+
+    def test_a_box_the_camera_cannot_vouch_for_in_the_way_ends_the_mission(self):
+        # 2026-10-19: the patrol pushed a sugarbox it could not see and kept going.
+        # The corridor ahead is wider on the right (the cables reach y -0.29 m), and
+        # the turn-in-place circle counts as well.
+        for spot, ends in (((0.6, 0.1), True), ((0.3, -0.35), True), ((0.0, -0.38), True),
+                           ((0.6, 0.5), False), ((1.2, 0.0), False), ((-0.5, 0.0), False),
+                           ((0.3, 0.36), False)):
+            with self.subTest(spot=spot):
+                if ends:
+                    with self.assertRaises(mission.MissionError) as raised:
+                        self.run_patrol([None] * 3, guard=[spot])
+                    self.assertIn('cannot vouch for', str(raised.exception))
+                    self.assertEqual(self.started, [])
+                else:
+                    seen, _, _, _ = self.run_patrol([None] + [(1.0, -0.25)] * 4, guard=[spot])
+                    self.assertIsNotNone(seen)
+        spot, x, y = mission.box_in_the_way((1.0, 1.0, math.pi / 2), [(1.0, 1.7)])  # facing +y
+        self.assertAlmostEqual(x, 0.7)
+        self.assertIsNone(mission.box_in_the_way((1.0, 1.0, math.pi / 2), [(1.7, 1.0)]))
+
+    def test_an_unconfirmed_candidate_seen_this_near_is_guarded_not_passed_over(self):
+        # Parked this near, the gripper may hide it: not seeing it again says nothing.
+        with patch.object(mission, 'CONFIRM_S', 0.6), \
+                self.assertRaises(mission.MissionError) as raised:
+            self.run_patrol([None, (0.55, 0.05)] + [None] * 20)
+        self.assertIn('cannot vouch for', str(raised.exception))
+        self.assertEqual(self.stopped, [41])            # stopped there, never restarted
+
+    def test_every_exclusion_must_hold_with_the_spot_error_bound(self):
+        # 2026-10-20 review: a frame taken mid-turn and placed with the later pose
+        # moved a real box 0.4 m, into the wall-clip zone.
+        room = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
+        self.assertTrue(mission.passed_over((1.0, 0.10), None, (), (), room, error=0.0))
+        self.assertTrue(mission.passed_over((1.0, 0.09), None, (), (), room, error=0.05))
+        self.assertFalse(mission.passed_over((1.0, 0.12), None, (), (), room, error=0.05))
+        self.assertFalse(mission.passed_over((1.0, 0.05), None, (), (), room, error=0.2))
+        clips = [(1.0, 1.85)]                           # in the band by the y = 2 wall
+        self.assertTrue(mission.passed_over((1.2, 1.85), None, (), clips, room, error=0.0))
+        self.assertFalse(mission.passed_over((1.2, 1.85), None, (), clips, room, error=0.08))
+
+    def test_a_frame_taken_mid_turn_cannot_place_a_sighting(self):
+        class Turning(FakeLink):
+            def frame_pose(link, stamp, moving=True):
+                return link.pose, 0.0, 0.5
+        spot, error = mission.sighting_spot(Turning(), 1.0, (1.0, 0.0))
+        self.assertAlmostEqual(error, 0.5)
+        self.assertGreater(error, mission.SPOT_ERROR_MAX_M)
+
+    def test_a_far_sighting_mid_turn_waits_for_a_placeable_frame_before_stopping(self):
+        # A wall clip seen while the patrol turns at a corner: the next frame, with
+        # the robot settled, places it by the wall and the patrol never stops.
+        class Corner(FakeLink):
+            def __init__(link):
+                super().__init__()
+                link.asked = 0
+
+            def frame_pose(link, stamp, moving=True):
+                link.asked += 1
+                return link.pose, 0.0, (0.5 if link.asked <= 2 else 0.0)
+        room = [(-1.0, -1.0), (3.0, -1.0), (3.0, 1.05), (-1.0, 1.05)]
+        corner = Corner()
+        seen, started, stopped, link = self.run_patrol(
+            [None, (1.5, 0.95), (1.5, 0.95), (1.5, 0.95), None, None],
+            link=corner, walls=room, running=lambda host, pid: len(corner.sent) < 9)
+        self.assertEqual(stopped, [])                   # never parked for the clip
+        self.assertNotIn(False, link.sent)
+
+    def test_a_far_sighting_seen_on_and_off_mid_turn_still_stops_in_time(self):
+        # 2026-10-20 review: a miss between two unplaceable hits must not restart
+        # the wait nor renew the permit.
+        class Turning(FakeLink):
+            def frame_pose(link, stamp, moving=True):
+                return link.pose, 0.0, 0.5
+        seen, started, stopped, link = self.run_patrol(
+            [None] * 5 + [(1.5, 0.0), None] * 6 + [(1.5, 0.0)] * 4, link=Turning(),
+            clear_frames=mission.START_CLEAR_FRAMES)
+        first = 5                                       # the permits before it was seen
+        self.assertNotIn(True, link.sent[first:])
+        self.assertEqual(stopped, [41])
+
+    def test_an_unconfirmed_candidate_by_a_wall_becomes_a_clip_passed_over(self):
+        room = [(-1.0, -1.0), (3.0, -1.0), (3.0, 1.2), (-1.0, 1.2)]
+        with patch.object(mission, 'CONFIRM_S', 0.6):
+            seen, started, stopped, _ = self.run_patrol(
+                [None, (1.0, 1.0)] + [None] * 6 + [(1.0, 1.0)] * 3 + [(1.0, -0.2)] * 4,
+                walls=room)
+        # Parked once for the clip; seen again it is passed over and the patrol
+        # restarts (42), stopping next for the real sugarbox.
+        self.assertEqual(stopped, [41, 42])
+        self.assertEqual([round(v, 6) for v in seen['point']], [1.0, -0.2])
+
+    def test_the_robot_end_reports_the_patrol_so_the_loop_never_waits_on_ssh(self):
+        asked, clock = [], [0.0]
+        link = FakeLink(running=lambda host, pid: clock[0] < 2.0)
+        with patch.object(mission, 'START_CLEAR_FRAMES', 1), \
+             patch.object(mission, 'start_patrol', return_value=41), \
+             patch.object(mission, 'patrol_running',
+                          side_effect=lambda host, pid: asked.append(clock[0]) or False), \
+             patch.object(mission, 'patrol_report', return_value={'ok': True}), \
+             patch.object(mission, 'stop_patrol'), \
+             patch.object(mission.time, 'sleep'), patch('builtins.print'):
+            seen = mission.patrol_until_sugarbox(
+                'host', 'scene', ClockReader(clock), FakeWatcher([None] * 60), link,
+                now=lambda: clock[0])
+        self.assertIsNone(seen)                         # two laps ended, as the link said
+        self.assertEqual(link.watched, [41, 41])
+        self.assertEqual(asked, [])                     # no ssh round trip in the loop
+
+    def test_without_a_report_from_the_robot_ssh_is_asked_once_a_second(self):
+        asked, clock = [], [0.0]
+        with patch.object(mission, 'START_CLEAR_FRAMES', 1), \
+             patch.object(mission, 'start_patrol', return_value=41), \
+             patch.object(mission, 'patrol_running',
+                          side_effect=lambda host, pid: asked.append(clock[0]) or True), \
+             patch.object(mission, 'stop_patrol'), \
+             patch.object(mission.time, 'sleep'), patch('builtins.print'):
+            mission.patrol_until_sugarbox(
+                'host', 'scene', ClockReader(clock), FakeWatcher([None] * 30 + [(1.0, 0.1)] * 4),
+                FakeLink(), now=lambda: clock[0])
+        self.assertLessEqual(len(asked), 4)             # 3 s of frames at 10 Hz
+
+    def test_a_lost_pose_or_a_dead_link_ends_the_wait(self):
+        class Lost(FakeLink):
+            def __init__(link):
+                super().__init__()
+                link.asked = 0
+
+            def pose_now(link):
+                link.asked += 1
+                return (0.0, 0.0, 0.0) if link.asked == 1 else None
+        with self.assertRaises(mission.MissionError) as raised:
+            self.run_patrol([None] * 200, link=Lost())
+        self.assertIn('localization lost', str(raised.exception))
+        dead = FakeLink()
+        dead.dead = True
+        with self.assertRaises(mission.MissionError) as raised:
+            self.run_patrol([None] * 5, link=dead)
+        self.assertIn('link to the robot ended', str(raised.exception))
+
+    def test_the_patrol_drives_ncus_own_pulses(self):
+        self.assertEqual(mission.PATROL_FORWARD_PULSE_S, 0.6)
 
     def test_finished_laps_restart_and_two_empty_laps_end_the_search(self):
-        alive = iter([False, True, True, True, True, True, True, True, True])
-        _, started, _ = self.run_patrol([None, (1.0, 0.0), (1.0, 0.0), (1.0, 0.0)],
-                                        running=lambda host, pid: next(alive))
-        self.assertEqual(started, ['scene', 'scene'])
-        seen, started, _ = self.run_patrol([None] * 9, running=lambda host, pid: False)
+        seen, started, _, _ = self.run_patrol([None] * 9, running=lambda host, pid: False)
         self.assertIsNone(seen)
         self.assertEqual(len(started), mission.EMPTY_LAPS_TO_END)
 
@@ -185,8 +450,8 @@ class PatrolTests(unittest.TestCase):
     def test_a_refusal_to_start_makes_room_and_asks_again(self):
         refused = {'ok': False, 'pulses': 0, 'error': 'no reachable entry to patrol route'}
         alive, room = iter([False] + [True] * 9), []
-        seen, started, stopped = self.run_patrol(
-            [None, (1.0, 0.1), (1.0, 0.1), (1.0, 0.1)], running=lambda host, pid: next(alive),
+        seen, started, stopped, _ = self.run_patrol(
+            [None, None, (1.0, 0.1)] + [(1.0, 0.1)] * 3, running=lambda host, pid: next(alive),
             reports=[refused], make_room=lambda: room.append('back') or True)
         self.assertEqual((started, stopped, room), (['scene', 'scene'], [42], ['back']))
         with self.assertRaises(mission.MissionError):
@@ -206,20 +471,88 @@ class PatrolTests(unittest.TestCase):
              patch.object(mission.time, 'sleep'), self.assertRaises(mission.MissionError):
             clock = iter(range(100))
             mission.patrol_until_sugarbox('host', 'scene', FakeReader(False), FakeWatcher([]),
-                                          now=lambda: next(clock))
+                                          FakeLink(), now=lambda: next(clock))
         starting.assert_not_called()
+
+
+class VisionLinkTests(unittest.TestCase):
+    class Stdin:
+        def __init__(self, broken=False):
+            self.lines, self.broken, self.closed = [], broken, False
+
+        def write(self, text):
+            if self.broken:
+                raise OSError('broken pipe')
+            self.lines.append(text)
+
+        def flush(self):
+            pass
+
+        def close(self):
+            self.closed = True
+
+    class Proc:
+        def __init__(self, stdin, lines):
+            self.stdin, self.stdout = stdin, iter(lines)
+
+        def wait(self, timeout=None):
+            return 0
+
+    def link(self, lines=(), broken=False):
+        stdin, calls = self.Stdin(broken), []
+
+        def popen(command, **kwargs):
+            calls.append(command)
+            return self.Proc(stdin, list(lines))
+        link = mission.VisionLink('10.0.0.1', popen=popen, clock=lambda: 0.0)
+        return link, stdin, calls[0]
+
+    def wait_for_pose(self, link):
+        for _ in range(200):
+            if link.pose is not None:
+                return
+            mission.time.sleep(0.005)
+
+    def test_permits_go_out_one_line_each_to_the_jetson_end(self):
+        link, stdin, command = self.link()
+        self.assertEqual(command[:5], ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8'])
+        self.assertIn('python3 -u -c ', command[-1])
+        self.assertIn(mission.PERMIT_PATH, command[-1])
+        link.send(True, 0.4)
+        link.send(False, -1.0)                        # a negative age never goes out
+        self.assertEqual([json.loads(line) for line in stdin.lines],
+                         [{'allow': True, 'age': 0.4}, {'allow': False, 'age': 0.0}])
+        self.assertFalse(link.allowed)
+        link.close()
+        self.assertTrue(stdin.closed)                 # the Jetson end then denies
+
+    def test_only_a_fresh_ready_pose_is_kept(self):
+        good = json.dumps({'t': 10.0, 'ready': True, 'stamp': 9.9, 'pose': [1, 2, 0.5]})
+        stale = json.dumps({'t': 10.0, 'ready': True, 'stamp': 7.0, 'pose': [5, 5, 0]})
+        lost = json.dumps({'t': 10.0, 'ready': False, 'error': 'no file'})
+        link, _, _ = self.link([stale + '\n', lost + '\n', 'junk\n', good + '\n'])
+        self.wait_for_pose(link)
+        self.assertEqual(link.pose_now(), (1.0, 2.0, 0.5))
+        link, _, _ = self.link([stale + '\n'])
+        self.assertIsNone(link.pose_now())
+
+    def test_a_lost_link_stops_the_mission(self):
+        link, _, _ = self.link(broken=True)
+        with self.assertRaises(mission.MissionError):
+            link.send(True, 0.3)
 
 
 class RoomTests(unittest.TestCase):
     def test_backs_out_then_a_step_more_up_to_the_limit(self):
         backs = []
         room = mission.Room('host', back=lambda host, m: backs.append(round(m, 3)))
+        self.assertFalse(room.make())                 # the start: back into the field by hand
         room.leave()
         self.assertTrue(room.make())
         self.assertFalse(room.make())                 # 0.20 + 0.10 = 0.30 m in all
         self.assertEqual(backs, [0.2, 0.1])
         room.reset()
-        self.assertEqual([room.make() for _ in range(4)], [True, True, True, False])
+        self.assertFalse(room.make())
 
 
 class StateTests(unittest.TestCase):
@@ -267,7 +600,8 @@ class SearchTests(unittest.TestCase):
         class Watcher:
             def look(self, frame):
                 return ((1.5, 0.2), False) if len(turned) >= seen_after_turns else None
-        with patch('builtins.print'):
+        with patch('builtins.print'), patch.object(mission.dock, 'read_localization', return_value={
+                'ready': True, 'age': 0.0, 'state': {'pose': [0, 0, 0], 'turn_clear': True}}):
             found = mission.search_placement('host', ClockReader(clock), Watcher(),
                                              turn=lambda host, r: turned.append(r),
                                              now=lambda: clock[0])
@@ -277,6 +611,31 @@ class SearchTests(unittest.TestCase):
         found, turned = self.search(2)
         self.assertTrue(found)
         self.assertEqual(turned, [mission.SEARCH_STEP_RAD] * 2)
+
+    def test_a_receiver_just_started_gets_its_first_frame_first(self):
+        # 2026-10-20 review: the look-around failed at once, 'rear camera stream lost'.
+        clock, turned = [100.0], []
+
+        class Starting(ClockReader):
+            def __init__(reader):
+                super().__init__(clock)
+                reader.calls = 0
+
+            def latest(reader):
+                reader.calls += 1
+                if reader.calls <= 5:
+                    clock[0] += 0.1
+                    return None, 0.0
+                return super().latest()
+
+        class Watcher:
+            def look(self, frame):
+                return (1.5, 0.2), False
+        with patch('builtins.print'), patch.object(mission.time, 'sleep'):
+            self.assertTrue(mission.search_placement(
+                'host', Starting(), Watcher(), turn=lambda host, r: turned.append(r),
+                now=lambda: clock[0]))
+        self.assertEqual(turned, [])
 
     def test_gives_up_after_about_a_full_circle(self):
         found, turned = self.search(99)
@@ -315,9 +674,16 @@ class StageTests(unittest.TestCase):
                          ['1.200', '-0.300'])
         self.assertEqual(self.calls[0][2], 'grasp_3.log')
 
-    def test_a_clean_miss_stows_and_patrols_on(self):
-        self.assertEqual(self.fetch(2, 'empty'), 'missed')
-        self.assertEqual(self.calls[-1], 'travel')
+    def test_a_miss_with_the_robot_at_the_box_says_so(self):
+        self.assertEqual(self.fetch(mission.runner.AT_BOX_EXIT, 'empty'), 'missed_at_box')
+
+    def test_any_other_clean_failure_is_a_miss_that_patrols_on(self):
+        # The user, 2026-10-20 (option C): the 10-19 table, back out and patrol on.
+        for code in (2, 3, 4, 5, 7, -1):
+            with self.subTest(code=code):
+                self.calls = []
+                self.assertEqual(self.fetch(code, 'empty'), 'missed')
+                self.assertIn('travel', self.calls)
 
     def test_anything_doubtful_stops(self):
         for code, state, camera in ((2, 'unknown', 'ok'), (0, 'empty', 'ok'),
@@ -359,8 +725,9 @@ class StageTests(unittest.TestCase):
 class MissionTests(unittest.TestCase):
     """The patrol loop's order, with every stage faked."""
 
-    def run_mission(self, sightings, grasps, argv=(), place_error=None):
-        order = []
+    def run_mission(self, sightings, grasps, argv=(), place_error=None, at_pose=None):
+        order, links, self.guards = [], [], []
+        self.backs = backs = []
         sightings, grasps = iter(sightings), iter(grasps)
         args = mission.argparse.Namespace(host='10.0.0.1', scene='scene', homography=Path('h'),
                                           gstreamer=None, wall_m=None, max_deliveries=None)
@@ -368,8 +735,9 @@ class MissionTests(unittest.TestCase):
             setattr(args, key, value)
 
         class FakeRoom:
-            def leave(self):
+            def leave(self, metres=mission.BACK_OUT_M):
                 order.append('leave')
+                backs.append(metres)
 
             def make(self):
                 return False
@@ -377,8 +745,12 @@ class MissionTests(unittest.TestCase):
             def reset(self):
                 order.append('reset')
 
-        def patrol(host, scene, reader, watcher, box, skip=(), make_room=None):
+        def patrol(host, scene, reader, watcher, link, box, skip=(), guard=(), blind=(),
+                   make_room=None, walls=None):
+            self.assertEqual(walls, [(-1, -1), (3, -1), (3, 3), (-1, 3)])
             order.append(('patrol', len(skip)))
+            self.guards.append([tuple(round(v, 6) for v in g) for g in blind])
+            links.append(link)
             return next(sightings)
 
         def place(*a):
@@ -394,10 +766,13 @@ class MissionTests(unittest.TestCase):
              patch.object(mission, 'fetch_sugarbox',
                           side_effect=lambda *a: order.append('grasp') or next(grasps)), \
              patch.object(mission, 'place_held', side_effect=place), \
+             patch.object(mission, 'box_left_at', side_effect=lambda host, ahead=None: at_pose), \
              patch.object(mission.runner, 'stop') as stopping, patch('builtins.print'):
-            code = mission.patrol_mission(args, '10.0.0.2', Path(folder), room=FakeRoom())
+            code = mission.patrol_mission(args, '10.0.0.2', Path(folder), room=FakeRoom(),
+                                          new_link=lambda host: FakeLink())
             copied = json.loads((Path(folder) / 'scene_layout.json').read_text(encoding='utf-8'))
         stopping.assert_called_once()
+        self.assertTrue(links and all(link.closed for link in links))
         self.assertEqual(copied, LAYOUT)               # what this run turned by, kept
         return code, order
 
@@ -411,16 +786,74 @@ class MissionTests(unittest.TestCase):
 
     def test_a_missed_grasp_backs_out_and_a_spot_missed_twice_is_skipped(self):
         spot = {'point': (1.0, 0.0), 'map': (0.5, 0.5)}
-        code, order = self.run_mission([spot, spot, None], ['missed', 'missed'])
+        code, order = self.run_mission([spot, spot, None], ['missed_at_box', 'missed_at_box'])
         self.assertEqual(code, 0)
         self.assertEqual(order, [('patrol', 0), 'reset', 'grasp', 'leave',
                                  ('patrol', 0), 'reset', 'grasp', 'leave',
                                  ('patrol', 2)])
 
+    def test_a_miss_at_the_box_backs_out_far_enough_to_see_it_again(self):
+        # The user, 2026-10-20 (option C): 0.28 + 0.45 = 0.73 m, past the blind zone;
+        # guarded within the blind zone meanwhile, from where the approach left it.
+        spot = {'point': (1.0, 0.0), 'map': (0.5, 0.5)}
+        code, order = self.run_mission([spot, None], ['missed_at_box'], at_pose=(0.62, 0.48))
+        self.assertEqual(code, 0)
+        self.assertEqual(self.backs, [mission.AT_BOX_BACK_OUT_M])
+        self.assertEqual(self.guards, [[], [(0.62, 0.48)]])
+        code, order = self.run_mission([spot, None], ['missed'])
+        self.assertEqual((code, self.backs), (0, [mission.BACK_OUT_M]))
+        self.assertEqual(self.guards, [[], []])         # stopped short: the camera sees it
+
+    def test_the_back_out_puts_the_box_where_the_camera_measures_it(self):
+        self.assertEqual(mission.at_box_back_out(None), 0.45)          # E1 missed at 0.28
+        self.assertEqual(mission.at_box_back_out((0.40, 0.0)), 0.33)   # held on the way in
+        self.assertEqual(mission.at_box_back_out((0.70, 0.0)), mission.BACK_OUT_M)
+        self.assertEqual(mission.at_box_back_out((0.05, 0.0)), 0.60)   # never more than 0.60
+        self.assertGreater(mission.AT_BOX_SEEN_M, mission.GUARD_BLIND_M)
+
+    def test_the_spot_comes_from_where_the_run_left_the_box(self):
+        report = mission.runner.AT_BOX_REPORT
+        report.write_text(json.dumps({'x': 0.41, 'y': -0.05}), encoding='utf-8')
+        try:
+            self.assertEqual(mission.at_box_ahead(), (0.41, -0.05))
+        finally:
+            report.unlink()
+        self.assertIsNone(mission.at_box_ahead())
+
+    def test_a_worker_ended_by_the_stage_stops_the_mission(self):
+        args = mission.argparse.Namespace(host='10.0.0.1', wall_m=None,
+                                          homography=Path('h.json'), gstreamer=None)
+        dead = unittest.mock.Mock(usable=lambda: False)
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(mission, '_runtime', dead), \
+             patch.object(mission, 'ensure_arm_camera', return_value=None), \
+             patch.object(mission, 'unlock'), \
+             patch.object(mission, 'approach_seed', return_value=(1.2, -0.3)), \
+             patch.object(mission, 'run_stage', return_value=2), \
+             patch.object(mission, 'to_travel') as travel, \
+             self.assertRaisesRegex(mission.MissionError, 'model worker was ended'):
+            mission.fetch_sugarbox(args, {'point': (1.2, -0.3), 'map': None}, Path(folder), 1)
+        travel.assert_not_called()
+
+    def test_a_box_grasped_at_last_is_no_longer_guarded(self):
+        spot = {'point': (1.0, 0.0), 'map': (0.6, 0.5)}
+        code, order = self.run_mission([spot, spot, None], ['missed_at_box', 'held'],
+                                       at_pose=(0.62, 0.48))
+        self.assertEqual(code, 0)
+        self.assertEqual(self.guards, [[], [(0.62, 0.48)], []])
+
     def test_max_deliveries_stops_after_the_last_one(self):
         spot = {'point': (1.0, 0.0), 'map': None}
         code, order = self.run_mission([spot], ['held'], argv=[('max_deliveries', 1)])
         self.assertEqual((code, order[-1], order.count('place')), (0, 'leave', 1))
+
+    def test_no_room_walls_no_patrol(self):
+        layout = {k: v for k, v in LAYOUT.items() if k != 'room_polygon'}
+        args = mission.argparse.Namespace(host='10.0.0.1', scene='scene', homography=Path('h'),
+                                          gstreamer=None, wall_m=None, max_deliveries=None)
+        with tempfile.TemporaryDirectory() as folder,              patch.object(mission.dock, 'fetch_layout', return_value=layout),              patch.object(mission, 'patrol_until_sugarbox') as patrolling,              patch.object(mission.runner, 'stop'), patch('builtins.print'):
+            self.assertEqual(mission.patrol_mission(args, '10.0.0.2', Path(folder)), 2)
+        patrolling.assert_not_called()
 
     def test_a_doubtful_stage_stops_the_loop_where_it_is(self):
         spot = {'point': (1.0, 0.0), 'map': None}
@@ -466,12 +899,11 @@ class MainTests(unittest.TestCase):
         args = mission.argparse.Namespace(
             host='10.0.0.1', no_patrol=False, resume_at=None, scene='scene',
             homography=ROOT / 'detection/rear_ground_homography.json', gstreamer=__file__)
-        with patch.object(mission.runner, 'ctl', side_effect=lambda h, c: (
-                {'holding': False} if c == 'health'
-                else {'chassis': {'arm_pose': 'travel', 'moving': False}})), \
+        with patch.object(mission.runner, 'ctl', side_effect=resident_reply), \
              patch.object(mission.dock, 'read_localization', return_value={
                  'ready': True, 'age': 0.1, 'state': {'pose': [0, 0, 0]}}), \
              patch.object(mission, 'ensure_arm_camera', return_value=None), \
+             patch.object(mission, 'patrol_supports_permit', return_value=True), \
              patch('builtins.print'):
             with patch.object(mission.dock, 'fetch_box',
                               return_value={'x': 1, 'y': 1, 'verified': False}) as fetching:
@@ -479,6 +911,10 @@ class MainTests(unittest.TestCase):
             fetching.assert_called_once_with('10.0.0.1', 'scene')
             with patch.object(mission.dock, 'fetch_box', side_effect=ValueError('no layout')):
                 self.assertEqual(mission.preflight(args), ['placement box position: no layout'])
+            with patch.object(mission.dock, 'fetch_box', return_value={'x': 1, 'y': 1,
+                                                                       'verified': True}), \
+                 patch.object(mission, 'patrol_supports_permit', return_value=False):
+                self.assertIn('--vision-permit', mission.preflight(args)[0])
 
 
 class NoPatrolTests(unittest.TestCase):
@@ -513,7 +949,7 @@ class NoPatrolTests(unittest.TestCase):
              patch.object(mission.runner, 'back_straight') as backing, \
              patch.object(mission.runner, 'stop') as stopping, \
              patch('builtins.print') as printed:
-            code = mission.main(['--host', '10.0.0.1', '--no-patrol', '--real',
+            code = mission.main(['--host', '10.0.0.1', '--no-patrol', '--isolated-stages', '--real',
                                  '--i-am-beside-the-robot', '--log-dir', folder] + argv)
             text = ' '.join(str(c.args[0]) for c in printed.call_args_list if c.args)
         patrol.assert_not_called()
@@ -571,9 +1007,7 @@ class NoPatrolTests(unittest.TestCase):
         args = mission.argparse.Namespace(
             host='10.0.0.1', no_patrol=True, resume_at=None, scene=mission.SCENE,
             homography=ROOT / 'detection/rear_ground_homography.json', gstreamer=__file__)
-        with patch.object(mission.runner, 'ctl', side_effect=lambda h, c: (
-                {'holding': False} if c == 'health'
-                else {'chassis': {'arm_pose': 'travel', 'moving': False}})), \
+        with patch.object(mission.runner, 'ctl', side_effect=resident_reply), \
              patch.object(mission.dock, 'read_localization', side_effect=OSError('down')), \
              patch.object(mission, 'ensure_arm_camera', return_value=None):
             self.assertEqual(mission.preflight(args), [])

@@ -1,0 +1,122 @@
+...[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[ADJUST] 1/3: E1 sees the box outside its grasp band; forward 0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[ADJUST] 2/3: E1 sees the box outside its grasp band; forward 0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[ADJUST] 3/3: E1 sees the box outside its grasp band; forward 0.035 m
+.......[BLOCKED] invalid rear-camera calibration: rear_ground_homography.json requires a finite, nonsingular 3x3 Homography matrix
+[config] target=sugarbox approach=legacy blind_stop_x=0.3 yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[E1] seen=True border=['bottom'] estimate=None age=0.4s -> -0.020 m
+[E1] seen=True border=['bottom'] estimate=None age=0.4s -> -0.020 m
+[ADJUST] 1/3: E1 sees the box outside its grasp band; back 0.020 m
+........................[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[check] files, model hashes, Python imports and status passed; no motion. Camera/ROS live dry-run is still required before the first real run.
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[check] files, model hashes, Python imports and status passed; no motion. Camera/ROS live dry-run is still required before the first real run.
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.34
+[config] target=sugarbox approach=legacy blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[STOP] approach did not report stopped arrival; no E1/grasp
+[config] target=sugarbox approach=legacy blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+{"confirmed": true}
+[config] target=sugarbox approach=legacy blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+{"confirmed": true}
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=['left'] estimate=[0.296, -0.005] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] seen=True border=[] estimate=[0.262, 0.0] age=0.4s -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+[E1] no report -> no move
+.[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[E1] seen=True border=[] estimate=[0.296, -0.005] age=0.4s -> +0.035 m
+[ADJUST] 1/3: E1 sees the box outside its grasp band; forward 0.035 m
+.[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[FACE] placement box edge 0.53 m away, nearer than the camera measures: back 0.40 m
+......[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[FACE] the scene layout box position is not verified: turned toward it only; the camera has to find the box from here
+[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+.[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +4.1 deg
+..[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+{"confirmed": true}
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] placement box 1.00 m away, bearing +4.1 deg
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+[FACE] no room to turn: back 0.10 m the way the robot came
+[FACE] placement box 1.00 m away, bearing +90.0 deg
+.......[BLOCKED] placement needs a held object (or --empty-test)
+[BLOCKED] maintenance lock is on (ncu's navigation sets it when it ends); mission_loop.py unlocks it, or send maintenance-unlock
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}
+[WALL] 0.505 m ahead, taught 0.470 m -> +0.035 m
+[WALL] 0.472 m ahead, taught 0.470 m -> ok
+....
+----------------------------------------------------------------------
+Ran 56 tests in 1.881s
+
+OK
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=legacy blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28
+[config] target=sugarbox approach=enoch blind_stop_x=None yolo_imgsz=1280 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.28 seed=(1.200, -0.300)
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+[FACE] the scene layout box position is not verified: turned toward it only; the camera has to find the box from here
+[ARRIVAL] {"arrived": true, "reason": "PURSUIT_DONE x=0.211 y=-0.029", "seeded": false, "x": 0.211, "y": -0.029}
+{"ok": true}

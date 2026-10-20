@@ -485,6 +485,7 @@ class NoProgressTests(unittest.TestCase):
                      blocked_latched=False, blocked_reason='', should_stop=False,
                      safety_reason='', last_safety_reason='FWD_BLOCK_HOLD front=0.290m',
                      now=50.0, NO_PROGRESS_WINDOW_S=self.window, NO_PROGRESS_MIN_GAIN_M=.03,
+                     camera_age=0.1, math=math,
                      target=SimpleNamespace(has_memory=lambda: True, dist=.6),
                      progress=SimpleNamespace(update=lambda d, t: calls.append('update') or True,
                                               reset=lambda: calls.append('reset')))
@@ -506,6 +507,13 @@ class NoProgressTests(unittest.TestCase):
                 self.assertFalse(scope['blocked_latched'])
                 self.assertNotIn('update', calls)
         scope, calls = self.run_block(target=SimpleNamespace(has_memory=lambda: False, dist=.6))
+        self.assertEqual(calls, ['reset'])
+
+    def test_the_clock_waits_for_the_cameras_first_frame(self):
+        # 2026-10-19: a patrol seed is a target from the start, and the first
+        # YOLO+SAM2 pass took ~11 s; the run stopped before it saw anything.
+        scope, calls = self.run_block(camera_age=float('inf'))
+        self.assertFalse(scope['blocked_latched'])
         self.assertEqual(calls, ['reset'])
 
     def test_a_blocked_run_exits_with_its_own_code(self):
@@ -653,7 +661,7 @@ class ContractModeTests(unittest.TestCase):
                     if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == name)
 
     def handoff(self, contract=True, dist=0.99, stop=False, active=False,
-                block_m=float('inf'), blocked_ticks=0, seeded=False):
+                block_m=float('inf'), blocked_ticks=0, seeded=False, look='FREE'):
         # The whole if/elif chain: seed give-up, handoff, handback.
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
                      and 'SEED_GIVE_UP_CENTER_M' in ast.unparse(n.test))
@@ -669,6 +677,8 @@ class ContractModeTests(unittest.TestCase):
                      path_block_m=block_m, handoff_deferred=False,
                      path_blocked_ticks=blocked_ticks, CONTRACT_HANDBACK_TICKS=2,
                      blocked_latched=False, blocked_reason='', SEED_GIVE_UP_CENTER_M=0.80,
+                     seed_look_state=look,
+                     seed_look=SimpleNamespace(results=6, last_reason='NO_YOLO'),
                      print=lambda *args, **kwargs: None)
         exec(compile(ast.Module(body=[block], type_ignores=[]), str(SOURCE), 'exec'), scope)
         scope['started'], scope['resets'] = started, resets
@@ -715,6 +725,16 @@ class ContractModeTests(unittest.TestCase):
         self.assertEqual(scope['started'], [])
         self.assertTrue(scope['blocked_latched'] and scope['should_stop'])
         self.assertTrue(scope['blocked_reason'].startswith('SEED_NOT_CONFIRMED'))
+
+    def test_an_estimate_is_looked_at_before_it_is_given_up_on(self):
+        # 2026-10-19 run 3: patrol seeds 0.93-0.98 m away reached 0.80 m before the
+        # first inference finished. Standing still to look, the distance never decides.
+        scope = self.handoff(seeded=True, dist=0.70, look='HOLD')
+        self.assertFalse(scope['blocked_latched'] or scope['should_stop'])
+        self.assertEqual(scope['started'], [])
+        scope = self.handoff(seeded=True, dist=0.95, look='GIVE_UP')
+        self.assertTrue(scope['blocked_latched'] and scope['should_stop'])
+        self.assertIn('standing still (6 results, last NO_YOLO)', scope['blocked_reason'])
 
     def test_after_arrival_it_never_returns_to_the_policy(self):
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)

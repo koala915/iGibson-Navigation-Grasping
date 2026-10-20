@@ -1,0 +1,22 @@
+........................................................................
+----------------------------------------------------------------------
+Ran 72 tests in 15.407s
+
+OK
+[BLIND] box hidden at x=0.500 y=+0.000; straight 0.240 m on odometry to x=0.260, then E1 must confirm it
+[BLIND] box hidden at x=0.500 y=+0.000; straight 0.240 m on odometry to x=0.260, then E1 must confirm it
+[BLIND] box hidden at x=0.500 y=+0.000; straight 0.240 m on odometry to x=0.260, then E1 must confirm it
+[BLIND] box hidden at x=0.500 y=+0.000; straight 0.240 m on odometry to x=0.260, then E1 must confirm it
+[BLIND] box hidden at x=0.500 y=+0.000; straight 0.240 m on odometry to x=0.260, then E1 must confirm it
+[BLIND] box hidden at x=0.500 y=+0.000; straight 0.240 m on odometry to x=0.260, then E1 must confirm it
+[BLIND] box hidden at x=0.500 y=+0.000; straight 0.240 m on odometry to x=0.260, then E1 must confirm it
+[BLIND] box hidden at x=0.500 y=+0.000; straight 0.240 m on odometry to x=0.260, then E1 must confirm it
+[FINAL] straight forward | vx=0.080m/s | travel=0.10m | timeout=3.5s
+[MOTOR] refused vx=-0.120 wz=+0.000 (1x): slowest allowed -0.080 m/s; sending stop
+[MOTOR] refused vx=-0.050 wz=+0.300 (1x): slowest allowed +0.000 m/s; sending stop
+[PURSUIT] to x=0.28 m, y=-0.044 m ahead of the centre | vx=0.08 m/s | turn 4.0 x bearing error, 0.30..0.60 rad/s, none within 1.0 deg
+[PURSUIT] to x=0.28 m, y=-0.044 m ahead of the centre | vx=0.08 m/s | turn 4.0 x bearing error, 0.30..0.60 rad/s, none within 1.0 deg
+[PURSUIT] to x=0.28 m, y=-0.044 m ahead of the centre | vx=0.08 m/s | turn 4.0 x bearing error, 0.30..0.60 rad/s, none within 1.0 deg
+[PURSUIT] to x=0.28 m, y=-0.044 m ahead of the centre | vx=0.08 m/s | turn 4.0 x bearing error, 0.30..0.60 rad/s, none within 1.0 deg
+[STOPPED] NO_PROGRESS 10s: not 3 cm closer | last: FWD_BLOCK_HOLD front=0.290m
+[MOTOR] refused vx=-0.080 wz=+0.000 (1x): slowest allowed +0.000 m/s; sending stop

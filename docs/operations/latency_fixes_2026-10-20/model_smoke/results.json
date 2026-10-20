@@ -1,0 +1,31 @@
+{
+  "prepare_seconds": 45.875,
+  "worker_pid": 21844,
+  "runs": [
+    {
+      "target": "sugarbox",
+      "boxes": 0,
+      "exit_code": 5,
+      "seconds": 0.078
+    },
+    {
+      "target": "placement",
+      "boxes": 0,
+      "exit_code": 5,
+      "seconds": 0.094
+    },
+    {
+      "target": "sugarbox",
+      "boxes": 0,
+      "exit_code": 5,
+      "seconds": 0.093
+    },
+    {
+      "target": "placement",
+      "boxes": 0,
+      "exit_code": 5,
+      "seconds": 0.11
+    }
+  ],
+  "hardware_connected": false
+}

@@ -1,0 +1,180 @@
+EEFFFFFFFFFFF
+======================================================================
+ERROR: test_only_stationary_history_covering_capture_through_inference_is_usable (__main__.FramePoseTests.test_only_stationary_history_covering_capture_through_inference_is_usable)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 158, in test_only_stationary_history_covering_capture_through_inference_is_usable
+    self.assertEqual(link.pose_for_frame(10.5), pose)
+                     ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'VisionLink' object has no attribute 'pose_for_frame'
+
+======================================================================
+ERROR: test_stale_missing_and_future_frames_have_no_map_pose (__main__.FramePoseTests.test_stale_missing_and_future_frames_have_no_map_pose)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 167, in test_stale_missing_and_future_frames_have_no_map_pose
+    self.assertIsNone(self.link([]).pose_for_frame(10.5))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'VisionLink' object has no attribute 'pose_for_frame'
+
+======================================================================
+FAIL: test_an_unlocated_rejection_stays_stopped (__main__.PatrolSafetyTests.test_an_unlocated_rejection_stays_stopped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 69, in test_an_unlocated_rejection_stays_stopped
+    self.run_candidate((1.0, 0.0), UnknownFrameLink())
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 34, in run_candidate
+    result = mission.patrol_until_sugarbox(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 632, in patrol_until_sugarbox
+    pid = start_patrol(host, scene)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+AssertionError: must not start through an unresolved visible candidate
+
+======================================================================
+FAIL: test_no_map_exclusion_without_a_pose_matching_the_frame (__main__.PatrolSafetyTests.test_no_map_exclusion_without_a_pose_matching_the_frame)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 57, in test_no_map_exclusion_without_a_pose_matching_the_frame
+    result = mission.patrol_until_sugarbox(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 632, in patrol_until_sugarbox
+    pid = start_patrol(host, scene)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+AssertionError: moving frame was incorrectly excluded as a wall clip
+
+======================================================================
+FAIL: test_visible_rejected_box_does_not_become_five_clear_frames (__main__.PatrolSafetyTests.test_visible_rejected_box_does_not_become_five_clear_frames)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 43, in test_visible_rejected_box_does_not_become_five_clear_frames
+    self.run_candidate((1.0, 0.0))
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 34, in run_candidate
+    result = mission.patrol_until_sugarbox(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 632, in patrol_until_sugarbox
+    pid = start_patrol(host, scene)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1198, in _execute_mock_call
+    raise effect
+AssertionError: must not start through an unresolved visible candidate
+
+======================================================================
+FAIL: test_search_rejects_no_clearance_stale_and_missing_localization (__main__.SearchSafetyTests.test_search_rejects_no_clearance_stale_and_missing_localization) (record=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 87, in test_search_rejects_no_clearance_stale_and_missing_localization
+    mission.search_placement(
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 710, in search_placement
+    turn(host, SEARCH_STEP_RAD)
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 89, in <lambda>
+    turn=lambda *a: self.fail('unsafe search turn requested'),
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unsafe search turn requested
+
+======================================================================
+FAIL: test_search_rejects_no_clearance_stale_and_missing_localization (__main__.SearchSafetyTests.test_search_rejects_no_clearance_stale_and_missing_localization) (record={'ready': False, 'age': 0.0, 'state': {'pose': [0, 0, 0], 'turn_clear': True}})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 87, in test_search_rejects_no_clearance_stale_and_missing_localization
+    mission.search_placement(
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 710, in search_placement
+    turn(host, SEARCH_STEP_RAD)
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 89, in <lambda>
+    turn=lambda *a: self.fail('unsafe search turn requested'),
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unsafe search turn requested
+
+======================================================================
+FAIL: test_search_rejects_no_clearance_stale_and_missing_localization (__main__.SearchSafetyTests.test_search_rejects_no_clearance_stale_and_missing_localization) (record={'ready': True, 'age': 2.0, 'state': {'pose': [0, 0, 0], 'turn_clear': True}})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 87, in test_search_rejects_no_clearance_stale_and_missing_localization
+    mission.search_placement(
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 710, in search_placement
+    turn(host, SEARCH_STEP_RAD)
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 89, in <lambda>
+    turn=lambda *a: self.fail('unsafe search turn requested'),
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unsafe search turn requested
+
+======================================================================
+FAIL: test_search_rejects_no_clearance_stale_and_missing_localization (__main__.SearchSafetyTests.test_search_rejects_no_clearance_stale_and_missing_localization) (record={'ready': True, 'age': 0.0, 'state': {'pose': [0, 0, 0], 'turn_clear': False}})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 87, in test_search_rejects_no_clearance_stale_and_missing_localization
+    mission.search_placement(
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 710, in search_placement
+    turn(host, SEARCH_STEP_RAD)
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 89, in <lambda>
+    turn=lambda *a: self.fail('unsafe search turn requested'),
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unsafe search turn requested
+
+======================================================================
+FAIL: test_search_rejects_no_clearance_stale_and_missing_localization (__main__.SearchSafetyTests.test_search_rejects_no_clearance_stale_and_missing_localization) (record={'ready': True, 'age': 0.0, 'state': {'pose': [0, 0, 0]}})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 87, in test_search_rejects_no_clearance_stale_and_missing_localization
+    mission.search_placement(
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 710, in search_placement
+    turn(host, SEARCH_STEP_RAD)
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 89, in <lambda>
+    turn=lambda *a: self.fail('unsafe search turn requested'),
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unsafe search turn requested
+
+======================================================================
+FAIL: test_grasp_forwards_the_same_calibration_and_decoder (__main__.StageContractTests.test_grasp_forwards_the_same_calibration_and_decoder)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 111, in test_grasp_forwards_the_same_calibration_and_decoder
+    self.assert_assets(stage.call_args.args[1])
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 101, in assert_assets
+    self.assertIn(option, args)
+AssertionError: '--homography' not found in ['--target', 'sugarbox', '--real', '--i-am-beside-the-robot', '--obs-log', 'C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\grasp_1_obs.jsonl', '--seed', '1.000', '0.000']
+
+======================================================================
+FAIL: test_placement_and_retry_forward_the_same_assets (__main__.StageContractTests.test_placement_and_retry_forward_the_same_assets)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 121, in test_placement_and_retry_forward_the_same_assets
+    self.assert_assets(call.args[1])
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 101, in assert_assets
+    self.assertIn(option, args)
+AssertionError: '--homography' not found in ['--target', 'placement', '--real', '--i-am-beside-the-robot', '--turn-to-box', '--box-map', 'C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\layout.json', '--obs-log', 'C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\place_1_obs.jsonl']
+
+======================================================================
+FAIL: test_resume_place_unlocks_before_starting_and_preserves_assets (__main__.StageContractTests.test_resume_place_unlocks_before_starting_and_preserves_assets)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_flow_contracts.py", line 141, in test_resume_place_unlocks_before_starting_and_preserves_assets
+    self.assertEqual(mission.grasp_and_place(self.args, 'mock', Path(directory)), 0)
+AssertionError: 2 != 0
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.046s
+
+FAILED (failures=11, errors=2)

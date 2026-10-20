@@ -124,9 +124,16 @@ class GraspService:
         recv = getattr(self.controller, "detection", None)
         if recv is None:
             return None
-        pos, height, fresh, _stamp = recv.snapshot()
-        return {"pos": [round(float(v), 4) for v in pos],
-                "height": height, "fresh": bool(fresh)}
+        if hasattr(recv, "snapshot_with_receipt"):
+            pos, height, fresh, _stamp, receipt = recv.snapshot_with_receipt()
+        else:
+            pos, height, fresh, _stamp = recv.snapshot()
+            receipt = None
+        result = {"pos": [round(float(v), 4) for v in pos],
+                  "height": height, "fresh": bool(fresh)}
+        if receipt is not None:
+            result["receipt_monotonic"] = receipt
+        return result
 
     def detection_received_at(self) -> float:
         """Monotonic receipt time of the latest detection; 0.0 when none/no receiver."""
@@ -172,6 +179,8 @@ class GraspService:
                 "chassis_tcp_ready": self.chassis_tcp_ready,
                 "chassis": self.chassis.status() if self.chassis else None,
                 "odom": self.odom_bridge.status() if self.odom_bridge else None,
+                "sample_monotonic": time.monotonic(),
+                "stationary_since_monotonic": self.still_since(),
                 "rss_mb": round(rss_mb(), 1),
                 "uptime_s": round(time.time() - self.started, 1)}
 
@@ -204,7 +213,11 @@ class GraspService:
                         "hint": "the arm was not moved: without the encoders the "
                                 "rate limit would count from a guess"}
             self._sync_rate_limit(deg)
-            return fn()
+            result = fn()
+            if isinstance(result, dict) and hasattr(
+                    getattr(self.controller, 'detection', None), 'snapshot_with_receipt'):
+                result['e1_frame_receipts'] = True
+            return result
         finally:
             self._arm_moved_at = time.monotonic()
             if self.chassis is not None:

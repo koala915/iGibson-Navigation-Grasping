@@ -361,20 +361,23 @@ def main():
         board = type("B", (), {"calls": [], "set_motor": lambda self, *v: self.calls.append(v)})()
         ch = cs.Chassis(board, lambda vx, wz: (20, 20, 20, 20) if vx else (0, 0, 0, 0),
                         clock=ft.monotonic, log=lambda _m: None)
-        ch.set_arm_pose("e1")
+        ch.set_arm_pose("travel")
         c = Ctl(E1)
         s = gs.GraspService(c, lambda ctl, max_steps: ran.append(ft.t) or True, 10,
                             "/tmp/unused.sock", chassis_server=type("S", (), {"chassis": ch})())
         ft.t += 60.0                                # the arm has been still for a minute
         ch.command({"action": "velocity", "vx": 0.05, "wz": 0.0})
+        ok(board.calls and any(board.calls[-1]),
+           "the wheel-settle fixture really moves in the permitted travel pose")
         ft.t += 0.3
-        ch.command({"action": "stop"})              # a creep at E1 just ended
+        ch.command({"action": "stop"})              # the travel-pose movement just ended
+        ch.set_arm_pose("e1")                       # now parked for the grasp
         t1 = ft.t
         ft.t += 0.6
         c.detection = Recv(ft, [t1 - 0.5 + k for k in range(10)])
         s.run_arm_command(s.cmd_grasp)
         ok(ran and ran[0] >= t1 + gs.GRASP_SETTLE_S,
-           "a creep of the wheels counts too: the wait runs from when they stopped")
+           "wheel motion before E1 counts too: the wait runs from when the wheels stopped")
     finally:
         gs.time = real_time
 

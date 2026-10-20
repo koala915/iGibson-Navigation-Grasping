@@ -1,0 +1,13 @@
+{
+  "captured_at": "2026-10-20T20:43:55.282235+08:00",
+  "files": {
+    "integration/mission_loop.py": "c2398344c45490ad41bd22944125f94cd70bd23ccb99a7ddfe07818a44b8add6",
+    "integration/sugarbox_approach_grasp.py": "2494c6b3eccb2fb2d0495a9035e48d3bcc7f7ca0a0acc7f9558e8d9dd45cf62d",
+    "grasp/v23/graspctl.py": "12223a6b167f51de02a32f3206635002f44beeeb19969951d7d9b3ed473ade6c",
+    "tests/test_mission_loop.py": "215d302ebf6616ad5ee6d32447ac1956c0ce5874f495817e4661eddc29528dc8",
+    "tests/test_sugarbox_approach_grasp.py": "cdcce5f4d536fb1d796ec05bb94e583b83d28c1d71774adc4505bec903156fed",
+    "CLAUDE.md": "f07c9effc55538186d666c67e767fbc8757c5cb02588aa657c90a53d275e122a",
+    "docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md": "be0effb227b811a1897d0a135f1b7c570daa6357905125a7cc6b811278be4a05",
+    ".github/workflows/tests.yml": "6d2290585072301e416617364eb1022ed33e3d00c294df29be2c019cc3e0e9b9"
+  }
+}

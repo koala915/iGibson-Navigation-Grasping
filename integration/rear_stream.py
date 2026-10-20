@@ -20,12 +20,15 @@ ARM_CAMERA_REGION = (295, 395, 405, 480)
 class StreamReader:
     """Keep only the newest decoded frame from the rear UDP/H264 stream."""
 
-    def __init__(self, port, gst):
+    def __init__(self, port, gst, publish=None):
+        self.publish = publish
         self.proc = subprocess.Popen(
             [str(gst), "-q", "udpsrc", f"port={port}",
              "caps=application/x-rtp,media=video,encoding-name=H264,payload=96",
              "!", "rtph264depay", "!", "h264parse", "!", "avdec_h264", "!", "videoconvert", "!",
-             f"video/x-raw,format=BGR,width={W},height={H}", "!", "fdsink", "fd=1", "sync=false"],
+             f"video/x-raw,format=BGR,width={W},height={H}", "!", "queue", "max-size-buffers=1",
+             "max-size-bytes=0", "max-size-time=0", "leaky=downstream", "!",
+             "fdsink", "fd=1", "sync=false"],
             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         self.frame, self.stamp = None, 0.0
         self.lock = threading.Lock()
@@ -40,6 +43,8 @@ class StreamReader:
             with self.lock:
                 self.frame = np.frombuffer(buf, np.uint8).reshape(H, W, 3).copy()
                 self.stamp = time.monotonic()
+                if self.publish is not None:
+                    self.publish(self.frame, wall=time.time(), monotonic=self.stamp)
 
     def latest(self):
         with self.lock:

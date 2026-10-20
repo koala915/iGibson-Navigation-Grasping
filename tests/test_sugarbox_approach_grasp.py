@@ -12,6 +12,54 @@ spec = importlib.util.spec_from_file_location('runner', Path(__file__).resolve()
                                         'integration/sugarbox_approach_grasp.py')
 runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
+# A 4 m square room around the origin, as ncu's scene layout gives room_polygon.
+ROOM = [(-1.0, -1.0), (3.0, -1.0), (3.0, 3.0), (-1.0, 3.0)]
+
+
+class FakeEngine:
+    """The approach engine started early (start_engine): its environment, the go
+    line it was sent, and how it ends once started."""
+
+    def __init__(self, env, returncode=0, on_go=None, ended=None):
+        self.env, self.exit_code, self.on_go = env, returncode, on_go
+        self.stdin, self.lines, self.returncode = self, [], ended
+
+    def write(self, text):
+        self.lines.append(text)
+
+    def close(self):
+        pass
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout=None):
+        message = json.loads(self.lines[-1])
+        if self.on_go is not None:
+            self.on_go(self.env, message)
+        self.returncode = self.exit_code
+        return self.returncode
+
+    def go_seed(self):
+        return json.loads(self.lines[-1])['seed']
+
+
+def stopped_at(x, y=0.0):
+    """on_go for FakeEngine: the engine's arrival report with the box at (x, y)."""
+    def report(env, message):
+        Path(env['SUGARBOX_ARRIVAL_REPORT']).write_text(json.dumps(
+            {'arrived': False, 'blocked': True, 'x': x, 'y': y}), encoding='utf-8')
+    return report
+
+
+def engines(returncode=0, on_go=None, ended=None):
+    """(patch kwargs for runner.start_engine, the list of engines it started)."""
+    started = []
+
+    def start(env):
+        started.append(FakeEngine(env, returncode, on_go, ended))
+        return started[-1]
+    return dict(side_effect=start), started
 
 
 class HandoffTests(unittest.TestCase):
@@ -258,8 +306,7 @@ class HandoffTests(unittest.TestCase):
              patch.object(runner, 'ctl', side_effect=read), \
              patch.object(runner, 'stop') as stopping, \
              patch.object(runner.time, 'sleep'), \
-             patch.object(runner.subprocess, 'run') as process:
-            process.return_value.returncode = 3
+             patch.object(runner, 'start_engine', **engines(3, stopped_at(1.2))[0]):
             self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 2)
             self.assertNotIn('home', commands)
             self.assertNotIn('grasp', commands)
@@ -277,9 +324,8 @@ class HandoffTests(unittest.TestCase):
              patch.object(runner, 'ctl', side_effect=read), \
              patch.object(runner, 'stop'), \
              patch.object(runner.time, 'sleep'), \
-             patch.object(runner.subprocess, 'run') as process, \
+             patch.object(runner, 'start_engine', **engines(4, stopped_at(0.95))[0]), \
              patch('builtins.print') as printed:
-            process.return_value.returncode = 4
             self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 2)
             self.assertNotIn('home', commands)
             self.assertNotIn('grasp', commands)
@@ -369,10 +415,10 @@ class HandoffTests(unittest.TestCase):
         snapshot = copy.deepcopy(self.snapshot)
         snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
         snapshot['chassis']['arm_pose'] = 'travel'
-        with patch.dict(runner.os.environ, {}, clear=True),              patch.object(runner, 'preflight', return_value=({}, [])),              patch.object(runner, 'ctl', return_value=snapshot),              patch.object(runner, 'stop'),              patch.object(runner.time, 'sleep'),              patch.object(runner, 'handoff', return_value={'confirmed': True}) as grasp,              patch.object(runner.subprocess, 'run') as process:
-            process.return_value.returncode = 0
+        fake = engines(0)
+        with patch.dict(runner.os.environ, {}, clear=True),              patch.object(runner, 'preflight', return_value=({}, [])),              patch.object(runner, 'ctl', return_value=snapshot),              patch.object(runner, 'stop'),              patch.object(runner.time, 'sleep'),              patch.object(runner, 'handoff', return_value={'confirmed': True}) as grasp,              patch.object(runner, 'start_engine', **fake[0]):
             self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 0)
-            env = process.call_args.kwargs['env']
+            env = fake[1][0].env
             self.assertEqual(env['SUGARBOX_CONTRACT_ALLOW_DRIVE'], '1')
             self.assertEqual(env['SUGARBOX_RUN_MODE'], 'DRIVE')
             grasp.assert_called_once()
@@ -382,6 +428,88 @@ class HandoffTests(unittest.TestCase):
             self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot',
                                           '--approach', 'legacy']), 0)
             self.assertEqual(grasp.call_args.kwargs, {})     # legacy may not reverse
+
+    def test_the_engine_loads_while_the_robot_gets_ready_and_waits_for_go(self):
+        # 2026-10-19: ~25 s per stage to the first usable frame, all of it in series.
+        with patch.object(runner.subprocess, 'Popen') as popen:
+            runner.start_engine({'SUGARBOX_RUN_MODE': 'DRIVE'})
+        kwargs = popen.call_args.kwargs
+        self.assertEqual(kwargs['env']['SUGARBOX_WAIT_GO'], '1')
+        self.assertEqual(kwargs['env']['SUGARBOX_RUN_MODE'], 'DRIVE')
+        self.assertIs(kwargs['stdin'], runner.subprocess.PIPE)
+        engine = FakeEngine({})
+        runner.go(engine, (1.13251, -0.0004))
+        self.assertEqual(json.loads(engine.lines[0]), {'go': True, 'seed': [1.1325, -0.0004]})
+
+    def real_run(self, fake, stow_ok=True):
+        snapshot = copy.deepcopy(self.snapshot)
+        snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
+        snapshot['chassis']['arm_pose'] = 'travel' if stow_ok else 'e1'
+        commands = []
+        def read(host, cmd):
+            commands.append(cmd)
+            return snapshot if cmd == 'status' else {'ok': True}
+        with patch.object(runner, 'preflight', return_value=({}, [])), \
+             patch.object(runner, 'ctl', side_effect=read), \
+             patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'), \
+             patch.object(runner, 'handoff', return_value={'confirmed': True}) as grasp, \
+             patch.object(runner, 'start_engine', **fake[0]), \
+             patch.object(runner, 'kill_tree') as killed, patch('builtins.print'):
+            code = runner.main(['--real', '--i-am-beside-the-robot'])
+        return code, grasp, killed, commands
+
+    def test_a_miss_after_the_approach_reached_the_box_has_its_own_exit(self):
+        # mission_loop guards that box: backed out, it is in the gripper's blind zone.
+        snapshot = copy.deepcopy(self.snapshot)
+        snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
+        snapshot['chassis']['arm_pose'] = 'travel'
+        with patch.object(runner, 'handoff', side_effect=RuntimeError('grasp was not confirmed')), \
+             patch.object(runner, 'preflight', return_value=({}, [])), \
+             patch.object(runner, 'ctl', return_value=snapshot), \
+             patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'), \
+             patch.object(runner, 'start_engine', **engines(0)[0]), patch('builtins.print'):
+            self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']),
+                             runner.AT_BOX_EXIT)
+        # Stopped short of the box: an ordinary failure.
+        code, grasp, _, _ = self.real_run(engines(4, stopped_at(1.2)))
+        self.assertEqual(code, 2)
+        grasp.assert_not_called()
+
+    def test_a_run_that_stops_near_the_box_is_a_miss_at_the_box(self):
+        # 2026-10-20 review: held or timed out within the last metre, the box may be
+        # in the gripper's blind zone after the usual 0.20 m back-out.
+        for on_go, near, where in ((stopped_at(0.35, -0.04), True, {'x': 0.35, 'y': -0.04}),
+                                   (stopped_at(1.20), False, None),
+                                   (None, True, None)):           # no report: unknown
+            with self.subTest(where=where, near=near):
+                code, grasp, _, _ = self.real_run(engines(4, on_go))
+                self.assertEqual(code, runner.AT_BOX_EXIT if near else 2)
+                if where is None:
+                    self.assertFalse(runner.AT_BOX_REPORT.exists())
+                else:
+                    self.assertEqual(json.loads(runner.AT_BOX_REPORT.read_text()), where)
+        # Never started (no motion toward the box): an ordinary failure.
+        code, _, _, _ = self.real_run(engines(0, ended=1))
+        self.assertEqual(code, 2)
+        if runner.AT_BOX_REPORT.exists():
+            runner.AT_BOX_REPORT.unlink()
+
+    def test_an_engine_that_died_loading_is_never_started_or_handed_over(self):
+        fake = engines(0, ended=1)
+        code, grasp, killed, _ = self.real_run(fake)
+        self.assertEqual(code, 2)
+        self.assertEqual(fake[1][0].lines, [])          # never told to go
+        grasp.assert_not_called()
+        killed.assert_not_called()                      # it had already ended
+
+    def test_a_stage_that_fails_before_go_ends_the_waiting_engine(self):
+        fake = engines(0)
+        code, grasp, killed, commands = self.real_run(fake, stow_ok=False)
+        self.assertEqual(code, 2)
+        self.assertIn('stow', commands)
+        self.assertEqual(fake[1][0].lines, [])
+        killed.assert_called_once_with(fake[1][0])      # with its camera receiver
+        grasp.assert_not_called()
 
     def test_enoch_hands_over_at_1m_and_stops_the_box_at_28cm_by_default(self):
         env = self.launched_env([])
@@ -586,8 +714,10 @@ class PlacementTests(unittest.TestCase):
         # strip is driven at as for the placement box (never stopped on).
         env = self.dry_env([])
         self.assertEqual(env['SUGARBOX_FAR_SEED'], '1')
-        for key in ('SUGARBOX_TARGET', 'SUGARBOX_ARRIVAL_REPORT', 'SUGARBOX_SEED_TARGET'):
+        for key in ('SUGARBOX_TARGET', 'SUGARBOX_SEED_TARGET'):
             self.assertNotIn(key, env)
+        # Where a run stopped tells a miss at the box from one short of it.
+        self.assertIn('SUGARBOX_ARRIVAL_REPORT', env)
         env = self.dry_env(['--approach', 'legacy'], {'SUGARBOX_FAR_SEED': '1'})
         self.assertNotIn('SUGARBOX_FAR_SEED', env)
 
@@ -625,24 +755,24 @@ class PlacementTests(unittest.TestCase):
     def run_real(self, argv=(), box=None, report=None, pose=(0.0, 0.0, 0.0), backs=None):
         report = self.report if report is None else report
         backs = [] if backs is None else backs
-        def approach(command, env, timeout):
+        def approach(env, message):
             if 'SUGARBOX_ARRIVAL_REPORT' in env:
                 Path(env['SUGARBOX_ARRIVAL_REPORT']).write_text(json.dumps(report))
-            return runner.subprocess.CompletedProcess(command, 0)
+        fake = engines(0, on_go=approach)
         with patch.dict(runner.os.environ, {}, clear=True), \
              patch.object(runner, 'preflight', return_value=({}, [])), \
              patch.object(runner, 'ctl', side_effect=self.read), \
              patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'), \
              patch.object(runner, 'face_box', return_value=pose) as facing, \
-             patch.object(runner, 'placement_box', return_value=box), \
-             patch.object(runner, 'back_straight', side_effect=lambda h, m, **kw: backs.append(
-                 (round(m, 3), kw))), \
+             patch.object(runner, 'placement_layout', return_value=(box, ROOM)), \
+             patch.object(runner, 'back_straight', side_effect=lambda h, m, walls, **kw: backs.append(
+                 (round(m, 3), kw.get('speed'), walls, kw.get('margin')))), \
              patch.object(runner, 'place', return_value={'ok': True}) as placing, \
              patch.object(runner, 'handoff') as grasp, \
-             patch.object(runner.subprocess, 'run', side_effect=approach) as process:
+             patch.object(runner, 'start_engine', **fake[0]):
             code = runner.main(['--real', '--i-am-beside-the-robot', '--target', 'placement']
                                + list(argv))
-            return code, process, placing, facing, grasp
+            return code, fake[1][0], placing, facing, grasp
 
     def test_real_placement_reads_the_arrival_report_and_never_grasps(self):
         code, process, placing, facing, grasp = self.run_real()
@@ -657,17 +787,21 @@ class PlacementTests(unittest.TestCase):
         code, process, _, facing, _ = self.run_real(['--turn-to-box'], box=verified)
         self.assertEqual(code, 0)
         facing.assert_called_once()
-        self.assertEqual(process.call_args.kwargs['env']['SUGARBOX_SEED_TARGET'], '1.1325,0.0000')
+        # Known only after the turn: it goes with the start, not in the environment.
+        self.assertEqual(process.go_seed(), [1.1325, 0.0])
+        self.assertNotIn('SUGARBOX_SEED_TARGET', process.env)
         code, process, _, _, _ = self.run_real(['--turn-to-box'], box=dict(verified, verified=False))
         self.assertEqual(code, 0)
-        self.assertNotIn('SUGARBOX_SEED_TARGET', process.call_args.kwargs['env'])
+        self.assertIsNone(process.go_seed())
 
     def test_a_box_too_near_to_measure_is_backed_away_from_first(self):
         backs = []
         near = {'x': 0.60, 'y': 0.0, 'verified': True}
         code, process, _, facing, _ = self.run_real(['--turn-to-box'], box=near, backs=backs)
         self.assertEqual(code, 0)
-        self.assertEqual(backs, [(0.40, {'margin': 0.25, 'speed': 0.06})])   # capped
+        # Capped, slow, checked on the map with the user's 0.25 m left behind.
+        self.assertEqual(backs, [(0.40, 0.06, ROOM, runner.PLACEMENT_BACKOFF_MARGIN_M)])
+        self.assertEqual(runner.PLACEMENT_BACKOFF_MARGIN_M, 0.25)
         self.assertEqual(facing.call_count, 2)          # faced again from the new spot
         backs.clear()
         code, _, _, facing, _ = self.run_real(['--turn-to-box'], box={'x': 1.2, 'y': 0.0,
@@ -695,21 +829,33 @@ class PlacementTests(unittest.TestCase):
                             back=lambda host, m: backs.append(m))
         self.assertEqual(backs, [0.10] * 3)             # 0.30 m in all, then stop
 
-    def test_backing_goes_in_checked_steps(self):
-        moves = []
-        scans = lambda host: [{'ranges': [None], 'angle_min': 0.0, 'angle_increment': 0.01}] * 3
+    def test_backing_goes_in_steps_each_checked_on_the_map(self):
+        # Nothing sees behind the robot (the LiDAR's rear half is blocked by the
+        # body): the AMCL pose and the room's walls decide.
+        moves, poses = [], iter([(1.0, 1.0, 0.0), (0.8, 1.0, 0.0)])
+        localize = lambda host: {'ready': True, 'age': 0.1, 'state': {'pose': list(next(poses))}}
         drive = lambda host, m, limit, speed: moves.append((round(m, 3), limit, speed))
-        with patch.object(runner.dock, 'rear_clearance', return_value=0.80):
-            runner.back_straight('host', 0.40, margin=0.25, speed=0.06, scans=scans, drive=drive)
+        runner.back_straight('host', 0.40, ROOM, speed=0.06, localize=localize, drive=drive)
         self.assertEqual(moves, [(-0.2, 0.2, 0.06), (-0.2, 0.2, 0.06)])
         moves.clear()
-        with patch.object(runner.dock, 'rear_clearance', return_value=0.25), \
-             self.assertRaises(RuntimeError):
-            runner.back_straight('host', 0.20, scans=scans, drive=drive)  # 0.20 + 0.10 needed
+        near_wall = lambda host: {'ready': True, 'age': 0.1, 'state': {'pose': [-0.6, 1.0, 0.0]}}
+        # 0.10 m from the west wall after 0.20 m: fine at 0.08, refused at 0.25.
+        room_left = lambda host: {'ready': True, 'age': 0.1, 'state': {'pose': [-0.47, 1.0, 0.0]}}
+        runner.back_straight('host', 0.20, ROOM, localize=room_left, drive=drive)
+        self.assertEqual(len(moves), 1)
+        moves.clear()
+        with self.assertRaises(RuntimeError):
+            runner.back_straight('host', 0.20, ROOM, localize=room_left, drive=drive, margin=0.25)
+        self.assertEqual(moves, [])
+        with self.assertRaises(RuntimeError):         # the rear edge would reach the wall
+            runner.back_straight('host', 0.20, ROOM, localize=near_wall, drive=drive)
+        for walls, localize in ((ROOM, lambda host: None), (None, near_wall)):
+            with self.subTest(walls=walls), self.assertRaises(RuntimeError):
+                runner.back_straight('host', 0.20, walls, localize=localize, drive=drive)
         self.assertEqual(moves, [])
         for metres in (0.0, -0.1, 0.7, float('nan')):
             with self.subTest(metres=metres), self.assertRaises(ValueError):
-                runner.back_straight('host', metres, scans=scans, drive=drive)
+                runner.back_straight('host', metres, ROOM, localize=near_wall, drive=drive)
 
     def test_placement_needs_a_held_object_and_an_unlocked_service(self):
         for change in ('empty', 'locked'):

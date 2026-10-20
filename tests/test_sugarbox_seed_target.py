@@ -12,6 +12,7 @@ import tempfile
 from types import SimpleNamespace
 import sys
 import unittest
+import unittest.mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -25,7 +26,7 @@ SETTINGS = {'RUN_MODE', 'CONTRACT_HANDOFF_CENTER_M', 'TARGET_KIND', 'CONTRACT_FI
             'CONTRACT_AIM_Y_M', 'SEED_MIN_M', 'FAR_SEED', 'FAR_SEED_FRAMES',
             'FAR_SEED_MAX_ERROR_M', 'SEED_GIVE_UP_CENTER_M', 'TRAINING_CONTRACT'}
 FUNCTIONS = {'get_age', 'arrival_record', 'write_arrival_report', 'coarse_ground'}
-CLASSES = {'TargetState', 'FarSighting', 'SeedFacing'}
+CLASSES = {'TargetState', 'FarSighting', 'SeedFacing', 'SeedLook'}
 
 
 def engine(env=None):
@@ -182,6 +183,81 @@ class SeedFacingTests(unittest.TestCase):
         body = ast.unparse(branch.body)
         self.assertIn('anti_jitter.apply_contract(', body)
         self.assertIn('policy_predict', ast.unparse(branch.orelse))     # the policy is the else
+
+
+class SeedLookTests(unittest.TestCase):
+    """2026-10-19 run 3: four patrol-seeded approaches drove at the estimate before
+    the first inference had finished and gave up at 0.80 m, having measured nothing.
+    An estimate is now looked at from standing still first."""
+
+    def setUp(self):
+        self.rt = engine({'SUGARBOX_TRAINING_CONTRACT': '1', 'SUGARBOX_FAR_SEED': '1'})
+        self.look = self.rt['SeedLook']()
+        self.target = self.rt['TargetState']()
+        self.target.seed(0.94, -0.07, 0.0, source='patrol_seed')
+        self.sequence = 0
+
+    def tick(self, now, frame_time=None, turning=False, reason='NO_YOLO'):
+        """One control tick; frame_time: a new result from a frame that arrived then."""
+        if frame_time is not None:
+            self.sequence += 1
+        with unittest.mock.patch('builtins.print'):
+            return self.look.update(now, self.target, turning, self.sequence,
+                                    frame_time or 0.0, reason)
+
+    def test_it_stands_still_until_six_results_from_frames_taken_at_rest(self):
+        self.assertEqual(self.tick(0.0), 'HOLD')                  # at rest from here
+        self.assertEqual(self.tick(2.4, frame_time=0.1), 'HOLD')  # the frame predates the settle
+        self.assertEqual(self.look.results, 0)
+        for i in range(5):
+            self.assertEqual(self.tick(2.8 + 0.45 * i, frame_time=2.7 + 0.45 * i), 'HOLD')
+        self.assertEqual(self.tick(5.1, frame_time=5.0), 'GIVE_UP')
+        self.assertEqual((self.look.results, self.look.last_reason), (6, 'NO_YOLO'))
+
+    def test_turning_starts_the_count_again_but_not_the_clock(self):
+        self.tick(0.0)
+        self.tick(1.0, frame_time=0.9)
+        self.assertEqual(self.look.results, 1)
+        self.assertEqual(self.tick(1.2, turning=True), 'HOLD')
+        self.assertEqual(self.look.results, 0)
+        self.assertEqual(self.tick(1.5, frame_time=1.4), 'HOLD')   # still turning? no: rest
+        self.assertEqual(self.look.results, 0)                     # 1.4 < 1.5 + settle
+        self.assertEqual(self.tick(10.0), 'GIVE_UP')               # the clock ran on
+
+    def test_a_box_the_camera_measured_or_saw_far_is_free_to_drive(self):
+        self.tick(0.0)
+        for i in range(3):
+            self.target.consider_measurement(sighting(0.93, -0.06), 1.0 + 0.4 * i)
+        self.assertFalse(self.target.seeded)
+        self.assertEqual(self.tick(2.0), 'FREE')
+        self.target.seed(1.6, 0.4, 3.0, source='far_sighting')
+        self.assertEqual(self.tick(3.1), 'FREE')
+
+    def test_a_map_estimate_is_driven_at_after_the_look(self):
+        # The user, 2026-10-19: a verified placement box position may be driven at.
+        self.target.seed(1.13, 0.0, 0.0, source='map_seed')
+        self.tick(0.0)
+        for i in range(6):
+            state = self.tick(1.0 + 0.45 * i, frame_time=0.9 + 0.45 * i)
+        self.assertEqual(state, 'FREE')
+        self.assertEqual(self.tick(5.0), 'FREE')                    # looked once only
+
+    def test_frames_from_before_the_rest_are_not_looked_at(self):
+        self.assertFalse(self.look.counts(5.0))                     # never at rest yet
+        self.tick(1.0)
+        self.assertFalse(self.look.counts(1.5))
+        self.assertTrue(self.look.counts(1.0 + self.rt['SEED_LOOK_SETTLE_S']))
+
+    def test_hold_branch_stands_still_after_facing_and_before_the_policy(self):
+        branch = next(n for n in ast.walk(TREE) if isinstance(n, ast.If)
+                      and ast.unparse(n.test) == "TRAINING_CONTRACT and seed_look_state == 'HOLD'")
+        body = ast.unparse(branch.body)
+        self.assertIn('motor.send_velocity(0.0, 0.0)', body)
+        self.assertIn('progress.reset()', body)
+        self.assertIn('policy_predict', ast.unparse(branch.orelse))
+        facing = next(n for n in ast.walk(TREE) if isinstance(n, ast.If)
+                      and 'seed_facing.command(target)' in ast.unparse(n.test))
+        self.assertIs(facing.orelse[0], branch)                     # turning comes first
 
 
 class SettingsTests(unittest.TestCase):

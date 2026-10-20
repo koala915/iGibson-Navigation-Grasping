@@ -1,0 +1,20 @@
+test_empty_scan_keeps_the_adapter_failure_contract (__main__.SugarboxLidarGeometryTests.test_empty_scan_keeps_the_adapter_failure_contract) ... ok
+test_enoch_mode_brakes_only_for_returns_in_its_own_path (__main__.SugarboxLidarGeometryTests.test_enoch_mode_brakes_only_for_returns_in_its_own_path) ... ok
+test_front_block_and_hard_stop_keep_original_physical_sensor_distances (__main__.SugarboxLidarGeometryTests.test_front_block_and_hard_stop_keep_original_physical_sensor_distances) ... ok
+test_front_policy_uses_translation_and_safety_retains_sensor_clearance (__main__.SugarboxLidarGeometryTests.test_front_policy_uses_translation_and_safety_retains_sensor_clearance) ... ok
+test_invalid_returns_have_no_safety_or_policy_range (__main__.SugarboxLidarGeometryTests.test_invalid_returns_have_no_safety_or_policy_range) ... ok
+test_measured_tf_rotates_without_reflecting_left_and_right (__main__.SugarboxLidarGeometryTests.test_measured_tf_rotates_without_reflecting_left_and_right) ... ok
+test_missing_returns_are_not_filled_with_a_neighbouring_hit (__main__.SugarboxLidarGeometryTests.test_missing_returns_are_not_filled_with_a_neighbouring_hit) ... ok
+test_mounting_override_and_invalid_metadata_fail_closed (__main__.SugarboxLidarGeometryTests.test_mounting_override_and_invalid_metadata_fail_closed) ... ok
+test_nearest_sampling_is_preserved_instead_of_min_pooling (__main__.SugarboxLidarGeometryTests.test_nearest_sampling_is_preserved_instead_of_min_pooling) ... ok
+test_partial_scan_does_not_populate_unobserved_policy_angles (__main__.SugarboxLidarGeometryTests.test_partial_scan_does_not_populate_unobserved_policy_angles) ... ok
+test_path_check_finds_what_stands_between_the_robot_and_the_box (__main__.SugarboxLidarGeometryTests.test_path_check_finds_what_stands_between_the_robot_and_the_box) ... ok
+test_right_and_left_hits_reach_the_original_48_beam_indices (__main__.SugarboxLidarGeometryTests.test_right_and_left_hits_reach_the_original_48_beam_indices) ... ok
+test_sensor_side_sectors_do_not_lose_close_returns_after_translation (__main__.SugarboxLidarGeometryTests.test_sensor_side_sectors_do_not_lose_close_returns_after_translation) ... ok
+test_valid_samples_match_existing_canonical_ros_geometry (__main__.SugarboxLidarGeometryTests.test_valid_samples_match_existing_canonical_ros_geometry) ... ok
+test_zero_to_two_pi_scan_has_the_same_geometry (__main__.SugarboxLidarGeometryTests.test_zero_to_two_pi_scan_has_the_same_geometry) ... ok
+
+----------------------------------------------------------------------
+Ran 15 tests in 2.491s
+
+OK

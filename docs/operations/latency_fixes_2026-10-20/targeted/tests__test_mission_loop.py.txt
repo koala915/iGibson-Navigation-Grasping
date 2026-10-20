@@ -1,0 +1,10 @@
+..................................................................
+----------------------------------------------------------------------
+Ran 66 tests in 1.893s
+
+OK
+[BLOCKED] localization: not localized
+[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing
+[REFUSED] --real requires --i-am-beside-the-robot
+[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing
+[check] robot, cameras and files passed, localization, box position; no motion.

@@ -150,7 +150,11 @@ FRAME_H = 480
 REAR_IGNORE_REGIONS = ((295, 395, 405, 480),)
 REAR_IGNORE_MIN_OVERLAP = 0.5
 
-YOLO_CONF = 0.30
+# The sugarbox model reads the black clips holding the wall panels as sugarboxes
+# at 0.53-0.73 on the 2026-10-19 field, real boxes at 0.9 and up; the user: drop
+# everything under 0.70. The placement box model keeps 0.30: its lowest
+# validation score was 0.73 and it read the box at 0.81 from 1.6 m.
+YOLO_CONF = 0.30 if os.environ.get("SUGARBOX_TARGET", "").strip().lower() == "placement" else 0.70
 
 # The box is ~25x50 px in the rear camera at 1 m. At 640 the model saw nothing
 # in a 2026-10-04 frame (best candidate 0.07); at 1280 it found the box at 0.94
@@ -533,6 +537,12 @@ if SEED_TARGET is not None and not (
         <= SEED_MAX_BEARING_DEG):
     raise ValueError("SUGARBOX_SEED_TARGET must be 'x,y', 0.30-3.50 m away within 60 deg")
 SEED_SOURCE = "map_seed" if TARGET_KIND == "placement" else "patrol_seed"
+# The runner may start this engine before the robot is ready for it (it stows the
+# arm, and turns toward the placement box, meanwhile) with SUGARBOX_WAIT_GO=1: the
+# models load and the camera fills, and nothing reaches the motors until the
+# runner writes one line on stdin, {"go": true, "seed": [x, y] or null}. End of
+# input, or any other line, ends the run without a motor connection (exit 5).
+WAIT_GO = os.environ.get("SUGARBOX_WAIT_GO", "0") == "1"
 # A box the camera sees beyond its calibrated area (0.55-1.40 m ahead of the front
 # wheels, +-0.20 m) is otherwise ignored. With SUGARBOX_FAR_SEED=1 its extrapolated
 # position becomes a seed like the map estimate: the policy drives at it and the
@@ -552,6 +562,18 @@ SEED_GIVE_UP_CENTER_M = 0.80
 # (TURN_MIN_WZ); the policy's 0.78 rad/s cap would stall a pure turn.
 SEED_FACE_ENTER_DEG = 12.0
 SEED_FACE_EXIT_DEG = 5.0
+# Nothing drives at a patrol or map estimate before the camera has looked at it
+# from standing still. 2026-10-19 run 3: four patrol-seeded approaches drove
+# 13-18 cm on the estimate while the first YOLO+SAM2 pass (2.1-2.4 s) was still
+# running, and gave up at 0.80 m having measured nothing; the 10-18 runs, with no
+# estimate, stood still ~3 s, locked and steered in. Only results from frames that
+# arrived SEED_LOOK_SETTLE_S after the robot came to rest count (the motors settle,
+# the stream runs up to ~0.3 s behind). A patrol estimate still unmeasured after
+# SEED_LOOK_RESULTS of them, or SEED_LOOK_TIMEOUT_S, ends the run; a map estimate
+# is then driven at (the user, 2026-10-19: verified box positions only).
+SEED_LOOK_RESULTS = 6
+SEED_LOOK_SETTLE_S = 0.60
+SEED_LOOK_TIMEOUT_S = 10.0
 # Written once when the run ends (how it ended, where the box was, the LiDAR
 # corridor ahead), so the runner can decide whether a release is safe.
 ARRIVAL_REPORT_PATH = os.environ.get("SUGARBOX_ARRIVAL_REPORT", "").strip()
@@ -957,12 +979,9 @@ class LatestFrameReader:
 
         self.running = False
 
-        try:
-            if self.process.stdout is not None:
-                self.process.stdout.close()
-        except Exception:
-            pass
-
+        # End the receiver before closing its pipe: with no stream arriving the
+        # reader thread sits in a read, and on Windows closing the pipe under it
+        # blocks for good (2026-10-20, an engine started early and never used).
         try:
             self.process.terminate()
         except Exception:
@@ -977,6 +996,12 @@ class LatestFrameReader:
                 self.process.kill()
             except Exception:
                 pass
+
+        try:
+            if self.process.stdout is not None:
+                self.process.stdout.close()
+        except Exception:
+            pass
 
         try:
             self.thread.join(
@@ -1916,12 +1941,10 @@ class AsyncVisionWorker:
                 dict(self.latency_info),
             )
 
-    def release(self):
+    def release(self, timeout=1.0):
         self.running = False
-        try:
-            self.thread.join(timeout=1.0)
-        except Exception:
-            pass
+        self.thread.join(timeout=timeout)
+        return not self.thread.is_alive()
 
 
 # ============================================================
@@ -2403,9 +2426,7 @@ class RosSensorBridge:
         )
 
 
-    def close(
-        self
-    ):
+    def close(self, terminate=True):
 
         try:
 
@@ -2427,7 +2448,13 @@ class RosSensorBridge:
 
         try:
 
-            self.client.terminate()
+            # A Twisted reactor cannot be restarted. Resident model jobs must
+            # disconnect this stage's subscriptions without killing the shared
+            # event loop needed by the next stage.
+            if terminate:
+                self.client.terminate()
+            else:
+                self.client.close()
 
         except Exception:
             pass
@@ -3864,6 +3891,66 @@ class SeedFacing:
                 bearing))
         return math.copysign(TURN_MIN_WZ, bearing) if self.active else 0.0
 
+    def wants(self, target):
+        """Whether command() turns this tick, without changing anything."""
+        return bool(target.seeded) and (
+            self.active or abs(math.degrees(target.bearing)) > SEED_FACE_ENTER_DEG)
+
+
+class SeedLook:
+    """Stand still on a patrol or map estimate until the camera has had its look.
+
+    update() -> "FREE" (nothing to look at: drive as usual), "HOLD" (stand still,
+    count results) or "GIVE_UP" (a patrol estimate the look did not confirm). A far
+    sighting is the camera's own and a measured box no estimate: both are FREE.
+    """
+
+    def __init__(self):
+        self.done = False
+        self.reset()
+
+    def reset(self):
+        """Look again from the start: after a stop."""
+        self.started = None
+        self.still_since = None
+        self.results = 0
+        self.last_sequence = None
+        self.last_reason = "WAIT"
+
+    def looking(self, target):
+        return (not self.done and bool(target.seeded)
+                and target.class_name in ("patrol_seed", "map_seed"))
+
+    def counts(self, frame_time):
+        """A result from a frame that arrived with the robot at rest."""
+        return (self.still_since is not None
+                and frame_time >= self.still_since + SEED_LOOK_SETTLE_S)
+
+    def update(self, now, target, turning, sequence, frame_time, reason):
+        if not self.looking(target):
+            return "FREE"
+        if self.started is None:
+            self.started = now
+            print("[SEED] standing still while the camera looks at the {}".format(
+                target.class_name.replace("_", " ")))
+        if turning:
+            self.still_since, self.results = None, 0
+        elif self.still_since is None:
+            self.still_since = now
+        if sequence != self.last_sequence:
+            self.last_sequence = sequence
+            if sequence and self.counts(frame_time):
+                self.results += 1
+                self.last_reason = reason
+        if self.results < SEED_LOOK_RESULTS and now - self.started < SEED_LOOK_TIMEOUT_S:
+            return "HOLD"
+        self.done = True
+        if target.class_name == "patrol_seed":
+            return "GIVE_UP"
+        print("[SEED] looked from standing still ({} results, last {}): no measurement; "
+              "driving at the map estimate".format(self.results, self.last_reason))
+        return "FREE"
+
 
 def arrival_record(arrived, blocked, arrival_reason, blocked_reason, target, now,
                    front_robust, front_min):
@@ -4151,6 +4238,61 @@ def load_policy_and_vecnormalize():
         model,
         vecnormalize
     )
+
+
+class BackgroundLoad:
+    """Run a loader on its own thread; result() waits for it and re-raises its error."""
+
+    def __init__(self, load):
+        self._value = None
+        self._error = None
+        self._thread = threading.Thread(target=self._run, args=(load,), daemon=True)
+        self._thread.start()
+
+    def _run(self, load):
+        try:
+            self._value = load()
+        except BaseException as exc:
+            self._error = exc
+
+    def result(self):
+        self._thread.join()
+        if self._error is not None:
+            raise self._error
+        return self._value
+
+
+def warm_up_models(yolo_model, sam_model):
+    """One dummy pass through YOLO and SAM2 at the run's own sizes. The first pass
+    on the GPU pays for the CUDA/cuDNN set-up: 2.1-2.4 s on the robot runs, then
+    ~0.45 s a frame (2026-10-20 on this PC: YOLO 1.33 -> 0.06 s, SAM2 1.16 -> 0.45 s)."""
+    frame = np.zeros((FRAME_H, FRAME_W, 3), dtype=np.uint8)
+    yolo_model.predict(frame, imgsz=YOLO_IMGSZ, conf=YOLO_CONF, verbose=False)
+    cx, cy = FRAME_W // 2, FRAME_H // 2
+    sam_model(frame, bboxes=[[cx - 20, cy - 20, cx + 20, cy + 20]], verbose=False)
+
+
+def valid_seed(seed):
+    return (len(seed) == 2 and all(math.isfinite(v) for v in seed)
+            and SEED_MIN_M <= math.hypot(*seed) <= SEED_MAX_M
+            and abs(math.degrees(math.atan2(seed[1], seed[0]))) <= SEED_MAX_BEARING_DEG)
+
+
+def wait_for_go(stream):
+    """{"seed": (x, y) or None} once the runner says go (WAIT_GO); None otherwise."""
+    print("[GO] loaded; waiting for the runner to start the run", flush=True)
+    try:
+        message = json.loads(stream.readline())
+        if message.get("go") is not True:
+            return None
+        seed = message.get("seed")
+        if seed is not None:
+            seed = tuple(float(v) for v in seed)
+            if not (TRAINING_CONTRACT and valid_seed(seed)):
+                return None
+    except (ValueError, TypeError, AttributeError):
+        return None
+    return {"seed": seed}
 
 
 # ============================================================
@@ -5638,7 +5780,7 @@ def check_files():
 # MAIN
 # ============================================================
 
-def main():
+def main(resources=None, go_stream=None, headless=False):
 
     if RUN_MODE not in {
 
@@ -5734,150 +5876,95 @@ def main():
 
 
     # --------------------------------------------------------
-    # Homography
+    # Startup, overlapped (2026-10-20). Measured on 2026-10-19 each stage took
+    # ~25 s to its first usable result, all of it one after the other: imports and
+    # models ~16 s, then the receiver ~6 s to its first frame, then a 2.1-2.4 s
+    # first inference. The receiver now starts first, the policy loads beside
+    # YOLO and SAM2, and one dummy pass warms both models up.
     # --------------------------------------------------------
 
     print()
-    print(
-        "[GROUND] Loading..."
-    )
+    print("[CAMERA] Opening rear camera (it fills while the models load)...")
 
-    (
-        H,
-        rear_cam_to_front_m,
-        calibration_hull
-    ) = load_ground_calibration(
-
-        HOMOGRAPHY_PATH
-    )
-
-    print(
-        "[GROUND] Loaded"
-    )
-
-    print(
-        "[GROUND] rear_cam_to_front_m = "
-        f"{rear_cam_to_front_m:.3f}"
-    )
-
-    print(
-        "[GROUND] H ="
-    )
-
-    print(
-        H
-    )
-
-
-    # --------------------------------------------------------
-    # YOLO
-    # --------------------------------------------------------
-
-    print()
-    print(
-        "[MODEL] Loading YOLO..."
-    )
-
-    yolo_model = YOLO(
-        YOLO_MODEL_PATH
-    )
-
-    print(
-        "[MODEL] YOLO classes:"
-    )
-
-    print(
-        yolo_model.names
-    )
-
-
-    # --------------------------------------------------------
-    # SAM2
-    # --------------------------------------------------------
-
-    print()
-    print(
-        "[MODEL] Loading SAM2..."
-    )
-
-    sam_model = SAM(
-        SAM2_MODEL_PATH
-    )
-
-    print(
-        "[MODEL] SAM2 ready"
-    )
-
-
-    # --------------------------------------------------------
-    # PPO / ROS
-    # --------------------------------------------------------
-
-    rl_model = None
-
-    vecnormalize = None
-
-    ros_bridge = None
-
-    motor = None
-
-
-    if RUN_MODE != "VISION":
-
-        (
-            rl_model,
-            vecnormalize
-        ) = load_policy_and_vecnormalize()
-
-        ros_bridge = RosSensorBridge(
-
-            JETSON_IP,
-
-            ROSBRIDGE_PORT
-        )
-
-        ros_bridge.start()
-
-
-    # --------------------------------------------------------
-    # DRIVE only motor
-    # --------------------------------------------------------
-
-    if RUN_MODE == "DRIVE":
-
-        motor = MotorClient(
-
-            JETSON_IP,
-
-            MOTOR_PORT
-        )
-
-        motor.connect()
-
-        motor.stop(
-            repeat=3
-        )
-
-
-    # --------------------------------------------------------
-    # Camera
-    # --------------------------------------------------------
-
-    print()
-    print(
-        "[CAMERA] Opening rear camera..."
-    )
-
-    reader = LatestFrameReader(
-
+    reader = resources.reader() if resources is not None else LatestFrameReader(
         width=FRAME_W,
-
         height=FRAME_H,
-
         udp_port=CAMERA_UDP_PORT,
-
         gst_exe=GSTREAMER_LAUNCH_EXE
     )
+
+    rl_model = None
+    vecnormalize = None
+    ros_bridge = None
+    motor = None
+    seed_target = SEED_TARGET
+
+    try:
+        print()
+        print("[GROUND] Loading...")
+        (
+            H,
+            rear_cam_to_front_m,
+            calibration_hull
+        ) = load_ground_calibration(HOMOGRAPHY_PATH)
+        print("[GROUND] Loaded")
+        print(f"[GROUND] rear_cam_to_front_m = {rear_cam_to_front_m:.3f}")
+        print("[GROUND] H =")
+        print(H)
+
+        policy_load = load_policy_and_vecnormalize if resources is None else lambda: resources.policy(
+            sys.modules[__name__])
+        policy = BackgroundLoad(policy_load) if RUN_MODE != "VISION" else None
+
+        print()
+        print("[MODEL] Loading YOLO...")
+        yolo_model = YOLO(YOLO_MODEL_PATH) if resources is None else None
+        print("[MODEL] YOLO classes:")
+        if yolo_model is not None:
+            print(yolo_model.names)
+
+        print()
+        print("[MODEL] Loading SAM2...")
+        if resources is None:
+            sam_model = SAM(SAM2_MODEL_PATH)
+        else:
+            yolo_model, sam_model = resources.models(sys.modules[__name__])
+        print("[MODEL] SAM2 ready")
+
+        started = time.time()
+        if resources is None:
+            warm_up_models(yolo_model, sam_model)
+        print("[MODEL] warm-up pass {:.1f} s: the first real frame runs at full "
+              "speed".format(time.time() - started))
+
+        if policy is not None:
+            rl_model, vecnormalize = policy.result()
+            ros_bridge = RosSensorBridge(JETSON_IP, ROSBRIDGE_PORT)
+            ros_bridge.start()
+
+        go = wait_for_go(sys.stdin if go_stream is None else go_stream) if WAIT_GO else {"seed": None}
+        if go is not None and go["seed"] is not None:
+            seed_target = go["seed"]
+            print("[SEED] {} x={:.3f} y={:+.3f} m from the runner".format(
+                SEED_SOURCE.replace("_", " "), *seed_target))
+
+        if go is not None and RUN_MODE == "DRIVE":
+            motor = MotorClient(JETSON_IP, MOTOR_PORT)
+            motor.connect()
+            motor.stop(repeat=3)
+    except BaseException:
+        # A receiver left behind would hold the camera port for the next stage.
+        reader.release()
+        if ros_bridge is not None:
+            ros_bridge.close(terminate=resources is None)
+        raise
+
+    if go is None:
+        print("[GO] the runner did not start the run; the motors were never connected")
+        reader.release()
+        if ros_bridge is not None:
+            ros_bridge.close(terminate=resources is None)
+        return 5
 
     vision_worker = AsyncVisionWorker(
         reader=reader,
@@ -5895,8 +5982,8 @@ def main():
     # --------------------------------------------------------
 
     target = TargetState(freeze_visual_updates=TARGET_INITIAL_ONLY)
-    if SEED_TARGET is not None:
-        target.seed(SEED_TARGET[0], SEED_TARGET[1], time.time(), source=SEED_SOURCE)
+    if seed_target is not None:
+        target.seed(seed_target[0], seed_target[1], time.time(), source=SEED_SOURCE)
     far_sighting = FarSighting()
 
     obs_logger = ObsLogger(OBS_LOG_PATH)
@@ -6001,6 +6088,9 @@ def main():
     final_approach = FinalApproachController()
     pursuit = PursuitController()
     seed_facing = SeedFacing()
+    seed_look = SeedLook()
+    seed_look_state = "FREE"
+    last_vision_frame_time = 0.0
     handoff_deferred = False
     path_blocked_ticks = 0
     blind_finish = BlindFinishController()
@@ -6164,6 +6254,11 @@ def main():
                 last_vision_result = vision_result
                 last_vision_frame = vision_source_frame
                 last_vision_reason = vision_reason
+                last_vision_frame_time = vision_frame_time
+                # While the robot stands still to look at an estimate, a frame
+                # from before it came to rest (taken mid-turn) is not looked at.
+                pre_rest_frame = (seed_look.looking(target)
+                                  and not seed_look.counts(vision_frame_time))
 
                 if vision_source_frame is not None:
                     last_vision_panel = draw_vision_annotation_frame(
@@ -6203,7 +6298,9 @@ def main():
                         f"bearing={raw_bearing_text}->{comp_bearing_text}"
                     )
 
-                if (
+                if pre_rest_frame:
+                    pass
+                elif (
                     vision_result is not None
                     and
                     vision_reason == "VALID"
@@ -6462,12 +6559,16 @@ def main():
 
                 # ------------------------------------------------
                 # No progress: with reverse off, stop for good and say why
-                # (only when driving; a dry run never gets closer)
+                # (only when driving; a dry run never gets closer). The clock
+                # waits for the camera's first frame: a seed is a target from the
+                # start, and the first YOLO+SAM2 pass took ~11 s on 2026-10-19,
+                # so a patrol-seeded run stopped before it had seen anything.
                 # ------------------------------------------------
 
                 if (
                     RUN_MODE == "DRIVE"
                     and target.has_memory()
+                    and math.isfinite(camera_age)
                     and not (e_stop_latched or arrived_latched or blocked_latched)
                 ):
                     if progress.update(target.dist, now):
@@ -6481,7 +6582,7 @@ def main():
                         print("[STOPPED] " + blocked_reason)
                         safety_reason = blocked_reason
                         should_stop = True
-                elif not target.has_memory():
+                elif not target.has_memory() or not math.isfinite(camera_age):
                     progress.reset()
 
 
@@ -6717,18 +6818,35 @@ def main():
                     path_block_m = path_obstacle_distance(
                         scan, target.x, target.y, CONTRACT_PATH_HALF_WIDTH_M)
 
+                seed_look_state = "FREE"
+                if TRAINING_CONTRACT and not should_stop:
+                    seed_look_state = seed_look.update(
+                        now, target, seed_facing.wants(target), last_vision_sequence,
+                        last_vision_frame_time, last_vision_reason)
+
                 if (
                     TRAINING_CONTRACT
                     and not should_stop
                     and target.seeded
-                    and target.dist <= SEED_GIVE_UP_CENTER_M
+                    and (seed_look_state == "GIVE_UP"
+                         or (seed_look_state == "FREE"
+                             and target.dist <= SEED_GIVE_UP_CENTER_M))
                 ):
                     # The camera finds the box well before this; if it still has
                     # not, the estimate is wrong or something hides the box.
                     blocked_latched = True
-                    blocked_reason = (
-                        "SEED_NOT_CONFIRMED: {:.2f} m from the {} estimate and the "
-                        "camera has not measured the box".format(target.dist, target.class_name))
+                    if seed_look_state == "GIVE_UP":
+                        blocked_reason = (
+                            "SEED_NOT_CONFIRMED: looked at the {} estimate {:.2f} m away from "
+                            "standing still ({} results, last {}) and the camera has not "
+                            "measured the box".format(
+                                target.class_name, target.dist, seed_look.results,
+                                seed_look.last_reason))
+                    else:
+                        blocked_reason = (
+                            "SEED_NOT_CONFIRMED: {:.2f} m from the {} estimate and the "
+                            "camera has not measured the box".format(
+                                target.dist, target.class_name))
                     print("[STOPPED] " + blocked_reason)
                     safety_reason = blocked_reason
                     should_stop = True
@@ -6780,6 +6898,7 @@ def main():
                     pursuit.reset()
                     blind_finish.reset()
                     seed_facing.reset()
+                    seed_look.reset()
 
                     last_raw_action[:] = 0.0
 
@@ -7214,6 +7333,28 @@ def main():
 
 
                 # ------------------------------------------------
+                # Stand still while the camera looks at an estimate (SeedLook)
+                # ------------------------------------------------
+
+                elif TRAINING_CONTRACT and seed_look_state == "HOLD":
+
+                    progress.reset()       # standing still on purpose is not stuck
+                    last_raw_action[:] = 0.0
+                    prev_raw_action = np.zeros(2, dtype=np.float32)
+                    contract_action.reset()
+                    anti_jitter.reset_motion()
+                    last_desired_vx = 0.0
+                    last_desired_wz = 0.0
+                    last_cmd_vx = 0.0
+                    last_cmd_wz = 0.0
+                    safety_reason = "SEED_LOOK {}/{} | {}".format(
+                        seed_look.results, SEED_LOOK_RESULTS, last_vision_reason)
+
+                    if RUN_MODE == "DRIVE":
+                        motor.send_velocity(0.0, 0.0)
+
+
+                # ------------------------------------------------
                 # PPO
                 # ------------------------------------------------
 
@@ -7562,10 +7703,8 @@ def main():
                         x0:x0 + inset_w
                     ] = inset
 
-                cv2.imshow(
-                    "Sugarbox RL Approach",
-                    live_display
-                )
+                if not headless:
+                    cv2.imshow("Sugarbox RL Approach", live_display)
 
 
             # ==================================================
@@ -7666,7 +7805,7 @@ def main():
             # ==================================================
 
             key = (
-                cv2.waitKey(1)
+                (cv2.waitKey(1) if not headless else -1)
                 &
                 0xFF
             )
@@ -7802,13 +7941,17 @@ def main():
 
         if ros_bridge is not None:
 
-            ros_bridge.close()
+            ros_bridge.close(terminate=resources is None)
 
 
         try:
-            vision_worker.release()
+            if resources is None:
+                vision_worker.release()
+            elif not vision_worker.release(timeout=10.0):
+                resources.poisoned = True
         except Exception:
-            pass
+            if resources is not None:
+                resources.poisoned = True
 
         reader.release()
 

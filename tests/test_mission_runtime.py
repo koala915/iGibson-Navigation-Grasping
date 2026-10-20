@@ -327,6 +327,55 @@ class RpcTests(unittest.TestCase):
             self.assertEqual([r['command'] for r in process.sent], ['grasp', 'status'])
             factory.assert_called_once()
 
+    def channels(self, *alters):
+        """A session whose n-th ssh channel answers through alters[n]."""
+        processes = [FakeProcess(alter) for alter in alters]
+        factory = Mock(side_effect=processes)
+        session = RobotSession('fake', popen=factory)
+        self.addCleanup(session.close)
+        return session, processes, factory
+
+    def test_a_lost_read_is_asked_again_on_a_new_channel_that_stays_in_use(self):
+        # 2026-10-21: one WiFi drop used to close the session and end the mission.
+        for lost in (lambda r: None, lambda r: dict(r, id=999),
+                     lambda r: {'id': r['id'], 'error': 'socket timed out'}):
+            session, (first, second), factory = self.channels(lost, lambda r: r)
+            with patch('builtins.print'):
+                self.assertTrue(session.request('fake', 'status', 0.05)['ok'])
+            self.assertTrue(session.request('fake', 'home', 1)['ok'])
+            self.assertEqual(factory.call_count, 2)
+            self.assertEqual([r['command'] for r in first.sent], ['status'])
+            self.assertEqual([r['command'] for r in second.sent], ['status', 'home'])
+
+    def test_a_read_lost_twice_fails_but_leaves_the_session_open(self):
+        lost = lambda r: None
+        session, (_, _, third), factory = self.channels(lost, lost, lambda r: r)
+        with patch('builtins.print'), self.assertRaises(queue.Empty):
+            session.request('fake', 'health', 0.05)
+        self.assertTrue(session.request('fake', 'stow', 1)['ok'])
+        self.assertEqual([r['command'] for r in third.sent], ['stow'])
+        self.assertEqual(factory.call_count, 3)
+
+    def test_a_channel_that_ended_while_idle_is_replaced_before_any_command(self):
+        session, (first, second), factory = self.channels(lambda r: r, lambda r: r)
+        self.assertTrue(session.request('fake', 'status', 1)['ok'])
+        first.stdin.close()                            # the ssh channel ends while idle
+        deadline = time.monotonic() + 2
+        while session.replies.empty() and time.monotonic() < deadline:
+            time.sleep(0.01)                           # its end has reached the queue
+        self.assertTrue(session.request('fake', 'stow', 1)['ok'])
+        self.assertEqual([r['command'] for r in first.sent], ['status'])
+        self.assertEqual([r['command'] for r in second.sent], ['stow'])
+
+    def test_an_arm_command_whose_reply_is_lost_is_never_sent_again(self):
+        session, (first,), factory = self.channels(lambda r: None)
+        with self.assertRaises(queue.Empty):
+            session.request('fake', 'stow', 0.05)
+        with self.assertRaises(RuntimeError):          # unknown outcome: closed for good
+            session.request('fake', 'status', 1)
+        self.assertEqual([r['command'] for r in first.sent], ['stow'])
+        factory.assert_called_once()
+
     def test_other_robot_is_refused_without_starting_a_connection(self):
         session, _, factory = self.session()
         with self.assertRaises(ValueError):

@@ -1,0 +1,10 @@
+pyflakes: PASS
+integration/mission_loop.py
+integration/sugarbox_approach_grasp.py
+integration/placement_dock.py
+integration/patrol_vision_permit_jetson.py
+grasp/v23/graspctl.py
+tests/test_mission_loop.py
+tests/test_flow_contracts.py
+
+graspctl Python 3.6 syntax: PASS

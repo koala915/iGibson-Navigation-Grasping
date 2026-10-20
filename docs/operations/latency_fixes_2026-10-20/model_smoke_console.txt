@@ -1,0 +1,121 @@
+
+============================================================
+ SUGARBOX RL APPROACH - STANDALONE FINAL
+============================================================
+[MODE] VISION
+[CONTRACT] training-matched approach (enoch): target and rays from the chassis centre (+0.135 m), unsigned speed, action delay 0, training shaping, reverse <= 0.08 m/s; no centring, search or blind finish; hands over at 1.00 m from the centre, then creeps and steers the box to x=0.28 m, y=-0.044 m (no sideways motion); policy rays x1.15; forward brake only within +-0.17 m of the centre line. Target x/y below are centre-frame.
+[TARGET] sugarbox | model C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\detection\models\best.pt
+[NET] Jetson = 127.0.0.1
+[CAM] RTP/H264 UDP :5600
+[CAM] GStreamer = C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\.venv-approach\Lib\site-packages\gstreamer_cli\bin\gst-launch-1.0.EXE
+[PERF] camera_pipe=30 FPS (live async) | vision=5.0 Hz max | display=30.0 Hz | yolo imgsz=1280 conf=0.70
+
+[CAMERA] Opening rear camera (it fills while the models load)...
+
+[GROUND] Loading...
+[GROUND] Loaded
+[GROUND] rear_cam_to_front_m = 0.200
+[GROUND] H =
+[[  0.0019035   0.0017381     -7.1427]
+ [   0.010829  0.00037054     -3.4313]
+ [  0.0011327   -0.023368           1]]
+
+[MODEL] Loading YOLO...
+[MODEL] YOLO classes:
+
+[MODEL] Loading SAM2...
+[MODEL] SAM2 ready
+[MODEL] warm-up pass 0.0 s: the first real frame runs at full speed
+[GO] loaded; waiting for the runner to start the run
+[GO] the runner did not start the run; the motors were never connected
+
+============================================================
+ SUGARBOX RL APPROACH - STANDALONE FINAL
+============================================================
+[MODE] VISION
+[CONTRACT] training-matched approach (enoch): target and rays from the chassis centre (+0.135 m), unsigned speed, action delay 0, training shaping, reverse <= 0.08 m/s; no centring, search or blind finish; hands over at 1.00 m from the centre, then creeps and steers the box to x=0.28 m, y=-0.044 m (no sideways motion); policy rays x1.15; forward brake only within +-0.17 m of the centre line. Target x/y below are centre-frame.
+[TARGET] placement | model C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\detection\models\placement_box.pt
+[NET] Jetson = 127.0.0.1
+[CAM] RTP/H264 UDP :5600
+[CAM] GStreamer = C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\.venv-approach\Lib\site-packages\gstreamer_cli\bin\gst-launch-1.0.EXE
+[PERF] camera_pipe=30 FPS (live async) | vision=5.0 Hz max | display=30.0 Hz | yolo imgsz=640 conf=0.30
+
+[CAMERA] Opening rear camera (it fills while the models load)...
+
+[GROUND] Loading...
+[GROUND] Loaded
+[GROUND] rear_cam_to_front_m = 0.200
+[GROUND] H =
+[[  0.0019035   0.0017381     -7.1427]
+ [   0.010829  0.00037054     -3.4313]
+ [  0.0011327   -0.023368           1]]
+
+[MODEL] Loading YOLO...
+[MODEL] YOLO classes:
+
+[MODEL] Loading SAM2...
+[MODEL] SAM2 ready
+[MODEL] warm-up pass 0.0 s: the first real frame runs at full speed
+[GO] loaded; waiting for the runner to start the run
+[GO] the runner did not start the run; the motors were never connected
+
+============================================================
+ SUGARBOX RL APPROACH - STANDALONE FINAL
+============================================================
+[MODE] VISION
+[CONTRACT] training-matched approach (enoch): target and rays from the chassis centre (+0.135 m), unsigned speed, action delay 0, training shaping, reverse <= 0.08 m/s; no centring, search or blind finish; hands over at 1.00 m from the centre, then creeps and steers the box to x=0.28 m, y=-0.044 m (no sideways motion); policy rays x1.15; forward brake only within +-0.17 m of the centre line. Target x/y below are centre-frame.
+[TARGET] sugarbox | model C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\detection\models\best.pt
+[NET] Jetson = 127.0.0.1
+[CAM] RTP/H264 UDP :5600
+[CAM] GStreamer = C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\.venv-approach\Lib\site-packages\gstreamer_cli\bin\gst-launch-1.0.EXE
+[PERF] camera_pipe=30 FPS (live async) | vision=5.0 Hz max | display=30.0 Hz | yolo imgsz=1280 conf=0.70
+
+[CAMERA] Opening rear camera (it fills while the models load)...
+
+[GROUND] Loading...
+[GROUND] Loaded
+[GROUND] rear_cam_to_front_m = 0.200
+[GROUND] H =
+[[  0.0019035   0.0017381     -7.1427]
+ [   0.010829  0.00037054     -3.4313]
+ [  0.0011327   -0.023368           1]]
+
+[MODEL] Loading YOLO...
+[MODEL] YOLO classes:
+
+[MODEL] Loading SAM2...
+[MODEL] SAM2 ready
+[MODEL] warm-up pass 0.0 s: the first real frame runs at full speed
+[GO] loaded; waiting for the runner to start the run
+[GO] the runner did not start the run; the motors were never connected
+
+============================================================
+ SUGARBOX RL APPROACH - STANDALONE FINAL
+============================================================
+[MODE] VISION
+[CONTRACT] training-matched approach (enoch): target and rays from the chassis centre (+0.135 m), unsigned speed, action delay 0, training shaping, reverse <= 0.08 m/s; no centring, search or blind finish; hands over at 1.00 m from the centre, then creeps and steers the box to x=0.28 m, y=-0.044 m (no sideways motion); policy rays x1.15; forward brake only within +-0.17 m of the centre line. Target x/y below are centre-frame.
+[TARGET] placement | model C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\detection\models\placement_box.pt
+[NET] Jetson = 127.0.0.1
+[CAM] RTP/H264 UDP :5600
+[CAM] GStreamer = C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\.venv-approach\Lib\site-packages\gstreamer_cli\bin\gst-launch-1.0.EXE
+[PERF] camera_pipe=30 FPS (live async) | vision=5.0 Hz max | display=30.0 Hz | yolo imgsz=640 conf=0.30
+
+[CAMERA] Opening rear camera (it fills while the models load)...
+
+[GROUND] Loading...
+[GROUND] Loaded
+[GROUND] rear_cam_to_front_m = 0.200
+[GROUND] H =
+[[  0.0019035   0.0017381     -7.1427]
+ [   0.010829  0.00037054     -3.4313]
+ [  0.0011327   -0.023368           1]]
+
+[MODEL] Loading YOLO...
+[MODEL] YOLO classes:
+
+[MODEL] Loading SAM2...
+[MODEL] SAM2 ready
+[MODEL] warm-up pass 0.0 s: the first real frame runs at full speed
+[GO] loaded; waiting for the runner to start the run
+[GO] the runner did not start the run; the motors were never connected
+{"prepare_seconds": 45.875, "runs": [{"target": "sugarbox", "boxes": 0, "exit_code": 5, "seconds": 0.078}, {"target": "placement", "boxes": 0, "exit_code": 5, "seconds": 0.094}, {"target": "sugarbox", "boxes": 0, "exit_code": 5, "seconds": 0.093}, {"target": "placement", "boxes": 0, "exit_code": 5, "seconds": 0.11}]}

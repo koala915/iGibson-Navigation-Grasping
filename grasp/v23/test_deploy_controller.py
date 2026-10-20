@@ -343,6 +343,53 @@ def test_tcp_forward_error_moves_control_forward_without_moving_the_object():
           "close gate uses the same corrected TCP as the policy")
 
 
+def test_tcp_height_error_asks_for_more_descent_without_moving_floor_fk():
+    print("\n[1c3] TCP depth correction asks for another 15 mm down")
+    with contextlib.redirect_stdout(io.StringIO()):
+        import x3plus_real_grasp as _X
+
+    raw = np.array([0.250, -0.010, 0.080], dtype=np.float64)
+    corrected = _X.control_tcp_position(raw, 0.020, 0.015)
+    check(np.allclose(corrected, [0.230, -0.010, 0.095]),
+          "+15mm height error adds 15mm to control TCP Z, beside the X correction")
+    check(np.allclose(_X.control_tcp_position(raw, 0.0), raw),
+          "height correction defaults to none")
+    for bad in (0.021, -0.001, float("nan")):
+        try:
+            _X.control_tcp_position(raw, 0.0, bad)
+        except ValueError:
+            check(True, f"height correction {bad} refused (bounded 0..20mm)")
+        else:
+            check(False, f"height correction {bad} refused (bounded 0..20mm)")
+
+    class StubFK:
+        @staticmethod
+        def compute(_arm, _grip):
+            return raw.copy(), np.array([0.0, 0.0, 0.0, 1.0], dtype=np.float32)
+
+    builder = _X.ObsBuilder(StubFK(), None, None, dc.OBS_28_INCREMENTAL,
+                            tcp_height_error_m=0.015)
+    obj = np.array([0.270, -0.010, 0.0325], dtype=np.float32)
+    obs = builder.build(np.zeros(5, dtype=np.float32), -1.5, obj, 0,
+                        np.zeros(6, dtype=np.float32))
+    check(abs(float(obs[8]) - 0.095) < 1e-6, "policy tcp_pos receives the raised Z")
+    check(abs(float(obs[18]) - (0.0325 - 0.095)) < 1e-6,
+          "policy rel_pos asks for 15mm more descent")
+
+    plant = FakeServoPlant(list(_X.DeployConfig().home_deg))
+    ctrl, cfg = build(plant)
+    ctrl._wrist_z_offset = dc.episode_wrist_z_offset(0.065, 0.0325)
+    before = ctrl._grasp_geometry(obj, 0.065)
+    cfg.tcp_height_error_m = 0.015
+    after = ctrl._grasp_geometry(obj, 0.065)
+    check(abs(float(after["tcp"][2] - before["tcp"][2]) - 0.015) < 1e-9,
+          "close gate uses the same raised TCP as the policy")
+    check(after["pad_after_close_m"] == before["pad_after_close_m"],
+          "real pad height (pads_ready, floor) is not touched by the correction")
+    check(_X.DeployConfig().tcp_height_error_m == 0.0,
+          "default config keeps the training-identical TCP")
+
+
 def test_a_slipping_object_is_contact_not_a_reason_to_squeeze():
     print("")
     print("[1d] a jaw that moves SLOWER than commanded is contact too")
@@ -954,6 +1001,93 @@ def test_jaw_contact_parks_the_command():
     check(ctrl._grip_hold_rad is not None, "the hold is recorded for stage 2")
 
 
+class StaleJawReadPlant(FakeServoPlant):
+    """Answers one jaw read with the previous value, as a dropped bus reply does."""
+
+    def __init__(self, start_deg, stale_jaw_reads=(), **kw):
+        super().__init__(start_deg, **kw)
+        self.stale = set(stale_jaw_reads)
+        self.jaw_reads = 0
+        self.last_jaw = float(start_deg[5])
+        self.jaw_commands = []
+
+    def write(self, deg6):
+        self.jaw_commands.append(float(deg6[5]))
+        super().write(deg6)
+
+    def read(self, idx1based: int):
+        value = super().read(idx1based)
+        if idx1based == 6:
+            self.jaw_reads += 1
+            if self.jaw_reads in self.stale:
+                return self.last_jaw
+            self.last_jaw = value
+        return value
+
+
+def test_a_stale_jaw_read_does_not_stop_a_jaw_moving_alone():
+    print("\n[13c] one stale jaw read no longer aborts a release open or empty close")
+    # 2026-10-18: release-preview stopped twice with the jaw half-way (60 and
+    # 102 deg) after it had tracked every 8 deg step, because one read repeated.
+    with contextlib.redirect_stdout(io.StringIO()):
+        import x3plus_real_grasp as _X
+    home = list(_X.DeployConfig().home_deg)
+    closed = home[:5] + [180.0]
+
+    def move(plant, start, jaw_to):
+        ctrl, cfg = build(plant)
+        ctrl.servo._last_deg = list(start)
+        ctrl._current_grip_rad = ctrl.mapper.hw_deg_to_sim_grip(start[5])
+        arm = ctrl.mapper.hw_deg_to_sim_arm(start[:5])
+        with contextlib.redirect_stdout(io.StringIO()):
+            out = ctrl.move_guarded_and_verified(
+                arm, ctrl.mapper.hw_deg_to_sim_grip(jaw_to), label="release-open",
+                run_time_ms=1, settle_s=0.0, max_iters=cfg.close_max_iters, tol_deg=3.0)
+        return out, ctrl, cfg
+
+    out, _, _ = move(StaleJawReadPlant(closed, stale_jaw_reads={16}), closed, 30.0)
+    check(out["reached"], "the release open survives a stale read at ~60 deg", out["reason"])
+    out, _, _ = move(StaleJawReadPlant(home, stale_jaw_reads={10}), home, 180.0)
+    check(out["reached"], "the empty preview close survives a stale read at ~102 deg",
+          out["reason"])
+
+    # A jaw that is really blocked still stops, squeezed no further than before:
+    # the old rule parked the command one 8 deg step past the block.
+    out, ctrl, cfg = move(FakeServoPlant(home, object_blocks_at_deg=110.0), home, 180.0)
+    check(not out["reached"] and "no progress" in out["reason"],
+          "a jaw truly blocked without the contact watch is still reported", out["reason"])
+    cmd = ctrl.servo._last_deg[5]
+    check(cmd <= 110.0 + cfg.jaw_max_delta_deg + 1e-6,
+          f"...with the command parked at {cmd:.1f} deg, one step past the 110 block")
+
+    # An arm joint that stops is still a stall at the first repeat.
+    stuck = FakeServoPlant(home)
+    ctrl, cfg = build(stuck)
+    target = list(home)
+    target[1] = home[1] + 30.0
+    stuck.max_delta = 0.0
+    with contextlib.redirect_stdout(io.StringIO()):
+        out = ctrl.move_guarded_and_verified(
+            ctrl.mapper.hw_deg_to_sim_arm(target[:5]),
+            ctrl.mapper.hw_deg_to_sim_grip(home[5]), label="arm",
+            run_time_ms=1, settle_s=0.0, tol_deg=2.0)
+    check(not out["reached"] and out["iters"] == 2,
+          f"an arm stall still stops on the first repeat (iters={out['iters']})")
+
+    # The grasp close is untouched: contact parks at contact + bias as before.
+    grip = StaleJawReadPlant(home, object_blocks_at_deg=135.0)
+    ctrl, cfg = build(grip)
+    with contextlib.redirect_stdout(io.StringIO()):
+        verdict = ctrl.attempt_close()
+    check(verdict["may_lift"] and "contact" in verdict["reason"],
+          "a grasp still ends in jaw contact", verdict["reason"])
+    # Same commands as before this allowance (2026-10-18, compared against the
+    # previous file for contact at 110/135/150/165 deg): the close overshoots by
+    # its detection lag, then parks at contact + bias.
+    check(ctrl.servo._last_deg[5] <= 135.0 + cfg.jaw_hold_bias_deg + 1e-6,
+          f"...parked at contact + bias ({ctrl.servo._last_deg[5]:.1f} deg)")
+
+
 def test_lift_and_return_keep_the_hold():
     print("\n[13c] stage 2 maintains the hold — grip force survives the ride home")
     # Both failure modes live here: re-commanding the encoder readback zeroes the
@@ -1505,6 +1639,7 @@ def main() -> int:
         test_small_home_residual_has_a_bounded_recovery_window,
         test_finger_error_delays_the_pads_ready_gate,
         test_tcp_forward_error_moves_control_forward_without_moving_the_object,
+        test_tcp_height_error_asks_for_more_descent_without_moving_floor_fk,
         test_a_slipping_object_is_contact_not_a_reason_to_squeeze,
         test_stage0_policy_close_uses_the_slow_tracking_detector,
         test_the_jaw_command_can_never_outrun_the_encoder,
@@ -1525,6 +1660,7 @@ def main() -> int:
         test_fully_closed_jaw_forbids_lift,
         test_stall_permits_lift,
         test_jaw_contact_parks_the_command,
+        test_a_stale_jaw_read_does_not_stop_a_jaw_moving_alone,
         test_lift_and_return_keep_the_hold,
         test_hover_fallback_fires_only_on_a_sustained_near_miss,
         test_finger_error_correction_raises_only_the_pads,

@@ -1,0 +1,77 @@
+{
+  "started_at": "2026-10-20T23:06:41.309192+08:00",
+  "source_hashes": {
+    "tests/test_mission_loop.py": "297f4017309d1b7345051c34f0a335057dbd0d77f32f33b1c17f6c72003134c0",
+    "tests/test_flow_contracts.py": "4326bec9b212944f7644a575e5778ad8ced9fc3ffa0df40330d8e85ef4953b87",
+    "tests/test_mission_runtime.py": "01b6e67afb9b983b1b887675d89f6fde5bd0ababa2bdcf3d752ccd733d87265f",
+    "tests/test_sugarbox_seed_target.py": "a2e1c8ee0681796d9e6ff3df1a7d846d37910f32a865cca407896af7ee88c761",
+    "tests/test_sugarbox_approach_grasp.py": "7df8d63b0aa627ed110e67a4819f6bec185dfea6f80e66a4b4eb96cc990ebada",
+    "tests/test_sugarbox_blind_finish.py": "43f3bb621bf0907d48e4b163dff3000fdffbccbb871e3b2ac6d81719cc2da5b5",
+    "tests/test_placement_dock.py": "dddf73175951b71ac920acdfceb2f6a41772041eec6c9e2126101e60c5709557",
+    "tests/test_patrol_vision_permit.py": "36bd715aa48802acecab6ef78a5b18d3f5eb15a508b886d3e3a8aa2a5690fd03",
+    "integration/mission_loop.py": "fba7ae143cbdcf7c4b394b84622c6e92bdf9d099b4d183bbea3db15c8664bf53",
+    "integration/robot_rpc.py": "827bbf5dbbeadac9bbb48382b9703d3d184a60fc5072feff50965fdf6ea64fa9",
+    "integration/mission_runtime.py": "01238efb2f97e59e1aaad3373f37bff374a161808310c50aba5da7910f8bfbbe",
+    "integration/sugarbox_approach_grasp.py": "264b6f1afa816732f8c934596b22bad3312bed972b5da98d41c5ec9ad3e32343",
+    "integration/sugarbox_rl_approach_final2.py": "bad32c27df678cd647c7002cc3133464b217ff328a42fa302da2c77e1496da73"
+  },
+  "changed_during_tests": [],
+  "results": [
+    {
+      "suite": "tests/test_mission_loop.py",
+      "exit_code": 0,
+      "seconds": 2.41,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\robot_check_2026-10-20\\verify_2305\\test_mission_loop.txt",
+      "tail": "KED] localization: not localized\r\n[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing\r\n[REFUSED] --real requires --i-am-beside-the-robot\r\n[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing\r\n[check] robot, cameras and files passed, localization, box position; no motion.\r\n"
+    },
+    {
+      "suite": "tests/test_flow_contracts.py",
+      "exit_code": 0,
+      "seconds": 1.44,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\robot_check_2026-10-20\\verify_2305\\test_flow_contracts.txt",
+      "tail": ".......................\r\n----------------------------------------------------------------------\r\nRan 23 tests in 0.166s\r\n\r\nOK\r\n"
+    },
+    {
+      "suite": "tests/test_mission_runtime.py",
+      "exit_code": 0,
+      "seconds": 11.34,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\robot_check_2026-10-20\\verify_2305\\test_mission_runtime.txt",
+      "tail": "...............FAKE RUN sugarbox\r\n.............\r\n----------------------------------------------------------------------\r\nRan 28 tests in 10.094s\r\n\r\nOK\r\n"
+    },
+    {
+      "suite": "tests/test_sugarbox_seed_target.py",
+      "exit_code": 0,
+      "seconds": 1.81,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\robot_check_2026-10-20\\verify_2305\\test_sugarbox_seed_target.txt",
+      "tail": ".........................\r\n----------------------------------------------------------------------\r\nRan 25 tests in 0.518s\r\n\r\nOK\r\n[SEED] box +25.0 deg to the side: turning in place to face it first\r\n[SEED] facing the box (+4.0 deg); the policy drives at it\r\n[SEED] box -15.0 deg to the side: turning in place to face it first\r\n"
+    },
+    {
+      "suite": "tests/test_sugarbox_approach_grasp.py",
+      "exit_code": 0,
+      "seconds": 2.98,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\robot_check_2026-10-20\\verify_2305\\test_sugarbox_approach_grasp.txt",
+      "tail": "gsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False\r\n[FACE] the scene layout box position is not verified: turned toward it only; the camera has to find the box from here\r\n[ARRIVAL] {\"arrived\": true, \"reason\": \"PURSUIT_DONE x=0.211 y=-0.029\", \"seeded\": false, \"x\": 0.211, \"y\": -0.029}\r\n{\"ok\": true}\r\n"
+    },
+    {
+      "suite": "tests/test_sugarbox_blind_finish.py",
+      "exit_code": 0,
+      "seconds": 18.06,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\robot_check_2026-10-20\\verify_2305\\test_sugarbox_blind_finish.txt",
+      "tail": "ring error, 0.30..0.60 rad/s, none within 1.0 deg\r\n[PURSUIT] to x=0.28 m, y=-0.044 m ahead of the centre | vx=0.08 m/s | turn 4.0 x bearing error, 0.30..0.60 rad/s, none within 1.0 deg\r\n[STOPPED] NO_PROGRESS 10s: not 3 cm closer | last: FWD_BLOCK_HOLD front=0.290m\r\n[MOTOR] refused vx=-0.080 wz=+0.000 (1x): slowest allowed +0.000 m/s; sending stop\r\n"
+    },
+    {
+      "suite": "tests/test_placement_dock.py",
+      "exit_code": 0,
+      "seconds": 0.64,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\robot_check_2026-10-20\\verify_2305\\test_placement_dock.txt",
+      "tail": "..................\r\n----------------------------------------------------------------------\r\nRan 18 tests in 0.014s\r\n\r\nOK\r\n"
+    },
+    {
+      "suite": "tests/test_patrol_vision_permit.py",
+      "exit_code": 0,
+      "seconds": 0.44,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\robot_check_2026-10-20\\verify_2305\\test_patrol_vision_permit.txt",
+      "tail": "......\r\n----------------------------------------------------------------------\r\nRan 6 tests in 0.028s\r\n\r\nOK\r\n"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 {
   "type": "rear_camera_ground_homography",
   "version": 2,
-  "created_at": "2026-08-06T13:52:19",
-  "camera_url": "http://10.178.28.252:8080/stream?topic=/back_cam/image_raw",
+  "created_at": "2026-10-12T15:47:31",
+  "camera_url": "udp://:5600 RTP/H264 from /dev/v4l/by-id/...SN0001 (deploy/ros/start_rear_approach_stream.sh)",
   "frame_width": 640,
   "frame_height": 480,
   "coordinate_convention": {
@@ -15,123 +15,226 @@
   "rear_cam_to_front_m": 0.2,
   "H_pixel_to_ground": [
     [
-      0.0022988602659301492,
-      -0.00023240056367470756,
-      -4.081791939552673
+      0.0019035039768082096,
+      0.0017380724010475238,
+      -7.142669071321918
     ],
     [
-      0.007008042074712541,
-      -0.00017746390603640299,
-      -2.21343810945384
+      0.010828673946206272,
+      0.00037053810893803476,
+      -3.4313233128642286
     ],
     [
-      0.0035075478924430836,
-      -0.017090044477217965,
-      1.0
+      0.0011326645088228287,
+      -0.023367777785143318,
+      0.9999999999999999
     ]
   ],
   "homography": [
     [
-      0.0022988602659301492,
-      -0.00023240056367470756,
-      -4.081791939552673
+      0.0019035039768082096,
+      0.0017380724010475238,
+      -7.142669071321918
     ],
     [
-      0.007008042074712541,
-      -0.00017746390603640299,
-      -2.21343810945384
+      0.010828673946206272,
+      0.00037053810893803476,
+      -3.4313233128642286
     ],
     [
-      0.0035075478924430836,
-      -0.017090044477217965,
-      1.0
+      0.0011326645088228287,
+      -0.023367777785143318,
+      0.9999999999999999
     ]
   ],
-  "sample_count": 9,
-  "inlier_count": 7,
-  "mean_reprojection_error_m": 0.03857945248263637,
-  "max_reprojection_error_m": 0.20138062339158322,
+  "sample_count": 16,
+  "inlier_count": 16,
+  "mean_reprojection_error_m": 0.00938413301180477,
+  "max_reprojection_error_m": 0.02328580825462151,
   "samples": [
     {
       "id": 1,
-      "u": 325.0,
-      "v": 459.0,
-      "x": 0.6,
+      "u": 308.0,
+      "v": 388.0,
+      "x": 0.765,
       "y": 0.0,
-      "reprojection_error_m": 0.004464551856382822,
+      "reprojection_error_m": 0.006810419578497195,
       "inlier": true
     },
     {
       "id": 2,
-      "u": 324.0,
-      "v": 411.0,
-      "x": 0.7,
+      "u": 306.0,
+      "v": 339.0,
+      "x": 0.9149999999999999,
       "y": 0.0,
-      "reprojection_error_m": 0.003955615704840868,
+      "reprojection_error_m": 0.006979055190073403,
       "inlier": true
     },
     {
       "id": 3,
-      "u": 323.0,
-      "v": 375.0,
-      "x": 0.6,
+      "u": 302.0,
+      "v": 303.0,
+      "x": 1.065,
       "y": 0.0,
-      "reprojection_error_m": 0.20138062339158322,
-      "inlier": false
+      "reprojection_error_m": 0.014896735562636999,
+      "inlier": true
     },
     {
       "id": 4,
-      "u": 321.0,
-      "v": 345.0,
-      "x": 0.9,
+      "u": 310.0,
+      "v": 273.0,
+      "x": 1.215,
       "y": 0.0,
-      "reprojection_error_m": 0.010557760226926914,
+      "reprojection_error_m": 0.008179974124656535,
       "inlier": true
     },
     {
       "id": 5,
-      "u": 423.0,
-      "v": 461.0,
-      "x": 0.6,
-      "y": -0.125,
-      "reprojection_error_m": 0.0038986910536403497,
+      "u": 310.0,
+      "v": 244.0,
+      "x": 1.415,
+      "y": 0.0,
+      "reprojection_error_m": 0.0073346581087867496,
       "inlier": true
     },
     {
       "id": 6,
-      "u": 403.0,
-      "v": 388.0,
-      "x": 0.762,
-      "y": -0.125,
-      "reprojection_error_m": 0.00832855166914445,
+      "u": 310.0,
+      "v": 222.0,
+      "x": 1.615,
+      "y": 0.0,
+      "reprojection_error_m": 0.007892235233870294,
       "inlier": true
     },
     {
       "id": 7,
-      "u": 389.0,
-      "v": 344.0,
-      "x": 0.94,
-      "y": -0.125,
-      "reprojection_error_m": 0.010876876650225319,
+      "u": 154.0,
+      "v": 391.0,
+      "x": 0.765,
+      "y": 0.2,
+      "reprojection_error_m": 0.010426915956626193,
       "inlier": true
     },
     {
       "id": 8,
-      "u": 234.0,
-      "v": 414.0,
-      "x": 0.7,
-      "y": 0.13,
-      "reprojection_error_m": 0.009981696241638482,
+      "u": 196.0,
+      "v": 304.0,
+      "x": 1.065,
+      "y": 0.2,
+      "reprojection_error_m": 0.005159345219918737,
       "inlier": true
     },
     {
       "id": 9,
-      "u": 253.0,
-      "v": 321.0,
-      "x": 0.9,
-      "y": 0.13,
-      "reprojection_error_m": 0.0937707055493449,
-      "inlier": false
+      "u": 226.0,
+      "v": 243.0,
+      "x": 1.415,
+      "y": 0.2,
+      "reprojection_error_m": 0.007646524645581166,
+      "inlier": true
+    },
+    {
+      "id": 10,
+      "u": 239.0,
+      "v": 221.0,
+      "x": 1.615,
+      "y": 0.2,
+      "reprojection_error_m": 0.0059718451671286615,
+      "inlier": true
+    },
+    {
+      "id": 11,
+      "u": 445.0,
+      "v": 380.0,
+      "x": 0.765,
+      "y": -0.2,
+      "reprojection_error_m": 0.007266316207719683,
+      "inlier": true
+    },
+    {
+      "id": 12,
+      "u": 404.0,
+      "v": 298.0,
+      "x": 1.065,
+      "y": -0.2,
+      "reprojection_error_m": 0.008721642656450654,
+      "inlier": true
+    },
+    {
+      "id": 13,
+      "u": 384.0,
+      "v": 241.0,
+      "x": 1.415,
+      "y": -0.2,
+      "reprojection_error_m": 0.014116103158219873,
+      "inlier": true
+    },
+    {
+      "id": 14,
+      "u": 376.0,
+      "v": 219.0,
+      "x": 1.615,
+      "y": -0.2,
+      "reprojection_error_m": 0.02328580825462151,
+      "inlier": true
+    },
+    {
+      "id": 15,
+      "u": 364.0,
+      "v": 331.0,
+      "x": 0.9149999999999999,
+      "y": -0.1,
+      "reprojection_error_m": 0.014149235981051868,
+      "inlier": true
+    },
+    {
+      "id": 16,
+      "u": 351.0,
+      "v": 256.0,
+      "x": 1.3150000000000002,
+      "y": -0.1,
+      "reprojection_error_m": 0.0013093131430368002,
+      "inlier": true
     }
-  ]
+  ],
+  "measurement": {
+    "date": "2026-10-12",
+    "pixel_source": "SAM2 mask bottom-contact, median of 8 frames, YOLO imgsz 1280 (the approach's own extractor)",
+    "ground_reference": "x measured from the line across the front faces of the two front (arm-side) wheels, plus 0.215 m; y from the robot centre line, left positive",
+    "wheel_span_m": 0.3,
+    "chassis_centre_from_front_wheels_m": 0.15,
+    "object_point": "bottom edge of the box face toward the robot, at its centre",
+    "arm_pose": "travel (90,140,0,0,90,30)",
+    "range_x_from_front_wheels_m": [
+      0.55,
+      1.4
+    ],
+    "range_y_m": [
+      -0.2,
+      0.2
+    ],
+    "not_visible": "0.40 m on the centre line is hidden behind the gripper",
+    "holdout_from_14_point_fit": [
+      {
+        "label": "v17",
+        "u": 364.0,
+        "v": 331.0,
+        "measured_x_from_front_wheels_m": 0.7,
+        "measured_y_m": -0.1,
+        "predicted_x_from_front_wheels_m": 0.7172,
+        "predicted_y_m": -0.1016,
+        "error_m": 0.0173
+      },
+      {
+        "label": "v18",
+        "u": 351.0,
+        "v": 256.0,
+        "measured_x_from_front_wheels_m": 1.1,
+        "measured_y_m": -0.1,
+        "predicted_x_from_front_wheels_m": 1.0985,
+        "predicted_y_m": -0.1027,
+        "error_m": 0.0031
+      }
+    ]
+  }
 }

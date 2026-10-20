@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import socket
 import sys
 import threading
@@ -43,7 +44,7 @@ CMD_MAX_ABS_WZ = 1.00
 CMD_VX_DEADBAND = 0.015
 CMD_WZ_DEADBAND = 0.03
 LINEAR_MOTOR_PER_MPS = 200.0
-ANGULAR_MOTOR_PER_RAD_S = 25.0
+ANGULAR_MOTOR_PER_RAD_S = float(os.environ.get("G2_ANGULAR_MOTOR_PER_RAD_S", "25.0"))
 
 
 def clamp(value: float, minimum: float, maximum: float) -> float:

@@ -1,0 +1,2 @@
+[WARN] the placement box position in ncu's scene layout is not verified: the robot turns toward it but never drives at it unseen, and the delivered-sugarbox check uses the unverified position
+[BLOCKED] localization: not localized: fresh pose seed required

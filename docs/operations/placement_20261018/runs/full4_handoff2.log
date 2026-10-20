@@ -1,0 +1,2 @@
+[E1] seen=True border=[] estimate=[0.2637, 0.0003] age=0.3s -> no move
+{"ok": true, "confirmed": true, "outcome": "confirmed", "elapsed_s": 7.9, "rss_mb": 514.2}

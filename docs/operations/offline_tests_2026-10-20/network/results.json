@@ -1,0 +1,45 @@
+{
+  "started_at": "2026-10-20T20:05:49.147738+08:00",
+  "python": "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+  "head": "c311c1313748774198458f1e613a02eeb488f209",
+  "source_hashes": {
+    "CLAUDE.md": "f07c9effc55538186d666c67e767fbc8757c5cb02588aa657c90a53d275e122a",
+    "deploy/ros/start_rear_approach_stream.sh": "540f56ad7047fffd22265c5bf1bb5f43d00112a9ea63fe2ad5b10fc7f2fefbbc",
+    "docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md": "be0effb227b811a1897d0a135f1b7c570daa6357905125a7cc6b811278be4a05",
+    "grasp/v23/chassis_server.py": "ada64eeeccef1e8f05cedd4ef0ef11aa47a11b87f29c5ffd624ad57bf44833f9",
+    "grasp/v23/test_chassis_server.py": "0a66aac9bf1d843fad544e0c4f1709bb54f7a2a033bcf03d2a20b846f57c3b17",
+    "grasp/v23/test_travel_pose.py": "dc45b173793767b007cb423a9a5c5765d45b615afe277fa054215b83fa1d6d0a",
+    "integration/mission_loop.py": "c2398344c45490ad41bd22944125f94cd70bd23ccb99a7ddfe07818a44b8add6",
+    "integration/placement_dock.py": "91d42eefd86ee2d935e78fd6833e92852325aed218722a422518dba3a8323c91",
+    "integration/sugarbox_approach_grasp.py": "2494c6b3eccb2fb2d0495a9035e48d3bcc7f7ca0a0acc7f9558e8d9dd45cf62d",
+    "integration/sugarbox_rl_approach_final2.py": "44297b024bb4e53c5e341ff0fcee640e86e8ff85d5fed21ff7980f90eb94eddf",
+    "tests/test_mission_loop.py": "215d302ebf6616ad5ee6d32447ac1956c0ce5874f495817e4661eddc29528dc8",
+    "tests/test_placement_dock.py": "dddf73175951b71ac920acdfceb2f6a41772041eec6c9e2126101e60c5709557",
+    "tests/test_sugarbox_approach_grasp.py": "cdcce5f4d536fb1d796ec05bb94e583b83d28c1d71774adc4505bec903156fed",
+    "tests/test_sugarbox_blind_finish.py": "43f3bb621bf0907d48e4b163dff3000fdffbccbb871e3b2ac6d81719cc2da5b5",
+    "tests/test_sugarbox_seed_target.py": "a2e1c8ee0681796d9e6ff3df1a7d846d37910f32a865cca407896af7ee88c761",
+    "integration/patrol_vision_permit_jetson.py": "dab64ab1a22145367c1092037b97120896934d098f981d6371cfd1fab7b90315",
+    "tests/test_patrol_vision_permit.py": "36bd715aa48802acecab6ef78a5b18d3f5eb15a508b886d3e3a8aa2a5690fd03"
+  },
+  "changed_during_tests": [],
+  "results": [
+    {
+      "suite": "grasp/v23/test_chassis_server.py",
+      "exit_code": 0,
+      "seconds": 2.22,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\offline_tests_2026-10-20\\network\\grasp__v23__test_chassis_server.py.txt",
+      "counts": [],
+      "tail": "  [ok] with the chassis off, arm commands and status are the arm-only service's\r\n  [ok] no GRASP_SERVICE_CHASSIS_PORT, no chassis\r\n\r\n== SIGTERM stops the wheels before the process exits ==\r\n  [skip] systemctl stop while driving (needs POSIX)\r\n\r\nall 59 checks passed — one serial owner, wheels never move with the arm, and every exit path stops them\r\n"
+    },
+    {
+      "suite": "ui/test_server.py",
+      "exit_code": 0,
+      "seconds": 3.72,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\offline_tests_2026-10-20\\network\\ui__test_server.py.txt",
+      "counts": [
+        "Ran 48 tests in 3.143s\r"
+      ],
+      "tail": "----------------------------------------------------\r\nRan 48 tests in 3.143s\r\n\r\nOK\r\n[map-goal] re-sampled route at 0.75 m: 117 -> 83 waypoints; min gap 0.049 -> 0.530 m (45 gaps under 0.5 m -> 0); loop length 58.2 m\r\n[map-goal] re-sampled route at 0.75 m: 117 -> 83 waypoints; min gap 0.049 -> 0.530 m (45 gaps under 0.5 m -> 0); loop length 58.2 m\r\n"
+    }
+  ]
+}

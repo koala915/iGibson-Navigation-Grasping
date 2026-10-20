@@ -120,18 +120,20 @@ class NavRLConfig:
     #   front extent (arm in navigation/carry pose) 0.17 m
     #   half width 0.12 m
     #   requested obstacle clearance 0.10 m
-    #   measured post-stop travel at motor 30 0.056 m
-    #   one 6 Hz control period at measured peak speed 0.029 m
+    #   measured post-stop travel at motor 30 up to 0.066 m (2026-09-28)
+    #   scan age about 0.12 s at the Jetson, plus one 6 Hz control period
     #   measurement margin about 0.02 m
-    # This gives a 0.375 m stop plane, rounded up to 0.38 m.  The rectangular
+    # A 0.38 m plane left only ~0.12 m between the travel-pose gripper and a
+    # cardboard obstacle.  A 0.42 m test triggered on LiDAR (not the odom hard
+    # limit) and left 0.14–0.15 m by ruler.  The rectangular
     # corridor prevents nearby side walls from tripping the forward brake.
     robot_front_extent_m: float = 0.17
-    safety_brake_dist: float = 0.38
+    safety_brake_dist: float = 0.42
     safety_corridor_half_width_m: float = 0.22
     # Normal-zone braking rejects one/two isolated returns.  A real obstacle
     # must form at least this many neighbouring scan samples.  The TG30 on the
     # robot publishes at about 0.177 deg/sample, so a 0.10 m obstacle spans
-    # roughly 85 samples at the 0.38 m brake plane (and about 8 at 4 m).
+    # many samples at the 0.42 m brake plane (and about 8 at 4 m).
     safety_cluster_min_points: int = 3
     safety_cluster_max_angle_gap_deg: float = 1.0
     safety_cluster_max_point_gap_m: float = 0.04
@@ -625,7 +627,11 @@ def describe_scan(message: Mapping[str, Any], cfg: NavRLConfig) -> dict:
     # false partial overlap for a valid 360-degree scan with a 180-degree offset.
     half = cfg.lidar_fov_deg / 2.0
     raw_span = abs(angle_inc) * max(n - 1, 0)
-    if raw_span >= 360.0 - 1e-6:
+    # TG30 reports 2020 rays from -pi to +pi.  Its float32 increment makes
+    # the calculated span 359.9999964 deg, so a 1e-6 tolerance falsely says
+    # only half the forward 180 deg is covered after the 180 deg frame flip.
+    # A gap no larger than one sample still represents a complete revolution.
+    if raw_span >= 360.0 - max(1e-3, abs(angle_inc)):
         covered = min(360.0, cfg.lidar_fov_deg)
     else:
         # a = dir*raw + offset is affine, so the image of the raw window is
@@ -1037,6 +1043,13 @@ def run_selftest():
         0.35, 1e-3)
     _approx(front_min_brake([(0.0, 0.14)], corridor_cfg), 0.24, 1e-3)
 
+    print("== 0.42 m default brake plane: cluster inside stops, outside passes ==")
+    _approx(cfg.safety_brake_dist, 0.42, 1e-9)
+    near_cluster = [(-0.2, 0.315), (0.0, 0.315), (0.2, 0.315)]
+    far_cluster = [(-0.2, 0.325), (0.0, 0.325), (0.2, 0.325)]
+    assert front_min_brake(near_cluster, corridor_cfg) < cfg.safety_brake_dist
+    assert front_min_brake(far_cluster, corridor_cfg) > cfg.safety_brake_dist
+
     print("== build_nav_obs ordering ==")
     obs = build_nav_obs(2.0, math.radians(30), 0.4, -0.5,
                         np.array([0.7, -0.2]), np.full(48, 4.0, dtype=np.float32))
@@ -1123,6 +1136,16 @@ def _selftest_describe_scan():
     info = describe_scan(msg("laser", 95.0, 265.0), shifted)
     assert info["forward_fraction"] > 0.9, info
     assert not info["warnings"], info["warnings"]
+
+    # Actual TG30 metadata on the Jetson: the 3.6e-6 deg float32 rounding
+    # gap must not be mistaken for a half-covered front hemisphere.
+    tg30 = {"header": {"frame_id": "laser"},
+            "angle_min": -math.pi,
+            "angle_increment": math.radians(0.1783060903),
+            "ranges": [1.0] * 2020}
+    info = describe_scan(tg30, shifted)
+    _approx(info["forward_fraction"], 1.0, 1e-6)
+    assert not info["warnings"], info
 
     # A narrow window is reported as partial rather than silently padded.
     info = describe_scan(msg("laser_link", -40.0, 40.0), cfg)

@@ -1,0 +1,51 @@
+.E.......................
+======================================================================
+ERROR: test_report_says_how_it_ended_and_is_strict_json (__main__.ArrivalReportTests.test_report_says_how_it_ended_and_is_strict_json)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_sugarbox_seed_target.py", line 303, in test_report_says_how_it_ended_and_is_strict_json
+    rt['write_arrival_report'](path, record)
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\sugarbox_rl_approach_final2.py", line 3980, in write_arrival_report
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp0h9mlbuy\\arrival.json.tmp'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 637, in _rmtree_unsafe
+    os.rmdir(path)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp0h9mlbuy'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_sugarbox_seed_target.py", line 301, in test_report_says_how_it_ended_and_is_strict_json
+    with tempfile.TemporaryDirectory() as folder:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 950, in __exit__
+    self.cleanup()
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 954, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 934, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 639, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 906, in onexc
+    _resetperms(path)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 286, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 277, in _dont_follow_symlinks
+    func(path, *args)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp0h9mlbuy'
+
+----------------------------------------------------------------------
+Ran 25 tests in 0.537s
+
+FAILED (errors=1)
+[SEED] box +25.0 deg to the side: turning in place to face it first
+[SEED] facing the box (+4.0 deg); the policy drives at it
+[SEED] box -15.0 deg to the side: turning in place to face it first

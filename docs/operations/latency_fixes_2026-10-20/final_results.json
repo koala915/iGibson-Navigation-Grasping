@@ -1,0 +1,488 @@
+{
+  "unique_suites": 35,
+  "unittest_cases": 593,
+  "custom_checks": 1784,
+  "selftest_suites": 3,
+  "failed_suites": 0,
+  "completed_at": "2026-10-20T21:58:17.553572+08:00",
+  "files": {
+    "integration/mission_loop.py": {
+      "before": "df4fb5f9c88ec71464dbd38aa462a5201a0ca87661d515062da4d58df5c7c37a",
+      "after": "a770a815a6e66ca214f89fa800ecd9136236860c4851302ed312536f560dc1ce"
+    },
+    "integration/sugarbox_approach_grasp.py": {
+      "before": "39722343a0dcf5ae5c9db5580b8aee440c3473950bd9bbc6910e9afb179568d0",
+      "after": "264b6f1afa816732f8c934596b22bad3312bed972b5da98d41c5ec9ad3e32343"
+    },
+    "integration/sugarbox_rl_approach_final2.py": {
+      "before": "44297b024bb4e53c5e341ff0fcee640e86e8ff85d5fed21ff7980f90eb94eddf",
+      "after": "bad32c27df678cd647c7002cc3133464b217ff328a42fa302da2c77e1496da73"
+    },
+    "integration/rear_stream.py": {
+      "before": "8f70d8e34b5193a37a4f4b00118b9b9dcf4ca9a0a59a26c954c26f998347599a",
+      "after": "c06bc666e56968cbd886e8ce546cd73e3e4bd2ce5fdbdf90f5fa2b9391d69a38"
+    },
+    "grasp/v23/grasp_service.py": {
+      "before": "cf8645c526df79847b060bf060253e69759382d51a2e9970e0f98a0888574d83",
+      "after": "547b8034ff468805621cfa511346d60c8279f603378fc14ee00ad2ebc479cbba"
+    },
+    "CLAUDE.md": {
+      "before": "7ff8528f64278a8bd233dd37bc27e94121a3d0f347169df8cf5156bde9457d8a",
+      "after": "cfe9619a2eba545ab76491b6766318ebae7676c09a05086c09ff1f821157dafd"
+    },
+    ".github/workflows/tests.yml": {
+      "before": "c7cd6d81d012ef99479129cb623cb777aeabc6be9b105fca5981cd07ce2f2166",
+      "after": "af1e046c260483149d2f5828eb5e59642e744bcedf7b4793e07dd9325268f387"
+    },
+    "tests/test_sugarbox_approach_grasp.py": {
+      "before": "cdcce5f4d536fb1d796ec05bb94e583b83d28c1d71774adc4505bec903156fed",
+      "after": "cdcce5f4d536fb1d796ec05bb94e583b83d28c1d71774adc4505bec903156fed"
+    },
+    "tests/test_mission_loop.py": {
+      "before": "23ec4b05b77c56e42be7a1d7799dd192570ae6395b94473621206b3fbf6a296a",
+      "after": "c5edc5205e655af91a5b44862c39c674ac2fceae921027c06654b6af8a55e515"
+    },
+    "grasp/v23/x3plus_real_grasp.py": {
+      "before": "84d526a9feff1d1c781b1f944155e6d3484b8df11786729327525e7d4a7d2c4f",
+      "after": "fa458de3de8295e0734ba72043e999ae34f555469fb1246dfecab0f074e78abc"
+    },
+    "integration/mission_runtime.py": {
+      "before": null,
+      "after": "01238efb2f97e59e1aaad3373f37bff374a161808310c50aba5da7910f8bfbbe"
+    },
+    "integration/robot_rpc.py": {
+      "before": null,
+      "after": "47b114124b478dd69a45cc76325150aae44ab2117c72b67f42405c53b184c850"
+    },
+    "tests/test_mission_runtime.py": {
+      "before": null,
+      "after": "c7510c51ad2f6cfe14a6a496f52ee3aa6358de8a3470ad38d2dcaa673c87409b"
+    }
+  },
+  "rounds": {
+    "regression_final": {
+      "started_at": "2026-10-20T21:54:48.538477+08:00",
+      "changed_during_tests": [
+        "integration/mission_runtime.py",
+        "tests/test_mission_runtime.py"
+      ],
+      "report": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\results.json"
+    },
+    "network": {
+      "started_at": "2026-10-20T21:54:16.292787+08:00",
+      "changed_during_tests": [],
+      "report": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\network\\results.json"
+    },
+    "targeted": {
+      "started_at": "2026-10-20T21:56:11.567266+08:00",
+      "changed_during_tests": [],
+      "report": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\results.json"
+    }
+  },
+  "results": [
+    {
+      "suite": "grasp/v21/test_servo_read.py",
+      "exit_code": 0,
+      "seconds": 24.73,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\grasp__v21__test_servo_read.py.txt",
+      "counts": [],
+      "tail": "e driver is not waved through\r\n  [ok]   NaN rejected rather than treated as a valid reading\r\n  [ok]   names the offending servo: 'unreadable: S2 (after 3 attempts)'\r\n\r\n14. no device: unchanged fail-closed behaviour\r\n  [ok]   invalid without a board\r\n  [ok]   all NaN without a board\r\n\r\nall 37 checks passed — servo reads survive the half-duplex bus\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "grasp/v21/test_deploy_floor_guard.py",
+      "exit_code": 0,
+      "seconds": 35.8,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\grasp__v21__test_deploy_floor_guard.py.txt",
+      "counts": [],
+      "tail": "  +8.047 mm\r\n  jaw_close_only  worst commanded sweep =   +8.002 mm\r\n  random          worst commanded sweep =   +8.826 mm\r\n  from_below trials that were genuinely below the line: 0\r\n  guard clamped 291x, refused 0x\r\n============================================================================\r\nall 641 checks passed — deployment guard is preventive\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "grasp/v24/test_candidate_package.py",
+      "exit_code": 0,
+      "seconds": 21.33,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\grasp__v24__test_candidate_package.py.txt",
+      "counts": [
+        "Ran 9 tests in 20.372s\r"
+      ],
+      "tail": "idate) ... ok\r\ntest_release_override_never_waives_hash (__main__.CandidatePackageTests.test_release_override_never_waives_hash) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 9 tests in 20.372s\r\n\r\nOK\r\n[WARNING] Rosmaster_Lib not found. Servo output will be printed only (dry-run). --real will refuse to start.\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_safety_guards.py",
+      "exit_code": 0,
+      "seconds": 22.14,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_safety_guards.py.txt",
+      "counts": [
+        "Ran 73 tests in 0.497s\r"
+      ],
+      "tail": "AFETY] Emergency stop — freezing at the current commanded pose.\r\n[DRY] S1=100.0° S2=120.0° S3=20.0° S4=30.0° S5=80.0° S6=60.0° t=200ms\r\n[verify] only 0/5 usable observations -> grasp UNKNOWN\r\n[ERROR] Servo write failed: simulated UART failure\r\n[ERROR] Servo write refused: no Rosmaster device (driver missing or init failed). The arm has NOT moved.\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_model_package.py",
+      "exit_code": 0,
+      "seconds": 2.33,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_model_package.py.txt",
+      "counts": [
+        "Ran 11 tests in 1.903s\r"
+      ],
+      "tail": "165: DeprecationWarning: Python 3.14 will, by default, filter extracted tar archives and reject files or modify their metadata. Use the filter argument to control this behavior.\r\n  archive.extractall(str(destination), members=members)\r\n..........\r\n----------------------------------------------------------------------\r\nRan 11 tests in 1.903s\r\n\r\nOK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_grasp_home_homography.py",
+      "exit_code": 0,
+      "seconds": 1.36,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_grasp_home_homography.py.txt",
+      "counts": [
+        "Ran 9 tests in 0.626s\r"
+      ],
+      "tail": "------------------------------------------------------\r\nRan 9 tests in 0.626s\r\n\r\nOK\r\n[homography] points: 6\r\n[homography] RMSE:   0.000 cm\r\n[homography] mean:   0.000 cm\r\n[homography] max:    0.000 cm\r\n[homography] saved:  C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\tmp\\tmpmuwz59b0\\result.json\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_stream_cam_capture.py",
+      "exit_code": 0,
+      "seconds": 1.19,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_stream_cam_capture.py.txt",
+      "counts": [
+        "Ran 7 tests in 0.048s\r"
+      ],
+      "tail": " paused\r\n[stream_cam] reopening camera after 2 consecutive read failures\r\n[stream_cam] camera reopen verified (1/3) via v4l2-index:2\r\n[stream_cam] WARN: camera stopped producing frames; stale MJPEG publication paused\r\n[stream_cam] camera verified via v4l2-index:2: shape=(480, 640, 3)\r\n[stream_cam] camera verified via v4l2-index:2: shape=(2, 3, 3)\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_sugarbox_training_contract.py",
+      "exit_code": 0,
+      "seconds": 1.28,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_sugarbox_training_contract.py.txt",
+      "counts": [
+        "Ran 13 tests in 0.586s\r"
+      ],
+      "tail": ".............\r\n----------------------------------------------------------------------\r\nRan 13 tests in 0.586s\r\n\r\nOK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_vision_grasp_bridge_pose.py",
+      "exit_code": 0,
+      "seconds": 1.08,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_vision_grasp_bridge_pose.py.txt",
+      "counts": [
+        "Ran 20 tests in 0.111s\r"
+      ],
+      "tail": "----------------------------------------------------\r\nRan 20 tests in 0.111s\r\n\r\nOK\r\n[bridge] camera open attempt 1/2 failed: backend could not open the source\r\n[bridge] camera open attempt 1/2 failed: source opened but produced no frame in 2 probe reads\r\n[bridge] camera open attempt 2/2 failed: source opened but produced no frame in 2 probe reads\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_trash_target.py",
+      "exit_code": 0,
+      "seconds": 0.44,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_trash_target.py.txt",
+      "counts": [
+        "Ran 21 tests in 0.019s\r"
+      ],
+      "tail": "ight_reports_a_positive_offset (__main__.TestSignConvention.test_object_on_the_right_reports_a_positive_offset) ... ok\r\ntest_the_flip_is_not_accidentally_symmetric (__main__.TestSignConvention.test_the_flip_is_not_accidentally_symmetric) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 21 tests in 0.019s\r\n\r\nOK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_target_approach.py",
+      "exit_code": 0,
+      "seconds": 0.39,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_target_approach.py.txt",
+      "counts": [
+        "Ran 6 tests in 0.001s\r"
+      ],
+      "tail": "ithout_double_counting (__main__.TargetApproachTests.test_same_detection_holds_command_without_double_counting) ... ok\r\ntest_waits_for_bbox_to_reach_bottom_trigger (__main__.TargetApproachTests.test_waits_for_bbox_to_reach_bottom_trigger) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 6 tests in 0.001s\r\n\r\nOK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_nav_safety.py",
+      "exit_code": 0,
+      "seconds": 0.73,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_nav_safety.py.txt",
+      "counts": [
+        "Ran 12 tests in 0.005s\r"
+      ],
+      "tail": "return (__main__.NavigationSafetyTests.test_robust_front_distance_ignores_one_isolated_low_return) ... ok\r\ntest_side_guard_blocks_turning_toward_close_side (__main__.NavigationSafetyTests.test_side_guard_blocks_turning_toward_close_side) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 12 tests in 0.005s\r\n\r\nOK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_mission_end_to_end.py",
+      "exit_code": 0,
+      "seconds": 21.75,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_mission_end_to_end.py.txt",
+      "counts": [
+        "Ran 29 tests in 20.201s\r"
+      ],
+      "tail": "ruler_measurement_2026_07_30\r\n            [x] jetson_run_2026_07_30\r\n            [x] grasp_stall_margin_validated_on_hardware\r\n            [x] first_real_grasp_2026_07_31\r\n          This is expected for a candidate. To run it anyway as a supervised experiment, add --unlock-candidate-real, stay beside the robot and keep a hand on the power switch.\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_rear_ground_homography.py",
+      "exit_code": 0,
+      "seconds": 1.42,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_rear_ground_homography.py.txt",
+      "counts": [
+        "Ran 2 tests in 0.538s\r"
+      ],
+      "tail": "test_fewer_than_six_samples_are_refused (__main__.RearGroundHomographyTests.test_fewer_than_six_samples_are_refused) ... ok\r\ntest_synthetic_mapping_is_recovered (__main__.RearGroundHomographyTests.test_synthetic_mapping_is_recovered) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 2 tests in 0.538s\r\n\r\nOK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_sugarbox_ground_calibration.py",
+      "exit_code": 0,
+      "seconds": 1.67,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_sugarbox_ground_calibration.py.txt",
+      "counts": [
+        "Ran 21 tests in 0.757s\r"
+      ],
+      "tail": "put_is_refused (__main__.GroundCalibrationTests.test_wrong_declared_coordinate_axes_origin_or_input_is_refused) ... ok\r\ntest_wrong_declared_resolution_is_refused (__main__.GroundCalibrationTests.test_wrong_declared_resolution_is_refused) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 21 tests in 0.757s\r\n\r\nOK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "grasp/v21/test_deploy_controller.py",
+      "exit_code": 0,
+      "seconds": 70.78,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\grasp__v21__test_deploy_controller.py.txt",
+      "counts": [],
+      "tail": " the only thing standing behind the coordinate frame.\r\n  [ok]   an unstamped detection is not refused outright (sender compatibility)\r\n  [ok]   the sender uses the same cam_pose key ('cam_pose')\r\n  [ok]   ...and the same name key ('cam_pose_name')\r\n\r\n==========================================================================\r\nall 138 checks passed\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "integration/mission_fsm.py --selftest",
+      "exit_code": 0,
+      "seconds": 0.3,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\integration__mission_fsm.py.txt",
+      "counts": [],
+      "tail": "[fsm] stationary gate fails closed OK\r\n[fsm] target-lost and approach-timeout recovery OK\r\n[fsm] detection streak gate OK\r\n[fsm] goal-source changes reset ActionDelay/tracker OK\r\n[fsm] deliver_enabled=False path OK\r\n[fsm] paused-while-carrying resumes all 4 carrying states, others land in IDLE OK\r\n[fsm] config validation OK\r\n[fsm] SELFTEST PASSED\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_sugarbox_lidar_geometry.py",
+      "exit_code": 0,
+      "seconds": 3.28,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_sugarbox_lidar_geometry.py.txt",
+      "counts": [
+        "Ran 15 tests in 2.491s\r"
+      ],
+      "tail": "ry (__main__.SugarboxLidarGeometryTests.test_valid_samples_match_existing_canonical_ros_geometry) ... ok\r\ntest_zero_to_two_pi_scan_has_the_same_geometry (__main__.SugarboxLidarGeometryTests.test_zero_to_two_pi_scan_has_the_same_geometry) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 15 tests in 2.491s\r\n\r\nOK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "integration/mission_pipeline.py --selftest",
+      "exit_code": 0,
+      "seconds": 0.86,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\integration__mission_pipeline.py.txt",
+      "counts": [],
+      "tail": "15 m from where the tracker predicted (> 0.35) — restarting the streak\r\n  detection streak: 3 consistent hits confirm, a jump restarts, a miss resets\r\n  PAUSED is recoverable and forces a fresh self-check + start confirm\r\n  arm homes distinct: nav S2=140 deg vs grasp(C3) S2=67.08 deg\r\n  all 16 FSM actions have a handler\r\n[mission] SELFTEST PASSED\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "integration/vision_grasp_pipeline.py --selftest",
+      "exit_code": 0,
+      "seconds": 0.31,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\integration__vision_grasp_pipeline.py.txt",
+      "counts": [],
+      "tail": "asp_home: arm=[90.0, 67.08, 9.79, 9.79, 90.0, 30.0] theta=89.740deg H=0.2148m cam_x=+0.2762 cam_y=-0.0056 sign_y=+1  [theta/H PREDICTED, cam_x/cam_y PREDICTED]\r\n  visible ground band along base X: 0.205 .. 0.317 m\r\n  ground distance at the image centre: +0.0010 m\r\n  NOTE: these extrinsics are a URDF prediction, not a measurement.\r\n\r\n[selftest] OK\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "tests/test_g2_nav_client.py",
+      "exit_code": 0,
+      "seconds": 3.38,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\tests__test_g2_nav_client.py.txt",
+      "counts": [
+        "Ran 6 tests in 2.431s\r"
+      ],
+      "tail": "_tcp_protocol_and_stop_on_close) ... ok\r\n\r\n----------------------------------------------------------------------\r\nRan 6 tests in 2.431s\r\n\r\nOK\r\nreason=distance_target initial_front_m=0.800 front_at_end_m=0.800 final_odom_m=0.150 final_vx_mps=0.000\r\nreason=lidar_brake initial_front_m=0.800 front_at_end_m=0.410 final_odom_m=0.020 final_vx_mps=0.000\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "grasp/v23/test_travel_pose.py",
+      "exit_code": 0,
+      "seconds": 5.67,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\grasp__v23__test_travel_pose.py.txt",
+      "counts": [],
+      "tail": "really moves in the permitted travel pose\r\n[service] episode 1: confirmed=True outcome=None 0.00s  rss -1 MB\r\n  [ok] wheel motion before E1 counts too: the wait runs from when the wheels stopped\r\n\r\nall 51 checks passed — the travel pose is only reached through the checked waypoint, and nothing reaches or grasps from a pose it was not checked from\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "grasp/v23/test_servo_read.py",
+      "exit_code": 0,
+      "seconds": 26.58,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\grasp__v23__test_servo_read.py.txt",
+      "counts": [],
+      "tail": "e driver is not waved through\r\n  [ok]   NaN rejected rather than treated as a valid reading\r\n  [ok]   names the offending servo: 'unreadable: S2 (after 3 attempts)'\r\n\r\n14. no device: unchanged fail-closed behaviour\r\n  [ok]   invalid without a board\r\n  [ok]   all NaN without a board\r\n\r\nall 37 checks passed — servo reads survive the half-duplex bus\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "grasp/v23/test_deploy_floor_guard.py",
+      "exit_code": 0,
+      "seconds": 37.98,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\grasp__v23__test_deploy_floor_guard.py.txt",
+      "counts": [],
+      "tail": "  +8.047 mm\r\n  jaw_close_only  worst commanded sweep =   +8.002 mm\r\n  random          worst commanded sweep =   +8.826 mm\r\n  from_below trials that were genuinely below the line: 0\r\n  guard clamped 291x, refused 0x\r\n============================================================================\r\nall 641 checks passed — deployment guard is preventive\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "grasp/v23/test_deploy_controller.py",
+      "exit_code": 0,
+      "seconds": 64.78,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\regression_final\\grasp__v23__test_deploy_controller.py.txt",
+      "counts": [],
+      "tail": " the only thing standing behind the coordinate frame.\r\n  [ok]   an unstamped detection is not refused outright (sender compatibility)\r\n  [ok]   the sender uses the same cam_pose key ('cam_pose')\r\n  [ok]   ...and the same name key ('cam_pose_name')\r\n\r\n==========================================================================\r\nall 180 checks passed\r\n",
+      "phase": "regression_final"
+    },
+    {
+      "suite": "grasp/v23/test_chassis_server.py",
+      "exit_code": 0,
+      "seconds": 2.23,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\network\\grasp__v23__test_chassis_server.py.txt",
+      "counts": [],
+      "tail": "  [ok] with the chassis off, arm commands and status are the arm-only service's\r\n  [ok] no GRASP_SERVICE_CHASSIS_PORT, no chassis\r\n\r\n== SIGTERM stops the wheels before the process exits ==\r\n  [skip] systemctl stop while driving (needs POSIX)\r\n\r\nall 59 checks passed — one serial owner, wheels never move with the arm, and every exit path stops them\r\n",
+      "phase": "network"
+    },
+    {
+      "suite": "ui/test_server.py",
+      "exit_code": 0,
+      "seconds": 3.78,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\network\\ui__test_server.py.txt",
+      "counts": [
+        "Ran 48 tests in 3.185s\r"
+      ],
+      "tail": "----------------------------------------------------\r\nRan 48 tests in 3.185s\r\n\r\nOK\r\n[map-goal] re-sampled route at 0.75 m: 117 -> 83 waypoints; min gap 0.049 -> 0.530 m (45 gaps under 0.5 m -> 0); loop length 58.2 m\r\n[map-goal] re-sampled route at 0.75 m: 117 -> 83 waypoints; min gap 0.049 -> 0.530 m (45 gaps under 0.5 m -> 0); loop length 58.2 m\r\n",
+      "phase": "network"
+    },
+    {
+      "suite": "tests/test_flow_contracts.py",
+      "exit_code": 0,
+      "seconds": 2.14,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_flow_contracts.py.txt",
+      "counts": [
+        "Ran 21 tests in 0.241s\r"
+      ],
+      "tail": ".....................\r\n----------------------------------------------------------------------\r\nRan 21 tests in 0.241s\r\n\r\nOK\r\n",
+      "phase": "targeted"
+    },
+    {
+      "suite": "tests/test_mission_loop.py",
+      "exit_code": 0,
+      "seconds": 3.81,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_mission_loop.py.txt",
+      "counts": [
+        "Ran 66 tests in 1.893s\r"
+      ],
+      "tail": "KED] localization: not localized\r\n[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing\r\n[REFUSED] --real requires --i-am-beside-the-robot\r\n[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing\r\n[check] robot, cameras and files passed, localization, box position; no motion.\r\n",
+      "phase": "targeted"
+    },
+    {
+      "suite": "tests/test_sugarbox_seed_target.py",
+      "exit_code": 0,
+      "seconds": 2.78,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_sugarbox_seed_target.py.txt",
+      "counts": [
+        "Ran 25 tests in 0.776s\r"
+      ],
+      "tail": ".........................\r\n----------------------------------------------------------------------\r\nRan 25 tests in 0.776s\r\n\r\nOK\r\n[SEED] box +25.0 deg to the side: turning in place to face it first\r\n[SEED] facing the box (+4.0 deg); the policy drives at it\r\n[SEED] box -15.0 deg to the side: turning in place to face it first\r\n",
+      "phase": "targeted"
+    },
+    {
+      "suite": "tests/test_sugarbox_approach_grasp.py",
+      "exit_code": 0,
+      "seconds": 4.97,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_sugarbox_approach_grasp.py.txt",
+      "counts": [
+        "Ran 56 tests in 3.208s\r"
+      ],
+      "tail": "gsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False\r\n[FACE] the scene layout box position is not verified: turned toward it only; the camera has to find the box from here\r\n[ARRIVAL] {\"arrived\": true, \"reason\": \"PURSUIT_DONE x=0.211 y=-0.029\", \"seeded\": false, \"x\": 0.211, \"y\": -0.029}\r\n{\"ok\": true}\r\n",
+      "phase": "targeted"
+    },
+    {
+      "suite": "tests/test_placement_dock.py",
+      "exit_code": 0,
+      "seconds": 0.8,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_placement_dock.py.txt",
+      "counts": [
+        "Ran 18 tests in 0.018s\r"
+      ],
+      "tail": "..................\r\n----------------------------------------------------------------------\r\nRan 18 tests in 0.018s\r\n\r\nOK\r\n",
+      "phase": "targeted"
+    },
+    {
+      "suite": "tests/test_patrol_vision_permit.py",
+      "exit_code": 0,
+      "seconds": 0.5,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_patrol_vision_permit.py.txt",
+      "counts": [
+        "Ran 6 tests in 0.034s\r"
+      ],
+      "tail": "......\r\n----------------------------------------------------------------------\r\nRan 6 tests in 0.034s\r\n\r\nOK\r\n",
+      "phase": "targeted"
+    },
+    {
+      "suite": "tests/test_mission_runtime.py",
+      "exit_code": 0,
+      "seconds": 14.39,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_mission_runtime.py.txt",
+      "counts": [
+        "Ran 27 tests in 12.492s\r"
+      ],
+      "tail": "...............FAKE RUN sugarbox\r\n............\r\n----------------------------------------------------------------------\r\nRan 27 tests in 12.492s\r\n\r\nOK\r\n",
+      "phase": "targeted"
+    },
+    {
+      "suite": "tests/test_sugarbox_blind_finish.py",
+      "exit_code": 0,
+      "seconds": 16.48,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_sugarbox_blind_finish.py.txt",
+      "counts": [
+        "Ran 72 tests in 15.377s\r"
+      ],
+      "tail": "ring error, 0.30..0.60 rad/s, none within 1.0 deg\r\n[PURSUIT] to x=0.28 m, y=-0.044 m ahead of the centre | vx=0.08 m/s | turn 4.0 x bearing error, 0.30..0.60 rad/s, none within 1.0 deg\r\n[STOPPED] NO_PROGRESS 10s: not 3 cm closer | last: FWD_BLOCK_HOLD front=0.290m\r\n[MOTOR] refused vx=-0.080 wz=+0.000 (1x): slowest allowed +0.000 m/s; sending stop\r\n",
+      "phase": "targeted"
+    }
+  ],
+  "platform_skips": [
+    {
+      "suite": "grasp/v23/test_chassis_server.py",
+      "lines": [
+        "  [skip] systemctl stop while driving (needs POSIX)"
+      ]
+    }
+  ],
+  "model_smoke": {
+    "prepare_seconds": 45.875,
+    "worker_pid": 21844,
+    "runs": [
+      {
+        "target": "sugarbox",
+        "boxes": 0,
+        "exit_code": 5,
+        "seconds": 0.078
+      },
+      {
+        "target": "placement",
+        "boxes": 0,
+        "exit_code": 5,
+        "seconds": 0.094
+      },
+      {
+        "target": "sugarbox",
+        "boxes": 0,
+        "exit_code": 5,
+        "seconds": 0.093
+      },
+      {
+        "target": "placement",
+        "boxes": 0,
+        "exit_code": 5,
+        "seconds": 0.11
+      }
+    ],
+    "hardware_connected": false
+  },
+  "final_python_hashes_match_latest_tests": true,
+  "note": "Final runtime/shared-lock guard is covered by the last targeted sweep; unrelated regression code unchanged. Earlier sandbox loopback failures retained under regression; same-source final network pass used. No robot connection or deployment."
+}

@@ -1,0 +1,59 @@
+{
+  "rejected_candidate_allows_patrol": {
+    "start_requested_after_frames": 6,
+    "box_visible_in_every_frame": true
+  },
+  "search_does_not_check_turn_clearance": {
+    "turns_requested": 1,
+    "turn_clear": false,
+    "localization_checks": 0
+  },
+  "pose_and_frame_timestamp_mismatch": {
+    "capture_pose_yaw_rad": 0.0,
+    "processing_pose_yaw_rad": 0.5,
+    "actual_map_target": [
+      0.8,
+      0.6000000000000001
+    ],
+    "incorrect_map_target": [
+      0.510295834070617,
+      0.9345734556395116
+    ],
+    "correct_target_ignored": false,
+    "incorrect_target_ignored_as_wall": true
+  },
+  "custom_assets_not_forwarded": {
+    "requested_homography": "CUSTOM_CALIBRATION.json",
+    "requested_gstreamer": "CUSTOM_GST.exe",
+    "stage_arguments": [
+      "--target",
+      "sugarbox",
+      "--real",
+      "--i-am-beside-the-robot",
+      "--obs-log",
+      "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\flow_review_2026-10-20\\grasp_1_obs.jsonl",
+      "--seed",
+      "1.000",
+      "0.000"
+    ]
+  },
+  "resume_place_does_not_unlock": {
+    "initial_maintenance_lock": true,
+    "unlock_commands": [],
+    "mission_exit": 2
+  },
+  "checkout_service_protocol_gap": {
+    "runner_commands_missing_in_checkout_client": [
+      "health",
+      "release-preview"
+    ],
+    "health_exit": 2,
+    "scope": "checkout deployment; deployed ncu service may provide these commands"
+  },
+  "source_sha256": {
+    "integration/mission_loop.py": "c2398344c45490ad41bd22944125f94cd70bd23ccb99a7ddfe07818a44b8add6",
+    "integration/sugarbox_approach_grasp.py": "2494c6b3eccb2fb2d0495a9035e48d3bcc7f7ca0a0acc7f9558e8d9dd45cf62d",
+    "integration/placement_dock.py": "91d42eefd86ee2d935e78fd6833e92852325aed218722a422518dba3a8323c91",
+    "grasp/v23/graspctl.py": "12223a6b167f51de02a32f3206635002f44beeeb19969951d7d9b3ed473ade6c"
+  }
+}

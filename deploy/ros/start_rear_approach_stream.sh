@@ -13,10 +13,14 @@ if fuser "$REAR" >/dev/null 2>&1; then
     echo 'rear camera already owned; refusing to open a second reader'
     exit 2
 fi
+# A receiver that joins mid-stream decodes nothing until the next IDR frame, and
+# the encoder's default is one every 256 frames: ~13 s with the camera at 20 fps.
+# On 2026-10-19 the approach, which opens its receiver after the patrol's closed,
+# saw no frame for 10 s and stopped for no progress. idrinterval=30: under 1.5 s.
 exec gst-launch-1.0 -e v4l2src device="$REAR" do-timestamp=true \
   ! 'video/x-raw,format=YUY2,width=640,height=480,framerate=30/1' \
   ! videoconvert ! 'video/x-raw,format=I420' \
   ! nvvidconv ! 'video/x-raw(memory:NVMM),format=NV12' \
-  ! nvv4l2h264enc bitrate=2000000 insert-sps-pps=true iframeinterval=30 \
+  ! nvv4l2h264enc bitrate=2000000 insert-sps-pps=true iframeinterval=30 idrinterval=30 \
   ! h264parse ! rtph264pay config-interval=1 pt=96 \
   ! udpsink host="$HOST" port="$PORT" sync=false async=false

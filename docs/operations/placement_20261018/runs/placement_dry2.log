@@ -1,0 +1,200 @@
+[config] target=placement approach=enoch blind_stop_x=None yolo_imgsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False
+
+============================================================
+ SUGARBOX RL APPROACH - STANDALONE FINAL
+============================================================
+[MODE] DRY_RUN
+[CONTRACT] training-matched approach (enoch): target and rays from the chassis centre (+0.135 m), unsigned speed, action delay 0, training shaping, reverse <= 0.08 m/s; no centring, search or blind finish; hands over at 1.00 m from the centre, then creeps and steers the box to x=0.21 m, y=-0.028 m (no sideways motion); policy rays x1.15; forward brake only within +-0.17 m of the centre line. Target x/y below are centre-frame.
+[TARGET] placement | model C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\detection\models\placement_box.pt
+[SEED] a box seen beyond the calibrated area is driven at until the camera measures it; unmeasured at 0.80 m from the centre stops the run
+[NET] Jetson = 10.53.253.252
+[CAM] RTP/H264 UDP :5600
+[CAM] GStreamer = C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\.venv-approach\Lib\site-packages\gstreamer_cli\bin\gst-launch-1.0.exe
+[PERF] camera_pipe=30 FPS (live async) | vision=5.0 Hz max | display=30.0 Hz | yolo imgsz=640 conf=0.30
+
+[GROUND] Loading...
+[GROUND] Loaded
+[GROUND] rear_cam_to_front_m = 0.200
+[GROUND] H =
+[[  0.0019035   0.0017381     -7.1427]
+ [   0.010829  0.00037054     -3.4313]
+ [  0.0011327   -0.023368           1]]
+
+[MODEL] Loading YOLO...
+[MODEL] YOLO classes:
+{0: 'placement_box'}
+
+[MODEL] Loading SAM2...
+[MODEL] SAM2 ready
+[RL] model:
+C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\nav_best_model\doorway_ft_final.zip
+[RL] VecNormalize:
+C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\nav_best_model\doorway_ft_final_vecnormalize.pkl
+[ROS] Connecting ws://10.53.253.252:9090
+[ROS] subscribed: /scan, /odom_setmotor
+
+[CAMERA] Opening rear camera...
+[CAMERA] GStreamer UDP/H264 receiver: port=5600
+[CAMERA] gst-launch = C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\.venv-approach\Lib\site-packages\gstreamer_cli\bin\gst-launch-1.0.exe
+
+[READY] Running
+[KEY] ESC   = exit
+[KEY] SPACE = emergency stop
+[KEY] R     = reset stop/arrival latch
+[KEY] C     = clear remembered target
+[SAFETY] front slow/block/hard = 0.55 / 0.30->0.36 / 0.18->0.22 m
+[FILTER] PPO temporal smoothing = OFF (no EMA / slew / deadzone)
+[AVOID] near-obstacle turn sign hold = 0.45->0.55m, switch_confirm=2 ticks
+[SIDE_SAFETY] external LiDAR coverage = -125..+125deg (PPO stays -90..+90deg) | turn_guard=0.20->0.24m | vx_cap<0.16m => 0.06m/s
+[PPO_LIDAR] 48-ray distance scale = x1.15 (external safety still uses raw meters)
+[RECOVERY] hard-stop = STOP -> wait 0.30s -> reverse 0.06m @ 0.08m/s -> settle 0.20s | one backup per hard-stop episode | NO rear LiDAR
+[CENTER_PIX] bbox-bottom>=374px | center_tol=簣30px | Kp=0.0045 | wz=0.50~0.78 | jump_reject>180px | confirm=2 frames
+[CENTER_PIX] mode = CONTINUOUS PIXEL P-CONTROL (YOLO bbox center)
+[FINAL] centered image -> forward by odom | vx=0.08m/s | travel=0.15m | timeout=3.5s
+[LATENCY] artificial UDP/H264 transport delay = 0.000s (disabled)
+[TARGET_MEMORY] acquire=3 frames | reacquire=3 frames | match=0.50~0.70m | search<=0.85m
+
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+'C:/Users/user/Documents/repo/iGibson-Navigation-Grasping/.venv-approach/Lib/site-packages/gstreamer_plugins_libs/lib/gio/modules\giolibproxy.dll': 找不到指定的模組。
+Failed to load module: C:/Users/user/Documents/repo/iGibson-Navigation-Grasping/.venv-approach/Lib/site-packages/gstreamer_plugins_libs/lib/gio/modules\giolibproxy.dll
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | CAMERA_STALE infs
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[RUN] mode=DRY_RUN | vision=WAIT | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=0ms | TARGET_NOT_LOCKED | WAIT
+[VISION_LAT] queue=4ms infer=2242ms stream_assumed=0ms total_est=2246ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(0.000,+0.000) | dist=0.000 | bearing=+0.0deg | odom vx=+0.000 wz=+0.000 | a=(+0.000,+0.000) | des=(+0.000,+0.000) | cmd=(+0.000,+0.000) | front=inf/mininf | lat=433ms | TARGET_NOT_LOCKED | OUTSIDE_CALIBRATION
+[SEED] box seen beyond the calibrated area at about (1.64, +0.48) m; the policy drives at it until the camera can measure it
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=414ms | CONTRACT front=1.589m
+[VISION_LAT] queue=13ms infer=434ms stream_assumed=0ms total_est=447ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=447ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=410ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=451ms | CONTRACT front=1.589m
+[VISION_LAT] queue=17ms infer=429ms stream_assumed=0ms total_est=446ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=419ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.573 | lat=454ms | CONTRACT front=1.590m
+[VISION_LAT] queue=21ms infer=402ms stream_assumed=0ms total_est=422ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=422ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=446ms | CONTRACT front=1.590m
+[VISION_LAT] queue=21ms infer=403ms stream_assumed=0ms total_est=424ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=424ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=457ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.584 | lat=426ms | CONTRACT front=1.589m
+[VISION_LAT] queue=29ms infer=426ms stream_assumed=0ms total_est=455ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=455ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.478) | dist=1.707 | bearing=+16.3deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.587/min1.585 | lat=420ms | CONTRACT front=1.587m
+[VISION_LAT] queue=23ms infer=430ms stream_assumed=0ms total_est=453ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=453ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=421ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=455ms | CONTRACT front=1.590m
+[VISION_LAT] queue=18ms infer=402ms stream_assumed=0ms total_est=420ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=454ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.586/min1.586 | lat=415ms | CONTRACT front=1.586m
+[VISION_LAT] queue=12ms infer=405ms stream_assumed=0ms total_est=416ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=416ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=467ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=408ms | CONTRACT front=1.589m
+[VISION_LAT] queue=0ms infer=432ms stream_assumed=0ms total_est=432ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=409ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.586 | lat=446ms | CONTRACT front=1.590m
+[VISION_LAT] queue=10ms infer=408ms stream_assumed=0ms total_est=417ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.571 | lat=417ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.584 | lat=471ms | CONTRACT front=1.589m
+[VISION_LAT] queue=19ms infer=407ms stream_assumed=0ms total_est=426ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=426ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.584 | lat=468ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.584 | lat=424ms | CONTRACT front=1.589m
+[VISION_LAT] queue=33ms infer=433ms stream_assumed=0ms total_est=466ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.577 | lat=466ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=461ms | CONTRACT front=1.589m
+[VISION_LAT] queue=22ms infer=425ms stream_assumed=0ms total_est=447ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.572 | lat=447ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.584 | lat=423ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=459ms | CONTRACT front=1.590m
+[VISION_LAT] queue=24ms infer=408ms stream_assumed=0ms total_est=432ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.577 | lat=432ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=405ms | CONTRACT front=1.589m
+[VISION_LAT] queue=46ms infer=422ms stream_assumed=0ms total_est=468ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.584 | lat=468ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.571 | lat=416ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.584 | lat=424ms | CONTRACT front=1.590m
+[VISION_LAT] queue=21ms infer=431ms stream_assumed=0ms total_est=452ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=421ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=459ms | CONTRACT front=1.590m
+[VISION_LAT] queue=30ms infer=411ms stream_assumed=0ms total_est=441ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=441ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.478) | dist=1.707 | bearing=+16.3deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=448ms | CONTRACT front=1.589m
+[VISION_LAT] queue=10ms infer=414ms stream_assumed=0ms total_est=424ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=424ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=457ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.584 | lat=416ms | CONTRACT front=1.589m
+[VISION_LAT] queue=2ms infer=435ms stream_assumed=0ms total_est=437ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=437ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=408ms | CONTRACT front=1.589m
+[VISION_LAT] queue=19ms infer=406ms stream_assumed=0ms total_est=424ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=424ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=454ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.478) | dist=1.707 | bearing=+16.3deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=433ms | CONTRACT front=1.589m
+[VISION_LAT] queue=33ms infer=412ms stream_assumed=0ms total_est=445ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=445ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=410ms | CONTRACT front=1.589m
+[VISION_LAT] queue=7ms infer=432ms stream_assumed=0ms total_est=438ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.571 | lat=438ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=414ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=456ms | CONTRACT front=1.589m
+[VISION_LAT] queue=18ms infer=405ms stream_assumed=0ms total_est=423ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.591/min1.585 | lat=452ms | CONTRACT front=1.591m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.584 | lat=423ms | CONTRACT front=1.589m
+[VISION_LAT] queue=34ms infer=407ms stream_assumed=0ms total_est=441ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.586/min1.577 | lat=441ms | CONTRACT front=1.586m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=439ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.478) | dist=1.707 | bearing=+16.3deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.584 | lat=413ms | CONTRACT front=1.590m
+[VISION_LAT] queue=11ms infer=442ms stream_assumed=0ms total_est=453ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=422ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=451ms | CONTRACT front=1.589m
+[VISION_LAT] queue=28ms infer=406ms stream_assumed=0ms total_est=433ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[VISION_LAT] queue=15ms infer=407ms stream_assumed=0ms total_est=422ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=422ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=452ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=414ms | CONTRACT front=1.589m
+[VISION_LAT] queue=24ms infer=406ms stream_assumed=0ms total_est=431ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.587/min1.576 | lat=431ms | CONTRACT front=1.587m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=462ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=575ms | CONTRACT front=1.589m
+[VISION_LAT] queue=13ms infer=456ms stream_assumed=0ms total_est=469ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=469ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=457ms | CONTRACT front=1.589m
+[VISION_LAT] queue=9ms infer=413ms stream_assumed=0ms total_est=422ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.585 | lat=422ms | CONTRACT front=1.590m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=519ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.588/min1.585 | lat=490ms | CONTRACT front=1.588m
+[VISION_LAT] queue=19ms infer=418ms stream_assumed=0ms total_est=436ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.475) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=436ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=504ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.477) | dist=1.707 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.590/min1.576 | lat=430ms | CONTRACT front=1.590m
+[VISION_LAT] queue=13ms infer=470ms stream_assumed=0ms total_est=483ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.478) | dist=1.707 | bearing=+16.3deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.586 | lat=483ms | CONTRACT front=1.589m
+[RUN] mode=DRY_RUN | vision=OUTSIDE_CALIBRATION | target=(1.639,+0.476) | dist=1.706 | bearing=+16.2deg | odom vx=+0.000 wz=+0.000 | a=(+1.000,+1.000) | des=(+0.150,+0.552) | cmd=(+0.150,+0.552) | front=1.589/min1.585 | lat=417ms | CONTRACT front=1.589m
+[VISION_LAT] queue=3ms infer=471ms stream_assumed=0ms total_est=474ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a

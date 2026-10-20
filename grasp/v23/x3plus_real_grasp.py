@@ -185,6 +185,13 @@ class DeployConfig:
     # forward by the requested amount. Default 0 preserves the training model;
     # the supervised v23 launcher opts into the measured experiment.
     tcp_forward_error_m: float = 0.0
+    # Hardware runs 2026-10-16: the close gate allows the TCP 18 mm above its
+    # target (training value). In sim the longer URDF fingers still sit 18 mm
+    # inside a 6.5 cm box there; the real fingers are ~15 mm shorter, so the pads
+    # closed 3 mm below the lid and the box fell out. A positive value adds to the
+    # TCP Z seen by the policy and the close gate, so the arm descends that much
+    # more. Floor FK is unchanged (floor_finger_error_m already places the real pads).
+    tcp_height_error_m: float = 0.0
     floor_safety_margin: float = 0.008   # m, deliberately looser than sim's 0.005:
                                          # real servos overshoot more than the model
     floor_sweep_samples: int = 8         # points checked along current → target
@@ -217,6 +224,14 @@ class DeployConfig:
     # shipped 8 deg (~13 if --jaw-step-deg raises it to 12). Left at 40 so the bound
     # still holds either way.
     close_max_iters: int = 40
+    # A jaw moving on its own (the arm already where it should be, no contact
+    # watch: the release open, the empty preview close) is declared stalled only
+    # after this many reads in a row without progress. 2026-10-18: two empty
+    # previews stopped half-way after the jaw had tracked its 8 deg steps exactly
+    # for 15 and 9 reads, then repeated one reading once -- a stale read on the
+    # shared USB bus (the arm camera dropped out at the same time), not a stall;
+    # home opened the same jaw at once. Arm joints still stop on the first repeat.
+    jaw_stall_repeats: int = 3
     # Grasp proxy: this robot has no force/tactile sensor. A jaw closing on nothing
     # reaches the fully-closed stop; one closing on an object stalls short of it.
     # Require it to stall by at least this fraction of the open→closed span before
@@ -617,22 +632,30 @@ def resolve_object_height_for_contract(
     return height, "resting_centroid_geometry"
 
 
-def control_tcp_position(tcp_pos, forward_error_m: float) -> np.ndarray:
-    """Return the TCP position used by the policy/gate after a bounded X correction.
+def control_tcp_position(tcp_pos, forward_error_m: float,
+                         height_error_m: float = 0.0) -> np.ndarray:
+    """Return the TCP position used by the policy/gate after bounded X/Z corrections.
 
     ``forward_error_m`` is positive when FK reports the gripper farther forward
     than it physically lands. Subtracting it from the reported base +X makes
     both the policy observation and the close gate demand more forward travel.
+    ``height_error_m`` is positive when the real grasp sits higher than FK
+    says (shorter real fingers); adding it to Z makes both demand more descent.
     Collision/floor FK remains unmodified.
     """
     tcp = np.asarray(tcp_pos, dtype=np.float64).reshape(-1)[:3].copy()
     error = float(forward_error_m)
+    height = float(height_error_m)
     if tcp.shape != (3,) or not np.all(np.isfinite(tcp)):
         raise ValueError("TCP position must contain three finite values")
     if not np.isfinite(error) or not 0.0 <= error <= 0.020:
         raise ValueError(
             f"TCP forward error must be finite and in [0, 20] mm; got {error*1000!r}")
+    if not np.isfinite(height) or not 0.0 <= height <= 0.020:
+        raise ValueError(
+            f"TCP height error must be finite and in [0, 20] mm; got {height*1000!r}")
     tcp[0] -= error
+    tcp[2] += height
     return tcp
 # ═══════════════════════════════════════════════════════════════════════════
 # Joint Mapper — sim radians ↔ hardware degrees
@@ -1597,6 +1620,19 @@ class DetectionReceiver:
                 return self._pos.copy(), self._height, True, self._pose_stamp
             return self._default_pos.copy(), self._default_height, False, None
 
+    def snapshot_with_receipt(self):
+        """Atomic detection plus its own monotonic receipt, for fast E1 polling.
+
+        This is a receipt timestamp, not a camera capture timestamp. Callers
+        must still apply the service's frame-lag allowance after motion.
+        """
+        with self._lock:
+            fresh = self._last_update_ts > 0.0 and not self._is_stale()
+            if fresh:
+                return (self._pos.copy(), self._height, True, self._pose_stamp,
+                        self._last_update_ts)
+            return self._default_pos.copy(), self._default_height, False, None, 0.0
+
     def close(self):
         self._stop.set()
         try:
@@ -1713,12 +1749,14 @@ class ObsBuilder:
     def __init__(self, fk: FKComputer, mapper: JointMapper,
                  vec_normalize: Optional[VecNormalize],
                  contract: dc.DeployContract,
-                 tcp_forward_error_m: float = 0.0):
+                 tcp_forward_error_m: float = 0.0,
+                 tcp_height_error_m: float = 0.0):
         self.fk = fk
         self.mapper = mapper
         self.vec_normalize = vec_normalize
         self.contract = contract
         self.tcp_forward_error_m = float(tcp_forward_error_m)
+        self.tcp_height_error_m = float(tcp_height_error_m)
 
     def build(
         self,
@@ -1731,7 +1769,8 @@ class ObsBuilder:
         wrist_z_offset: Optional[float] = None,
     ) -> np.ndarray:
         tcp_pos, tcp_quat = self.fk.compute(arm_sim_rads, grip_sim_rad)
-        tcp_pos = control_tcp_position(tcp_pos, self.tcp_forward_error_m)
+        tcp_pos = control_tcp_position(tcp_pos, self.tcp_forward_error_m,
+                                       self.tcp_height_error_m)
 
         # Only measured when the contract needs it — it costs two extra FK queries.
         close_drop = (self.fk.close_drop(arm_sim_rads, grip_sim_rad)
@@ -1866,7 +1905,8 @@ class GraspController:
         self.mapper = JointMapper(cfg)
         self.obs_builder = ObsBuilder(
             self.fk, self.mapper, vec_norm, self.contract,
-            tcp_forward_error_m=cfg.tcp_forward_error_m)
+            tcp_forward_error_m=cfg.tcp_forward_error_m,
+            tcp_height_error_m=cfg.tcp_height_error_m)
         self.floor_guard = FloorGuard(cfg, self.fk)
 
         # ── Servo controller ──────────────────────────────────────────────
@@ -2171,6 +2211,7 @@ class GraspController:
         prev_jaw = None
         prev_jaw_cmd = None
         contact_streak = 0
+        no_progress = 0
 
         for it in range(max_iters):
             cur_arm = np.asarray(self._current_arm_rads, dtype=np.float64).reshape(-1)[:5]
@@ -2226,6 +2267,12 @@ class GraspController:
                         hw[5] = ceiling
                     elif sign < 0.0 and hw[5] < ceiling:
                         hw[5] = ceiling
+            if no_progress:
+                # Waiting out a repeated jaw read (jaw_stall_repeats): hold the jaw
+                # command where it is rather than advance it another step.
+                sent = getattr(self.servo, "_last_deg", None)
+                if sent is not None:
+                    hw[5] = float(sent[5])
             if not self.servo.send_degrees(hw, run_time_ms=run_time_ms):
                 return {"reached": False, "reason": "servo write failed",
                         "iters": it, "guard": guard_actions}
@@ -2311,10 +2358,28 @@ class GraspController:
                             "reason": (f"no progress — jaw contact at {jaw_rd:.1f} deg, "
                                        f"holding at {hold:.1f} deg"),
                             "iters": it + 1, "guard": guard_actions}
-                return {"reached": False,
-                        "reason": f"no progress (residual {err:.1f} deg) — servo stalled "
-                                  f"or target unreachable",
-                        "iters": it + 1, "guard": guard_actions, "residual_deg": err}
+                # A repeat is forgiven only for a jaw moving on its own and at most
+                # one rate-limited step behind its command (a stale read), and the
+                # jaw command then holds still (see above the send). A jaw that is
+                # really blocked is therefore never squeezed further than without
+                # this allowance: one step past contact, the size of
+                # jaw_hold_bias_deg, never the walk to the stop that grinds the
+                # gears (2026-07-31). Grasp closes take the contact branch above.
+                no_progress += 1
+                arm_err = max(abs(float(a) - float(b))
+                              for a, b in zip(rd.degrees[:5], want_hw[:5]))
+                sent = getattr(self.servo, "_last_deg", None)
+                jaw_lag = (abs(float(sent[5]) - float(rd.degrees[5]))
+                           if sent is not None else float("inf"))
+                jaw_alone = (n_err == 6 and arm_err <= tol_deg
+                             and jaw_lag <= float(self.cfg.jaw_max_delta_deg) + 1.0)
+                if not jaw_alone or no_progress >= max(1, int(self.cfg.jaw_stall_repeats)):
+                    return {"reached": False,
+                            "reason": f"no progress (residual {err:.1f} deg) — servo stalled "
+                                      f"or target unreachable",
+                            "iters": it + 1, "guard": guard_actions, "residual_deg": err}
+            else:
+                no_progress = 0
             last_err = err
 
         return {"reached": False, "reason": f"did not arrive in {max_iters} iterations",
@@ -2436,7 +2501,8 @@ class GraspController:
         arm = np.asarray(self._current_arm_rads, dtype=np.float64)
         grip = float(self._current_grip_rad)
         tcp, _ = self.fk.compute(arm, grip)
-        tcp = control_tcp_position(tcp, self.cfg.tcp_forward_error_m)
+        tcp = control_tcp_position(tcp, self.cfg.tcp_forward_error_m,
+                                   self.cfg.tcp_height_error_m)
         close_drop = self.fk.close_drop(arm, grip)
         target = dc.stage0_target(obj_pos, self._wrist_z_offset, close_drop)
 
@@ -3558,6 +3624,14 @@ def parse_args():
                         "many mm too far forward, so policy and close gate continue "
                         "farther in base +X (default 0; allowed 0..20). This does not "
                         "alter camera/object coordinates or floor-collision FK.")
+    # Read from the environment by default: the resident grasp service parses its
+    # own flags with the launcher, so a systemd Environment= line is how it opts in.
+    p.add_argument("--tcp-height-error-mm", type=float,
+                   default=float(os.environ.get("GRASP_TCP_HEIGHT_ERROR_MM", "0") or 0),
+                   help="grasp depth correction: treat the FK TCP as this many mm too "
+                        "low, so policy and close gate descend that much farther "
+                        "(default $GRASP_TCP_HEIGHT_ERROR_MM or 0; allowed 0..20). The "
+                        "real fingers are ~15 mm shorter than the URDF. Floor FK unchanged.")
     p.add_argument("--slow-motion", action="store_true",
                    help="restore the pre-2026-09-09 scripted-move timing (close "
                         "300ms/0.30s, lift 250/0.28, home 400/0.35). "
@@ -3699,6 +3773,16 @@ def main():
         print(f"[Init] TCP landing correction: FK/control TCP X {tcp_error_mm:.1f}mm "
               "toward the robot; policy and close gate will travel that much farther "
               "in base +X. Object coordinates and floor FK stay unchanged.")
+    height_error_mm = float(args.tcp_height_error_mm)
+    if (not math.isfinite(height_error_mm)
+            or not 0.0 <= height_error_mm <= 20.0):
+        print(f"[FATAL] --tcp-height-error-mm {height_error_mm!r} is outside [0, 20].")
+        return 2
+    cfg.tcp_height_error_m = height_error_mm / 1000.0
+    if height_error_mm:
+        print(f"[Init] TCP depth correction: FK/control TCP Z {height_error_mm:.1f}mm "
+              "up; policy and close gate will descend that much farther. Floor FK "
+              "and the floor guard stay unchanged.")
 
     # __post_init__ ran on the defaults, and every block above has been mutating the
     # config since. Re-run the same checks over the finished thing -- placed AFTER

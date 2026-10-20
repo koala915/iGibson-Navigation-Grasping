@@ -1,0 +1,11 @@
+test_center_timeout_fails_closed (__main__.TargetApproachTests.test_center_timeout_fails_closed) ... ok
+test_centers_on_two_fresh_frames_then_advances_by_odom (__main__.TargetApproachTests.test_centers_on_two_fresh_frames_then_advances_by_odom) ... ok
+test_explicit_non_floor_detection_is_rejected (__main__.TargetApproachTests.test_explicit_non_floor_detection_is_rejected) ... ok
+test_large_bbox_jump_stops_and_rejects_that_frame (__main__.TargetApproachTests.test_large_bbox_jump_stops_and_rejects_that_frame) ... ok
+test_same_detection_holds_command_without_double_counting (__main__.TargetApproachTests.test_same_detection_holds_command_without_double_counting) ... ok
+test_waits_for_bbox_to_reach_bottom_trigger (__main__.TargetApproachTests.test_waits_for_bbox_to_reach_bottom_trigger) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.001s
+
+OK

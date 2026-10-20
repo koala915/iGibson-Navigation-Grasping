@@ -1,0 +1,87 @@
+{
+  "source": "logs/mission_20261019_patrol3.out",
+  "sha256": "9fc30359122410484c62fc650c91f1b133944d6d3deefc1c7fb536902501a0bc",
+  "evidence": [
+    {
+      "line": 88,
+      "text": "[VISION_LAT] queue=1ms infer=2423ms stream_assumed=0ms total_est=2423ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a"
+    },
+    {
+      "line": 90,
+      "text": "[STOPPED] SEED_NOT_CONFIRMED: 0.78 m from the patrol_seed estimate and the camera has not measured the box"
+    },
+    {
+      "line": 93,
+      "text": "[STOPPED] SEED_NOT_CONFIRMED: 0.78 m from the patrol_seed estimate and the camera has not measured the box"
+    },
+    {
+      "line": 95,
+      "text": "[MISSION] grasp 1 missed: backing out, patrolling on"
+    },
+    {
+      "line": 96,
+      "text": "[ADJUST] odometry moved -0.220 m (asked -0.200)"
+    },
+    {
+      "line": 177,
+      "text": "[STOPPED] SEED_NOT_CONFIRMED: 0.79 m from the patrol_seed estimate and the camera has not measured the box"
+    },
+    {
+      "line": 180,
+      "text": "[STOPPED] SEED_NOT_CONFIRMED: 0.79 m from the patrol_seed estimate and the camera has not measured the box"
+    },
+    {
+      "line": 182,
+      "text": "[MISSION] grasp 2 missed: backing out, patrolling on"
+    },
+    {
+      "line": 183,
+      "text": "[ADJUST] odometry moved -0.226 m (asked -0.200)"
+    },
+    {
+      "line": 184,
+      "text": "[PATROL] lap 1 started (pid 31758)"
+    },
+    {
+      "line": 268,
+      "text": "[VISION_LAT] queue=3ms infer=2250ms stream_assumed=0ms total_est=2253ms odom_comp=0ms coverage=PARTIAL bearing=n/a->n/a"
+    },
+    {
+      "line": 269,
+      "text": "[STOPPED] SEED_NOT_CONFIRMED: 0.80 m from the patrol_seed estimate and the camera has not measured the box"
+    },
+    {
+      "line": 272,
+      "text": "[STOPPED] SEED_NOT_CONFIRMED: 0.80 m from the patrol_seed estimate and the camera has not measured the box"
+    },
+    {
+      "line": 274,
+      "text": "[MISSION] grasp 3 missed: backing out, patrolling on"
+    },
+    {
+      "line": 275,
+      "text": "[ADJUST] odometry moved -0.212 m (asked -0.200)"
+    },
+    {
+      "line": 355,
+      "text": "[STOPPED] SEED_NOT_CONFIRMED: 0.77 m from the patrol_seed estimate and the camera has not measured the box"
+    },
+    {
+      "line": 358,
+      "text": "[STOPPED] SEED_NOT_CONFIRMED: 0.77 m from the patrol_seed estimate and the camera has not measured the box"
+    },
+    {
+      "line": 360,
+      "text": "[MISSION] grasp 4 missed: backing out, patrolling on"
+    },
+    {
+      "line": 361,
+      "text": "[ADJUST] odometry moved -0.217 m (asked -0.200)"
+    },
+    {
+      "line": 362,
+      "text": "[PATROL] lap 1 started (pid 18015)"
+    }
+  ],
+  "note": "User confirmed this run. No contact sensor evidence identifying exact collision time."
+}

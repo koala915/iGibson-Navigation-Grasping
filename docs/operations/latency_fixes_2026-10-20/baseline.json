@@ -1,0 +1,15 @@
+{
+  "captured_at": "2026-10-20T21:35:05.002100+08:00",
+  "files": {
+    "integration/mission_loop.py": "df4fb5f9c88ec71464dbd38aa462a5201a0ca87661d515062da4d58df5c7c37a",
+    "integration/sugarbox_approach_grasp.py": "39722343a0dcf5ae5c9db5580b8aee440c3473950bd9bbc6910e9afb179568d0",
+    "integration/sugarbox_rl_approach_final2.py": "44297b024bb4e53c5e341ff0fcee640e86e8ff85d5fed21ff7980f90eb94eddf",
+    "integration/rear_stream.py": "8f70d8e34b5193a37a4f4b00118b9b9dcf4ca9a0a59a26c954c26f998347599a",
+    "grasp/v23/grasp_service.py": "cf8645c526df79847b060bf060253e69759382d51a2e9970e0f98a0888574d83",
+    "CLAUDE.md": "7ff8528f64278a8bd233dd37bc27e94121a3d0f347169df8cf5156bde9457d8a",
+    ".github/workflows/tests.yml": "c7cd6d81d012ef99479129cb623cb777aeabc6be9b105fca5981cd07ce2f2166",
+    "tests/test_sugarbox_approach_grasp.py": "cdcce5f4d536fb1d796ec05bb94e583b83d28c1d71774adc4505bec903156fed",
+    "tests/test_mission_loop.py": "23ec4b05b77c56e42be7a1d7799dd192570ae6395b94473621206b3fbf6a296a",
+    "grasp/v23/x3plus_real_grasp.py": "84d526a9feff1d1c781b1f944155e6d3484b8df11786729327525e7d4a7d2c4f"
+  }
+}

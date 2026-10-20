@@ -1,0 +1,20 @@
+[Unit]
+Description=X3Plus G2 TG30 and static TF (no chassis driver)
+Requires=x3plus-g2-roscore.service
+After=x3plus-g2-roscore.service
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=jetson
+Environment=HOME=/home/jetson
+Environment=ROS_MASTER_URI=http://127.0.0.1:11311
+WorkingDirectory=/home/jetson
+ExecStart=/bin/bash /usr/local/libexec/x3plus/start-g2-ros.sh lidar
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

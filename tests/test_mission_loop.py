@@ -8,7 +8,7 @@ import shlex
 import tempfile
 import unittest
 import unittest.mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 
@@ -183,7 +183,8 @@ class PatrolTests(unittest.TestCase):
              patch.object(mission, 'start_patrol',
                           side_effect=lambda host, scene: started.append(scene) or 40 + len(started)), \
              patch.object(mission, 'patrol_running', side_effect=running), \
-             patch.object(mission, 'stop_patrol', side_effect=lambda host, pid: stopped.append(pid)), \
+             patch.object(mission, 'stop_patrol',
+                          side_effect=lambda host, pid, link=None: stopped.append(pid)), \
              patch.object(mission, 'patrol_report', side_effect=lambda host: next(reports)), \
              patch.object(mission.time, 'sleep'), patch('builtins.print'):
             seen = mission.patrol_until_sugarbox(
@@ -540,6 +541,40 @@ class VisionLinkTests(unittest.TestCase):
         link, _, _ = self.link(broken=True)
         with self.assertRaises(mission.MissionError):
             link.send(True, 0.3)
+
+    def test_the_patrol_report_counts_only_while_fresh(self):
+        clock = [0.0]
+        line = json.dumps({'t': 10.0, 'ready': True, 'stamp': 9.9, 'pose': [1, 2, 0.5],
+                           'patrol': {'pid': 41, 'alive': False}}) + '\n'
+        link = mission.VisionLink('10.0.0.1', popen=lambda command, **kw: self.Proc(
+            self.Stdin(), [line]), clock=lambda: clock[0])
+        self.wait_for_pose(link)
+        self.assertIs(link.patrol_alive(41), False)
+        self.assertIsNone(link.patrol_alive(42))          # another patrol: no word on it
+        clock[0] += mission.PATROL_REPORT_MAX_AGE_S + 0.1
+        self.assertIsNone(link.patrol_alive(41))          # stalled link: ask ssh instead
+
+
+class StopPatrolTests(unittest.TestCase):
+    def stop(self, link, ssh_alive=()):
+        asked, answers = [], iter(ssh_alive)
+        with patch.object(mission, 'ssh') as ssh, \
+             patch.object(mission, 'patrol_running',
+                          side_effect=lambda host, pid: asked.append(pid) or next(answers)), \
+             patch.object(mission.time, 'sleep'):
+            mission.stop_patrol('host', 41, link=link)
+        ssh.assert_called_once_with('host', 'kill -TERM 41')
+        return asked
+
+    def test_the_jetson_ends_word_replaces_the_ssh_polls(self):
+        # 2026-10-21: each poll was a new ssh connection, ~0.5-1 s on Windows.
+        words = iter([True, True, False])
+        link = Mock(patrol_alive=lambda pid: next(words))
+        self.assertEqual(self.stop(link), [])
+
+    def test_without_a_fresh_word_ssh_is_asked_as_before(self):
+        self.assertEqual(self.stop(Mock(patrol_alive=lambda pid: None), [True, False]), [41, 41])
+        self.assertEqual(self.stop(None, [False]), [41])
 
 
 class RoomTests(unittest.TestCase):

@@ -156,6 +156,9 @@ POSE_LOST_S = 8.0
 # Until the Jetson end reports the patrol process, the loop asks over ssh, at
 # most this often (one ssh round trip, ~0.5 s, holds the permit renewals back).
 PATROL_CHECK_S = 1.0
+# The Jetson end reports the patrol process every 0.1 s; a report older than this
+# (the link stalled or ended) is not trusted and ssh is asked instead.
+PATROL_REPORT_MAX_AGE_S = 0.5
 # Rear camera to this PC (encode, Wi-Fi, decode), a generous bound: a frame's
 # source stamp is put this much before it arrived, so it is never newer than it is.
 STREAM_LATENCY_S = 0.30
@@ -251,14 +254,24 @@ def patrol_running(host, pid):
     return ssh(host, 'kill -0 {}'.format(int(pid))).returncode == 0
 
 
-def stop_patrol(host, pid, timeout=15.0):
+def patrol_still_running(host, pid, link=None):
+    """From `link`'s Jetson end when it has a fresh word on this pid, else over ssh.
+
+    2026-10-21: every stop asked `kill -0` over a new ssh connection each 0.3 s,
+    ~0.5-1 s apiece on Windows, while the Jetson end already reported it.
+    """
+    alive = link.patrol_alive(pid) if link is not None else None
+    return patrol_running(host, pid) if alive is None else alive
+
+
+def stop_patrol(host, pid, timeout=15.0, link=None):
     """SIGTERM: the patrol stops the wheels, re-locks the service, writes its report."""
     ssh(host, 'kill -TERM {}'.format(int(pid)))
     deadline = time.monotonic() + timeout
-    while patrol_running(host, pid):
+    while patrol_still_running(host, pid, link):
         if time.monotonic() > deadline:
             raise MissionError('patrol {} did not exit after SIGTERM'.format(pid))
-        time.sleep(0.3)
+        time.sleep(0.1)
 
 
 def patrol_report(host):
@@ -291,6 +304,7 @@ class VisionLink:
         self.pose, self.pose_at = None, None
         self.pose_history = deque(maxlen=100)
         self.patrol = None                      # (pid, alive) as the Jetson last saw it
+        self.patrol_at = None                   # when that word arrived (self.clock)
         self.lock = threading.Lock()
         self.proc = popen(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
                            'jetson@' + host, command],
@@ -306,6 +320,7 @@ class VisionLink:
                 if isinstance(patrol, dict) and isinstance(patrol.get('alive'), bool):
                     with self.lock:
                         self.patrol = (patrol.get('pid'), patrol['alive'])
+                        self.patrol_at = self.clock()
                 pose = [float(v) for v in record['pose']]
                 age = float(record['t']) - float(record['stamp'])
                 if (record.get('ready') is not True or len(pose) != 3
@@ -384,9 +399,11 @@ class VisionLink:
         return pose, moved + PATROL_MAX_VX * uncovered, turned + PATROL_MAX_WZ * uncovered
 
     def patrol_alive(self, pid):
-        """True/False for the watched patrol, None while the Jetson has not said."""
+        """True/False for the watched patrol, None while the Jetson has not said
+        or its last word is older than PATROL_REPORT_MAX_AGE_S."""
         with self.lock:
-            if self.patrol is None or self.patrol[0] != pid:
+            if (self.patrol is None or self.patrol[0] != pid
+                    or self.clock() - self.patrol_at > PATROL_REPORT_MAX_AGE_S):
                 return None
             return self.patrol[1]
 
@@ -718,7 +735,7 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
             if in_way is not None:
                 link.send(False, now() - last_stamp + STREAM_LATENCY_S)
                 if pid is not None:
-                    stop_patrol(host, pid)
+                    stop_patrol(host, pid, link=link)
                     pid, stopped_at = None, now()
                 (sx, sy), x, y = in_way
                 raise MissionError(
@@ -780,7 +797,7 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
                 continue
             clear = 0
             if pid is not None:
-                stop_patrol(host, pid)        # it stopped itself on the permit already
+                stop_patrol(host, pid, link=link)   # it stopped itself on the permit already
                 pid, stopped_at = None, now()
             print('[PATROL] candidate {:.2f} m ahead, {:+.2f} m left{}: parked to confirm'
                   .format(point[0], point[1], ' (beyond the calibrated area, rough)' if far
@@ -825,8 +842,8 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
                 flush=True)
             return {'point': seen, 'map': where}
     finally:
-        if pid is not None and patrol_running(host, pid):
-            stop_patrol(host, pid)
+        if pid is not None and patrol_still_running(host, pid, link):
+            stop_patrol(host, pid, link=link)
 
 
 def tried_out(failures):

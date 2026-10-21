@@ -82,6 +82,9 @@ E1_POLL_S = 0.20
 # robot inside the room after it (placement_dock.back_path_problem); the field
 # has walls only. Not localized: no backing.
 BACK_STEP_M = 0.20
+# Less than this still to go after a step is not backed: odometry's own overshoot
+# (2-4 cm on 2026-10-21) is larger.
+BACK_MIN_REST_M = 0.03
 # No room to turn toward the placement box after a grasp: back along the way the
 # robot came in, a step at a time, before turning.
 FACE_BACKOFF_STEP_M = 0.10
@@ -344,8 +347,10 @@ def drive(host, metres, limit=ADJUST_MAX_M, speed=0.08):
                     sock.sendall(b'{"action":"stop"}\n')
                     time.sleep(0.05)
         time.sleep(1.0)
+        travelled = moved()
         print('[ADJUST] odometry moved {:+.3f} m (asked {:+.3f})'.format(
-            math.copysign(moved(), metres), metres), flush=True)
+            math.copysign(travelled, metres), metres), flush=True)
+        return travelled
     finally:
         odom.close()
 
@@ -418,8 +423,12 @@ def back_straight(host, metres, walls, speed=0.08, localize=dock.read_localizati
         raise ValueError('refusing to back {!r} m'.format(metres))
     if not walls:
         raise RuntimeError('no room walls to check the way back against; not backing')
-    left = metres
-    while left > 1e-6:
+    left, first = metres, True
+    # The rest counts down by what odometry says each step travelled, and a rest
+    # under BACK_MIN_REST_M is left: 2026-10-21 run 16, a 0.20 m step went 0.24 m,
+    # and the 1 cm "still to go" was refused at a wall and ended the mission.
+    while left > 1e-6 and (first or left >= BACK_MIN_REST_M):
+        first = False
         try:
             pose = dock.localization_pose(localize(host))
         except ValueError as exc:
@@ -428,8 +437,8 @@ def back_straight(host, metres, walls, speed=0.08, localize=dock.read_localizati
         if problem:
             raise RuntimeError(problem + '; not backing')
         step = min(left, BACK_STEP_M)
-        drive(host, -step, limit=BACK_STEP_M, speed=speed)
-        left -= step
+        travelled = drive(host, -step, limit=BACK_STEP_M, speed=speed)
+        left -= travelled if isinstance(travelled, (int, float)) and travelled > 0 else step
 
 
 def settle(host, read, send_stop, sleep, now):

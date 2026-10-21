@@ -890,6 +890,24 @@ class PlacementTests(unittest.TestCase):
             with self.subTest(metres=metres), self.assertRaises(ValueError):
                 runner.back_straight('host', metres, ROOM, localize=near_wall, drive=drive)
 
+    def test_backing_counts_what_odometry_travelled_and_skips_a_tiny_rest(self):
+        # 2026-10-21 run 16: 0.21 m asked, the first 0.20 m step went 0.24 m, and the
+        # 1 cm "still to go" was refused at a wall, ending the mission.
+        pose = lambda host: {'ready': True, 'age': 0.1, 'state': {'pose': [1.0, 1.0, 0.0]}}
+
+        def run(metres, travelled):
+            moves, went = [], iter(travelled)
+
+            def drive(host, m, limit, speed):
+                moves.append(round(m, 3))
+                return next(went)
+            runner.back_straight('host', metres, ROOM, localize=pose, drive=drive)
+            return moves
+        self.assertEqual(run(0.21, [0.24]), [-0.2])                 # went far enough
+        self.assertEqual(run(0.21, [0.19]), [-0.2])                 # 2 cm short: left
+        self.assertEqual(run(0.40, [0.15, 0.20, 0.06]), [-0.2, -0.2, -0.05])   # short: made up
+        self.assertEqual(run(0.02, [0.02]), [-0.02])                # a small ask still goes
+
     def test_placement_needs_a_held_object_and_an_unlocked_service(self):
         for change in ('empty', 'locked'):
             with self.subTest(change=change):

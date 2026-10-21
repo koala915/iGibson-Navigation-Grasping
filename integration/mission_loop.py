@@ -120,8 +120,8 @@ BLIND_REJECT_M = 0.85
 # chassis centre (sugarbox_approach_grasp.py --final-x-m default).
 AT_BOX_X_M = runner.SUGARBOX_FINAL_X_M
 # Backing out after a grasp missed at the box: far enough for the camera to see it
-# again (0.28 + 0.45 = 0.73 m, measured there on 2026-10-20; 0.31 + 0.45 since
-# 2026-10-21, a little farther), so the next patrol
+# again (0.28 + 0.45 = 0.73 m, measured there on 2026-10-20; the stop moved to
+# 0.34 on 2026-10-21, 0.79 m, still in view), so the next patrol
 # frame finds it and the loop tries once more (the user, 2026-10-20: option C).
 # A box left nearer or farther (a run stopped on the way in) is backed from to the
 # same AT_BOX_SEEN_M, at least BACK_OUT_M and at most 0.60 m; the way back is still

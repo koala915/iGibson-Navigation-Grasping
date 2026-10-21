@@ -856,7 +856,8 @@ class MissionTests(unittest.TestCase):
 
     def test_the_back_out_puts_the_box_where_the_camera_measures_it(self):
         self.assertEqual(mission.at_box_back_out(None), 0.45)          # E1 missed at the stop
-        self.assertEqual(mission.at_box_back_out((0.40, 0.0)), 0.36)   # held on the way in
+        self.assertEqual(mission.at_box_back_out((0.40, 0.0)),         # held on the way in
+                         round(mission.AT_BOX_SEEN_M - 0.40, 3))
         self.assertEqual(mission.at_box_back_out((0.70, 0.0)), mission.BACK_OUT_M)
         self.assertEqual(mission.at_box_back_out((0.05, 0.0)), 0.60)   # never more than 0.60
         self.assertGreater(mission.AT_BOX_SEEN_M, mission.GUARD_BLIND_M)

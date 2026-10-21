@@ -41,8 +41,9 @@ PLACEMENT_MODEL_SHA256 = '8e256e80b770a6ff7a5a3187ab7cbeb7e30fb84a5d6a1fc1515f84
 # Where the steer-in stops the sugarbox, ahead of the chassis centre. The last
 # ~35 cm are driven on odometry behind the gripper. 0.28 until 2026-10-21, when
 # the user saw the robot stop about 3 cm too close on every run, before E1's
-# creep; E1 then saw only a corner of the box and crept closer still.
-SUGARBOX_FINAL_X_M = 0.31
+# creep; E1 then saw only a corner of the box and crept closer still. At 0.31
+# still too close (E1 saw nothing), so 0.34 (the user, the same day).
+SUGARBOX_FINAL_X_M = 0.34
 ARM_COMMANDS = {'status': 75, 'health': 30, 'stow': 75, 'home': 75, 'grasp': 200,
                 'release': 150, 'release-preview': 150}
 # In place the chassis needs >= 1.0 rad/s (wheel speed 20 does not turn it).

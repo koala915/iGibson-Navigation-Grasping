@@ -149,6 +149,76 @@ def fetch_layout(host, scene=SCENE):
         raise ValueError('cannot read {} on the robot: {}'.format(path, result.stderr.strip()))
 
 
+class NavMask:
+    """ncu's patrol map mask: where the robot's centre may be for the patrol to
+    start (g2_patrol_policy.Policy.allowed: a pixel above 250 is allowed)."""
+
+    def __init__(self, width, height, cells, resolution, origin):
+        if resolution <= 0 or len(cells) != width * height:
+            raise ValueError('navigation mask geometry')
+        self.width, self.height, self.cells = width, height, cells
+        self.resolution, self.origin = float(resolution), (float(origin[0]), float(origin[1]))
+
+    def allowed(self, x, y):
+        if not finite(x, y):
+            return False
+        col = int(math.floor((x - self.origin[0]) / self.resolution))
+        row = self.height - 1 - int(math.floor((y - self.origin[1]) / self.resolution))
+        if not (0 <= col < self.width and 0 <= row < self.height):
+            return False
+        return self.cells[row * self.width + col] > 250
+
+    def inside(self, point, margin=0.0):
+        """The point and a ring of eight around it at `margin` all allowed."""
+        x, y = point
+        ring = [(x + margin * math.cos(k * math.pi / 4), y + margin * math.sin(k * math.pi / 4))
+                for k in range(8)] if margin > 0 else []
+        return all(self.allowed(px, py) for px, py in [(x, y)] + ring)
+
+
+def parse_pgm(data):
+    """(width, height, cells) of a binary 8-bit PGM."""
+    tokens, pos = [], 0
+    while len(tokens) < 4:
+        while pos < len(data) and data[pos:pos + 1].isspace():
+            pos += 1
+        if data[pos:pos + 1] == b'#':
+            pos = data.index(b'\n', pos) + 1
+            continue
+        end = pos
+        while end < len(data) and not data[end:end + 1].isspace():
+            end += 1
+        tokens.append(data[pos:end])
+        pos = end
+    if tokens[0] != b'P5' or int(tokens[3]) > 255:
+        raise ValueError('navigation mask is not an 8-bit binary PGM')
+    width, height = int(tokens[1]), int(tokens[2])
+    cells = data[pos + 1:pos + 1 + width * height]
+    if len(cells) != width * height:
+        raise ValueError('navigation mask is truncated')
+    return width, height, cells
+
+
+def fetch_nav_mask(host, scene=SCENE):
+    """The patrol's navigation_center_mask as the robot has it."""
+    import base64
+    import yaml
+    folder = '{}/{}'.format(JETSON_ROOT, scene)
+    result = subprocess.run(
+        ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'jetson@' + host,
+         'cd {} && cat navigation_center_mask.yaml && echo ===PGM=== && '
+         'base64 -w0 navigation_center_mask.pgm'.format(folder)],
+        capture_output=True, text=True, timeout=60)
+    try:
+        meta_text, data_text = result.stdout.split('===PGM===')
+        meta = yaml.safe_load(meta_text)
+        width, height, cells = parse_pgm(base64.b64decode(data_text.strip()))
+        return NavMask(width, height, cells, meta['resolution'], meta['origin'][:2])
+    except (ValueError, KeyError, TypeError, IndexError) as exc:
+        raise ValueError('cannot read the navigation mask on the robot: {} {}'.format(
+            exc, result.stderr.strip()))
+
+
 def fetch_box(host, scene=SCENE):
     return box_from_layout(fetch_layout(host, scene), 'robot:{}/scene_layout.json'.format(scene))
 

@@ -200,6 +200,13 @@ BACK_OUT_M = 0.20
 # again, at most ROOM_MAX_M since the last stage (the user, 2026-10-19).
 ROOM_STEP_M = 0.10
 ROOM_MAX_M = 0.30
+# leave() backs as far as the patrol's own map mask needs, when that is more than
+# asked: 2026-10-21 run 9, the centre came inside it only 48 cm back from the
+# placement box, and 0.20 + 0.10 left the next patrol refusing to start. The
+# centre has to be inside at the stop and MASK_MARGIN_M before it (AMCL ~4 cm);
+# never more than ROOM_EXIT_MAX_M (back_straight's own limit).
+MASK_MARGIN_M = 0.05
+ROOM_EXIT_MAX_M = 0.60
 # Two whole laps with nothing to fetch end the mission (the user, 2026-10-19).
 EMPTY_LAPS_TO_END = 2
 # Grasping failed this many times within SPOT_RADIUS_M: that spot is left alone.
@@ -989,18 +996,20 @@ def ensure_arm_camera(host, fix, look=runner.look, wait_s=25.0):
 class Room:
     """Straight back-outs so the patrol may start again (the user, 2026-10-19).
 
-    leave() after a delivery or a missed grasp backs BACK_OUT_M. While the patrol
-    still refuses to start, make() backs ROOM_STEP_M more, up to ROOM_MAX_M in all
-    since that stage; the runner checks the way back against the room's walls on
+    leave() after a delivery or a missed grasp backs BACK_OUT_M, or farther, up to
+    ROOM_EXIT_MAX_M, until the centre is inside the patrol's map `mask`. While the
+    patrol still refuses to start, make() backs ROOM_STEP_M more, up to ROOM_MAX_M -
+    BACK_OUT_M more since that stage; the runner checks the way back against the room's walls on
     the map before every step (nothing sees behind the robot). With
     no stage behind it (the mission's start), make() never backs: a robot set
     down in the keep-out goes back into the field by hand, not blindly backward
     (ncu, 2026-10-19: the way out was forward there).
     """
 
-    def __init__(self, host, walls=None, back=None, obstacles=()):
+    def __init__(self, host, walls=None, back=None, obstacles=(), mask=None, locate=None):
         self.host, self.walls, self.back, self.backed = host, walls, back, None
-        self.obstacles = list(obstacles)
+        self.obstacles, self.mask, self.locate = list(obstacles), mask, locate
+        self.extra = 0.0
 
     def _back(self, metres):
         if self.back is not None:
@@ -1008,19 +1017,58 @@ class Room:
         else:
             runner.back_straight(self.host, metres, self.walls, obstacles=self.obstacles)
 
+    def exit_distance(self, metres):
+        """`metres`, or the shortest way back past it that puts the centre inside
+        the mask (see MASK_MARGIN_M); `metres` without a mask or a pose."""
+        if self.mask is None or self.locate is None:
+            return metres
+        try:
+            pose = self.locate(self.host)
+        except (ValueError, OSError, subprocess.SubprocessError) as exc:
+            print('[MISSION] backing {:.2f} m: no pose to check the patrol mask ({})'.format(
+                metres, exc), flush=True)
+            return metres
+        back = mask_exit(self.mask, pose, metres)
+        if back is None:
+            print('[MISSION] the patrol mask is not within {:.2f} m straight back; backing '
+                  '{:.2f} m'.format(ROOM_EXIT_MAX_M, metres), flush=True)
+            return metres
+        if back > metres + 1e-9:
+            print('[MISSION] backing {:.2f} m, not {:.2f}: the patrol starts only with the '
+                  'centre inside its map mask'.format(back, metres), flush=True)
+        return back
+
     def leave(self, metres=BACK_OUT_M):
+        metres = self.exit_distance(metres)
         self._back(metres)
-        self.backed = metres
+        self.backed, self.extra = metres, 0.0
 
     def make(self):
-        if self.backed is None or self.backed + ROOM_STEP_M > ROOM_MAX_M + 1e-9:
+        if (self.backed is None
+                or self.extra + ROOM_STEP_M > ROOM_MAX_M - BACK_OUT_M + 1e-9):
             return False
         self._back(ROOM_STEP_M)
         self.backed += ROOM_STEP_M
+        self.extra += ROOM_STEP_M
         return True
 
     def reset(self):
-        self.backed = None
+        self.backed, self.extra = None, 0.0
+
+
+def mask_exit(mask, pose, at_least, limit=None, margin=None, step=0.01):
+    """Shortest straight way back, at least `at_least`, that leaves the centre in
+    the mask both there and `margin` short of there; None within `limit`."""
+    limit = ROOM_EXIT_MAX_M if limit is None else limit
+    margin = MASK_MARGIN_M if margin is None else margin
+    x, y, yaw = pose
+    at = lambda d: (x - d * math.cos(yaw), y - d * math.sin(yaw))
+    d = at_least
+    while d <= limit + 1e-9:
+        if mask.allowed(*at(d)) and mask.allowed(*at(max(0.0, d - margin))):
+            return round(d, 3)
+        d += step
+    return None
 
 
 def arm_state(host):
@@ -1071,8 +1119,8 @@ def preflight(args):
             issues.append('the jaw holds something; release it first')
     except Exception as exc:
         issues.append('robot: ' + str(exc))
-    if not args.no_patrol and not getattr(args, 'real', False):
-        # A real patrol relocalizes first (main), so only the check needs it now.
+    if not args.no_patrol and not getattr(args, 'relocalize', False):
+        # With --relocalize the mission seeds it first (main).
         try:
             dock.localization_pose(dock.read_localization(args.host))
         except (ValueError, OSError, subprocess.SubprocessError) as exc:
@@ -1283,7 +1331,14 @@ def patrol_mission(args, pc_ip, log_dir, room=None, new_link=VisionLink):
             start_stream(args.host, pc_ip)
         watcher = SugarboxWatcher(args.homography)
         obstacle = dock.bin_obstacle(box)
-        room = room or Room(args.host, walls, obstacles=[obstacle] if obstacle else [])
+        if room is None:
+            try:
+                mask = dock.fetch_nav_mask(args.host, args.scene)
+            except (ValueError, OSError, subprocess.SubprocessError) as exc:
+                print('[WARN] {}: backing out by the fixed distances only'.format(exc))
+                mask = None
+            room = Room(args.host, walls, obstacles=[obstacle] if obstacle else [], mask=mask,
+                        locate=lambda host: dock.localization_pose(dock.read_localization(host)))
 
         def new_reader():
             return _runtime.reader() if _runtime is not None else StreamReader(STREAM_PORT, args.gstreamer)
@@ -1448,6 +1503,9 @@ def main(argv=None):
     parser.add_argument('--isolated-stages', action='store_false', dest='resident', default=True,
                         help='fallback: separate model process/receiver per stage')
     parser.add_argument('--i-am-beside-the-robot', action='store_true')
+    parser.add_argument('--relocalize', action='store_true',
+                        help='patrol: seed AMCL from the rear camera markers first (~1 min, '
+                             'robot still; integration/relocalize.py alone does the same)')
     args = parser.parse_args(argv)
     ipaddress.IPv4Address(args.host)
     if args.max_deliveries is not None and args.max_deliveries < 1:
@@ -1456,6 +1514,8 @@ def main(argv=None):
         parser.error('--no-patrol delivers one object; set the next one up and run again')
     if args.resume_at and not args.no_patrol:
         parser.error('--resume-at goes with --no-patrol')
+    if args.relocalize and args.no_patrol:
+        parser.error('--relocalize is for the patrol mission')
     log_dir = args.log_dir or LOG_ROOT / time.strftime('mission_%Y%m%d_%H%M%S')
     issues = preflight(args)
     for issue in issues:
@@ -1479,13 +1539,14 @@ def main(argv=None):
         return 3
     if args.no_patrol:
         return grasp_and_place(args, pc_ip, log_dir)
-    # Every patrol mission starts from a fresh seed (the user, 2026-10-21): an old
-    # one may have the symmetric room turned around.
-    try:
-        relocalize(args.host)
-    except (RelocalizeError, OSError, subprocess.SubprocessError) as exc:
-        print('[BLOCKED] relocalization: {}'.format(exc), flush=True)
-        return 2
+    if args.relocalize:
+        # Only when asked (the user, 2026-10-21: a minute every start was too
+        # long); integration/relocalize.py does the same on its own.
+        try:
+            relocalize(args.host)
+        except (RelocalizeError, OSError, subprocess.SubprocessError) as exc:
+            print('[BLOCKED] relocalization: {}'.format(exc), flush=True)
+            return 2
     return patrol_mission(args, pc_ip, log_dir)
 
 

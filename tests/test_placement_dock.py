@@ -195,6 +195,18 @@ class LidarTests(unittest.TestCase):
         self.assertAlmostEqual(x, 0.5)
         self.assertAlmostEqual(y, 2.0)
 
+    def test_the_patrol_mask_reads_like_ncus_policy(self):
+        # 3 x 2 cells of 0.5 m from (0, 0); the top-left one allowed (rows run down).
+        pgm = b'P5\n# ncu\n3 2\n255\n' + bytes([255, 0, 0, 0, 0, 0])
+        mask = dock.NavMask(*dock.parse_pgm(pgm), resolution=0.5, origin=(0.0, 0.0))
+        self.assertTrue(mask.allowed(0.2, 0.7))
+        self.assertFalse(mask.allowed(0.2, 0.2))
+        self.assertFalse(mask.allowed(-0.1, 0.7))     # off the map
+        self.assertTrue(mask.inside((0.25, 0.75), margin=0.2))
+        self.assertFalse(mask.inside((0.25, 0.75), margin=0.3))
+        with self.assertRaises(ValueError):
+            dock.parse_pgm(b'P5\n3 2\n255\n' + bytes(5))
+
     def test_backing_never_sweeps_into_the_placement_box(self):
         # The box is below the LiDAR's scan plane too (2026-10-20 review).
         room = [(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]

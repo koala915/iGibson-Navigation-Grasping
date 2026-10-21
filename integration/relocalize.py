@@ -1,10 +1,11 @@
 """Relocalize AMCL before a mission, with ncu's ArUco corner seed, all on the robot.
 
-The user (2026-10-21): every mission start relocalizes first. That day a seed
-written earlier, from a marker that sits on both of two symmetric walls, most
-likely had the map turned around: the patrol and the grasp were fine (the walls
-look the same either way), and the turn toward the placement box went the
-wrong way.
+Run it when the robot may not be where AMCL thinks (set down by hand, a new
+day), on its own or as mission_loop.py --relocalize; the user (2026-10-21) asks
+for it rather than paying a minute at every start. That day a seed written
+earlier, from a marker that sits on both of two symmetric walls, most likely had
+the map turned around: the patrol and the grasp were fine (the walls look the
+same either way), and the turn toward the placement box went the wrong way.
 
 With the robot standing still and the rear camera free:
   1. deploy/ros/g2_corner_camera_capture.py   rear frames + LiDAR snapshot

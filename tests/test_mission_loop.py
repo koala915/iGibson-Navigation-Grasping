@@ -593,6 +593,32 @@ class StopPatrolTests(unittest.TestCase):
 
 
 class RoomTests(unittest.TestCase):
+    def test_leaving_backs_until_the_centre_is_inside_the_patrol_mask(self):
+        # 2026-10-21 run 9: from the release spot the mask began 48 cm back.
+        class Band:                                   # allowed for x <= 0.52
+            def allowed(self, x, y):
+                return x <= 0.52
+        backs = []
+
+        def room(locate):
+            return mission.Room('host', back=lambda host, m: backs.append(round(m, 3)),
+                                mask=Band(), locate=locate)
+        with patch('builtins.print'):
+            far = room(lambda host: (1.0, 0.0, 0.0))
+            far.leave()
+            self.assertEqual(backs, [0.53])           # 0.48 in, plus the 5 cm margin
+            self.assertTrue(far.make())               # and one more step if still refused
+            self.assertFalse(far.make())
+            room(lambda host: (0.40, 0.0, 0.0)).leave()
+            self.assertEqual(backs[-1], 0.20)         # already inside: the usual 0.20 m
+            room(lambda host: (2.0, 0.0, 0.0)).leave()
+            self.assertEqual(backs[-1], 0.20)         # out of reach within 0.60 m
+
+            def lost(host):
+                raise ValueError('not localized')
+            room(lost).leave()
+            self.assertEqual(backs[-1], 0.20)         # no pose: as before
+
     def test_backs_out_then_a_step_more_up_to_the_limit(self):
         backs = []
         room = mission.Room('host', back=lambda host, m: backs.append(round(m, 3)))
@@ -935,19 +961,21 @@ class MainTests(unittest.TestCase):
             self.assertEqual(mission.main(['--host', '10.0.0.1', '--real']), 3)
         stage.assert_not_called()
 
-    def test_real_patrol_mode_relocalizes_then_runs_the_patrol_mission(self):
-        order = []
-        with patch.object(mission, 'preflight', return_value=[]), \
-             patch.object(mission, 'pc_address', return_value='10.0.0.2'), \
-             patch.object(mission, 'relocalize', side_effect=lambda host: order.append('reloc')), \
-             patch.object(mission, 'patrol_mission',
-                          side_effect=lambda *a: order.append('patrol') or 0) as patrolling, \
-             patch.object(mission, 'grasp_and_place') as one, patch('builtins.print'):
-            self.assertEqual(mission.main(['--host', '10.0.0.1', '--real',
-                                           '--i-am-beside-the-robot']), 0)
-        self.assertEqual(order, ['reloc', 'patrol'])        # the user, 2026-10-21
-        self.assertIsNone(patrolling.call_args.args[0].max_deliveries)   # until laps run dry
-        one.assert_not_called()
+    def test_real_patrol_mode_runs_the_patrol_mission_relocalizing_only_when_asked(self):
+        for extra, expected in (([], ['patrol']), (['--relocalize'], ['reloc', 'patrol'])):
+            order = []
+            with patch.object(mission, 'preflight', return_value=[]), \
+                 patch.object(mission, 'pc_address', return_value='10.0.0.2'), \
+                 patch.object(mission, 'relocalize',
+                              side_effect=lambda host: order.append('reloc')), \
+                 patch.object(mission, 'patrol_mission',
+                              side_effect=lambda *a: order.append('patrol') or 0) as patrolling, \
+                 patch.object(mission, 'grasp_and_place') as one, patch('builtins.print'):
+                self.assertEqual(mission.main(['--host', '10.0.0.1', '--real',
+                                               '--i-am-beside-the-robot'] + extra), 0)
+            self.assertEqual(order, expected)               # the user, 2026-10-21
+            self.assertIsNone(patrolling.call_args.args[0].max_deliveries)   # until laps run dry
+            one.assert_not_called()
 
     def test_a_failed_relocalization_never_starts_the_patrol(self):
         with patch.object(mission, 'preflight', return_value=[]), \
@@ -957,7 +985,7 @@ class MainTests(unittest.TestCase):
              patch.object(mission, 'patrol_mission') as patrolling, \
              patch('builtins.print') as printed:
             self.assertEqual(mission.main(['--host', '10.0.0.1', '--real',
-                                           '--i-am-beside-the-robot']), 2)
+                                           '--i-am-beside-the-robot', '--relocalize']), 2)
         patrolling.assert_not_called()
         self.assertIn('AMBIGUOUS', ' '.join(str(c) for c in printed.call_args_list))
 
@@ -970,9 +998,9 @@ class MainTests(unittest.TestCase):
             mission.main(['--host', '10.0.0.1', '--no-patrol', '--real', '--i-am-beside-the-robot'])
         reloc.assert_not_called()
 
-    def test_a_real_patrol_preflight_leaves_localization_to_the_relocalization(self):
+    def test_a_relocalizing_preflight_leaves_localization_to_the_relocalization(self):
         args = mission.argparse.Namespace(
-            host='10.0.0.1', no_patrol=False, resume_at=None, scene='scene', real=True,
+            host='10.0.0.1', no_patrol=False, resume_at=None, scene='scene', relocalize=True,
             homography=ROOT / 'detection/rear_ground_homography.json', gstreamer=__file__)
         with patch.object(mission.runner, 'ctl', side_effect=resident_reply), \
              patch.object(mission.dock, 'read_localization', return_value=None) as reading, \

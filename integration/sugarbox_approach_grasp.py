@@ -38,6 +38,11 @@ SUGARBOX_MODEL = ROOT / 'detection/models/best.pt'
 PLACEMENT_MODEL = ROOT / 'detection/models/placement_box.pt'
 PLACEMENT_MODEL_SHA256 = '8e256e80b770a6ff7a5a3187ab7cbeb7e30fb84a5d6a1fc1515f84a3025406a0'
 # graspctl command -> reply timeout (s). release/release-preview come from E1.
+# Where the steer-in stops the sugarbox, ahead of the chassis centre. The last
+# ~35 cm are driven on odometry behind the gripper. 0.28 until 2026-10-21, when
+# the user saw the robot stop about 3 cm too close on every run, before E1's
+# creep; E1 then saw only a corner of the box and crept closer still.
+SUGARBOX_FINAL_X_M = 0.31
 ARM_COMMANDS = {'status': 75, 'health': 30, 'stow': 75, 'home': 75, 'grasp': 200,
                 'release': 150, 'release-preview': 150}
 # In place the chassis needs >= 1.0 rad/s (wheel speed 20 does not turn it).
@@ -801,9 +806,9 @@ def main(argv=None):
                              'hands over to the slow steer-in (m, 0.60..1.20)')
     parser.add_argument('--final-x-m', type=float, default=None,
                         help='enoch: stop when the box is this far ahead of the chassis '
-                             'centre (m; sugarbox 0.25..0.45, default 0.28; placement box '
+                             'centre (m; sugarbox 0.25..0.45, default {:.2f}; placement box '
                              'near edge 0.18..0.45, default {:.3f})'.format(
-                                 dock.PLACEMENT_FINAL_X_M))
+                                 SUGARBOX_FINAL_X_M, dock.PLACEMENT_FINAL_X_M))
     parser.add_argument('--obs-log', type=Path, default=None,
                         help='append every policy observation/action as JSON lines '
                              '(for replaying a run offline)')
@@ -840,7 +845,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     placement = args.target == 'placement'
     if args.final_x_m is None:
-        args.final_x_m = dock.PLACEMENT_FINAL_X_M if placement else 0.28
+        args.final_x_m = dock.PLACEMENT_FINAL_X_M if placement else SUGARBOX_FINAL_X_M
     final_min = 0.18 if placement else 0.25
     if args.real and args.dry_run:
         parser.error('--real and --dry-run are mutually exclusive')

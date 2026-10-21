@@ -280,6 +280,8 @@ def to_map(pose, point):
 BIN_HALF_DIAGONAL_M = 0.112
 BIN_UNVERIFIED_SLACK_M = 0.20
 BIN_APPROACH_M = 0.02
+# A corner moving along a wall within the margin is no nearer; rounding aside.
+WALL_APPROACH_M = 0.005
 
 
 def bin_obstacle(box):
@@ -311,7 +313,13 @@ def back_path_problem(pose, metres, walls, margin=BACK_WALL_MARGIN_M, obstacles=
     for x1, y1, x2, y2 in BODY_RECTANGLES:
         for cx, cy in ((x1, y1), (x1, y2), (x2, y1), (x2, y2)):
             start, end = to_map(pose, (cx, cy)), to_map(pose, (cx - metres, cy))
-            if near_wall(end, walls, margin):
+            # Within the margin, only coming nearer counts: after an angled
+            # approach a wheel may already be at the wall, and backing straight
+            # takes it away (2026-10-21, first delivery: refused at 0 -> 5.6 cm off
+            # the wall). Ending beyond a wall never passes.
+            end_m = wall_distance(end, walls)
+            if end_m <= 0 or (end_m <= margin
+                              and end_m < wall_distance(start, walls) - WALL_APPROACH_M):
                 return 'backing {:.2f} m would bring the robot within {:.2f} m of a wall'.format(
                     metres, margin)
             for ox, oy, radius in obstacles:

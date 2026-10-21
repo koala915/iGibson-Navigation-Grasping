@@ -183,6 +183,14 @@ class LidarTests(unittest.TestCase):
         self.assertIn('within', dock.back_path_problem(facing_east, 0.70, room))
         # the right-side cables: facing north, the robot's right is east
         self.assertIn('within', dock.back_path_problem((1.75, 1.0, math.pi / 2), 0.10, room))
+        # 2026-10-21: an angled stop with a wheel at the east wall; backing straight
+        # takes it away from the wall, so it is the way out, not refused.
+        at_wall = (1.68, 1.0, math.radians(47))
+        self.assertIsNone(dock.back_path_problem(at_wall, 0.20, room))
+        self.assertIsNone(dock.back_path_problem(at_wall, 0.05, room))
+        # Backing toward a wall within the margin still is.
+        self.assertIn('within', dock.back_path_problem((1.68, 1.0, math.radians(180 + 47)),
+                                                       0.20, room))
         x, y = dock.to_map((1.0, 1.0, math.pi / 2), (1.0, 0.5))
         self.assertAlmostEqual(x, 0.5)
         self.assertAlmostEqual(y, 2.0)

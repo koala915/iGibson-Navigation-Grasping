@@ -86,6 +86,13 @@ BACK_STEP_M = 0.20
 # robot came in, a step at a time, before turning.
 FACE_BACKOFF_STEP_M = 0.10
 FACE_BACKOFF_MAX_M = 0.30
+FACE_BACKOFF_MIN_STEP_M = 0.03
+# With --came-from (where the patrol stopped before the approach) the backing may
+# go all the way back there, and only the placement box's own outline counts
+# against it, not the slack for its unverified map position: the robot has just
+# driven through that ground (the user, 2026-10-21; run 14 was refused a 10 cm
+# back-off with the box 0.65 m behind-right). At most FACE_RETRACE_MAX_M.
+FACE_RETRACE_MAX_M = 0.60
 # The camera measures the placement box from about 0.70 m ahead of the centre (its
 # calibrated strip), and the policy needs room before the 1.00 m handoff, so a box
 # nearer than PLACEMENT_VIEW_MIN_M after the turn is backed away from first.
@@ -567,14 +574,15 @@ def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic
         drive(host, move)
 
 
-def face_box(host, box, localize=dock.read_localization, rotate=turn, back=None, tries=3):
+def face_box(host, box, localize=dock.read_localization, rotate=turn, back=None, tries=3,
+             back_max=FACE_BACKOFF_MAX_M):
     """Turn in place until the placement box's map position is straight ahead.
 
     The resident AMCL pose (ncu's localization service) and the box's map position
     say where it is when the rear camera cannot see it, e.g. right after a grasp.
     Where the localization reports no room to turn, `back` (if given) reverses
-    FACE_BACKOFF_STEP_M at a time, up to FACE_BACKOFF_MAX_M: the way the robot
-    came in to the grasp is clear. Returns the final map pose.
+    FACE_BACKOFF_STEP_M at a time, up to `back_max`: the way the robot came in to
+    the grasp is clear. Returns the final map pose.
     """
     turns, backed = 0, 0.0
     while True:
@@ -588,14 +596,15 @@ def face_box(host, box, localize=dock.read_localization, rotate=turn, back=None,
         if turns == tries:
             raise RuntimeError('placement box still not ahead after {} turns'.format(tries))
         if (record.get('state') or {}).get('turn_clear') is not True:
-            if back is None or backed + FACE_BACKOFF_STEP_M > FACE_BACKOFF_MAX_M + 1e-9:
+            step = round(min(FACE_BACKOFF_STEP_M, back_max - backed), 3)
+            if back is None or step < FACE_BACKOFF_MIN_STEP_M:
                 raise RuntimeError('localization reports no room to turn here{}; not '
                                    'turning'.format('' if back is None else
                                                     ' after backing {:.2f} m'.format(backed)))
             print('[FACE] no room to turn: back {:.2f} m the way the robot came'.format(
-                FACE_BACKOFF_STEP_M), flush=True)
-            back(host, FACE_BACKOFF_STEP_M)
-            backed += FACE_BACKOFF_STEP_M
+                step), flush=True)
+            back(host, step)
+            backed += step
             continue
         turn_if_clear(host, bearing, rotate=rotate, record=record)
         turns += 1
@@ -831,6 +840,10 @@ def main(argv=None):
     parser.add_argument('--box-map', type=Path, default=None,
                         help='placement: a local copy of ncu\'s scene_layout.json (default: '
                              'read it from the robot)')
+    parser.add_argument('--came-from', type=float, nargs=2, metavar=('X', 'Y'), default=None,
+                        help='placement with --turn-to-box: map spot where the patrol stopped '
+                             'before the grasp; with no room to turn, the robot may back all '
+                             'the way there (it just drove through)')
     parser.add_argument('--seed', type=float, nargs=2, metavar=('X', 'Y'), default=None,
                         help='sugarbox: where the patrol saw the box, chassis-centre frame (m, '
                              'x forward, y left); the approach drives at it until the camera '
@@ -866,6 +879,9 @@ def main(argv=None):
         parser.error('--empty-test, --turn-to-box and --wall-m are for --target placement')
     if args.handoff_only and (placement or args.approach != 'enoch'):
         parser.error('--handoff-only is for --target sugarbox with --approach enoch')
+    if args.came_from is not None and not (args.turn_to_box and all(
+            math.isfinite(v) for v in args.came_from)):
+        parser.error('--came-from goes with --target placement --turn-to-box')
     if placement and args.approach != 'enoch':
         parser.error('--target placement needs --approach enoch (steer-in and arrival report)')
     if args.wall_m is not None and not (math.isfinite(args.wall_m) and 0.20 <= args.wall_m <= 1.50):
@@ -1010,7 +1026,22 @@ def main(argv=None):
             def back(host, metres, speed=0.08, margin=dock.BACK_WALL_MARGIN_M):
                 back_straight(host, metres, walls, speed=speed, margin=margin,
                               obstacles=[obstacle] if obstacle else [])
-            pose = face_box(args.host, box, back=back)
+            face_back, face_max = back, FACE_BACKOFF_MAX_M
+            if args.came_from is not None:
+                try:
+                    start = dock.localization_pose(dock.read_localization(args.host))
+                except ValueError:
+                    start = None
+                retrace = dock.retrace_room(start, args.came_from)
+                if retrace is not None:
+                    core = dock.bin_obstacle(dict(box, verified=True))
+
+                    def face_back(host, metres):
+                        back_straight(host, metres, walls, obstacles=[core] if core else [])
+                    face_max = min(retrace, FACE_RETRACE_MAX_M)
+                    print('[FACE] where the patrol stopped is {:.2f} m straight back: the way '
+                          'back there is clear'.format(retrace), flush=True)
+            pose = face_box(args.host, box, back=face_back, back_max=face_max)
             if keep_box_in_view(args.host, box, pose, lambda host, metres: back(
                     host, metres, speed=PLACEMENT_BACKOFF_MPS,
                     margin=PLACEMENT_BACKOFF_MARGIN_M)):

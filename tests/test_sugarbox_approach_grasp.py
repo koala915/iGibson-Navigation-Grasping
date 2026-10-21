@@ -753,7 +753,8 @@ class PlacementTests(unittest.TestCase):
                 runner.main(argv)
             read.assert_not_called()
 
-    def run_real(self, argv=(), box=None, report=None, pose=(0.0, 0.0, 0.0), backs=None):
+    def run_real(self, argv=(), box=None, report=None, pose=(0.0, 0.0, 0.0), backs=None,
+                 face=None):
         report = self.report if report is None else report
         backs = [] if backs is None else backs
         def approach(env, message):
@@ -764,7 +765,8 @@ class PlacementTests(unittest.TestCase):
              patch.object(runner, 'preflight', return_value=({}, [])), \
              patch.object(runner, 'ctl', side_effect=self.read), \
              patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'), \
-             patch.object(runner, 'face_box', return_value=pose) as facing, \
+             patch.object(runner, 'face_box', **({'side_effect': face} if face else
+                                                 {'return_value': pose})) as facing, \
              patch.object(runner, 'placement_layout', return_value=(box, ROOM)), \
              patch.object(runner, 'back_straight', side_effect=lambda h, m, walls, **kw: backs.append(
                  (round(m, 3), kw.get('speed'), walls, kw.get('margin')))), \
@@ -829,6 +831,36 @@ class PlacementTests(unittest.TestCase):
                             rotate=lambda host, r: turns.append(r),
                             back=lambda host, m: backs.append(m))
         self.assertEqual(backs, [0.10] * 3)             # 0.30 m in all, then stop
+
+    def test_no_room_to_turn_may_back_all_the_way_to_where_the_patrol_stopped(self):
+        # 2026-10-21 run 14: a 10 cm back-off was refused with the box 0.65 m
+        # behind-right; the ground back to the patrol's stop was just driven over.
+        backs = []
+        with self.assertRaises(RuntimeError):         # never turns: backs to the limit
+            runner.face_box('host', {'x': 0.0, 'y': 1.0},
+                            localize=self.localize([(0, 0, 0)] * 9, turn_clear=False),
+                            rotate=lambda host, r: None,
+                            back=lambda host, m: backs.append(round(m, 3)), back_max=0.42)
+        self.assertEqual(backs, [0.10, 0.10, 0.10, 0.10])   # the last 2 cm not worth a step
+        # The spot is straight behind: its distance; aside or ahead: not a retrace.
+        self.assertAlmostEqual(runner.dock.retrace_room((1.0, 0.0, 0.0), (0.55, 0.05)), 0.45)
+        self.assertIsNone(runner.dock.retrace_room((1.0, 0.0, 0.0), (0.55, 0.40)))
+        self.assertIsNone(runner.dock.retrace_room((1.0, 0.0, 0.0), (1.30, 0.0)))
+        self.assertIsNone(runner.dock.retrace_room(None, (0.55, 0.0)))
+
+    def test_came_from_lets_the_back_off_pass_the_unverified_box_slack(self):
+        box = {'x': 0.30, 'y': -1.20, 'verified': False}     # behind-right, as in run 14
+        captured = []
+        with patch.object(runner.dock, 'read_localization'), \
+             patch.object(runner.dock, 'localization_pose', return_value=(1.0, 0.0, 0.0)):
+            for argv in (['--turn-to-box'], ['--turn-to-box', '--came-from', '0.55', '0.05']):
+                code, *_ = self.run_real(argv, box=box, face=lambda host, b, back, back_max: (
+                    captured.append(back_max) or (1.0, 0.0, 0.0)))
+                self.assertEqual(code, 0)
+        self.assertEqual(captured[0], runner.FACE_BACKOFF_MAX_M)
+        self.assertAlmostEqual(captured[1], 0.45)
+        with self.assertRaises(SystemExit), patch('sys.stderr'):
+            runner.main(['--came-from', '0.5', '0.0'])        # only with --turn-to-box
 
     def test_backing_goes_in_steps_each_checked_on_the_map(self):
         # Nothing sees behind the robot (the LiDAR's rear half is blocked by the

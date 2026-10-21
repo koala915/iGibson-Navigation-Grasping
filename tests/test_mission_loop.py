@@ -202,6 +202,7 @@ class PatrolTests(unittest.TestCase):
         self.assertNotIn(True, link.sent[2:])
         self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
         self.assertEqual([round(v, 6) for v in seen['map']], [2.0, 0.1])
+        self.assertEqual(seen['stop'], (1.0, 0.0, 0.0))      # on the route, for place_held
 
     def test_a_sugarbox_beyond_the_calibrated_area_parks_it_too(self):
         seen, _, stopped, _ = self.run_patrol([None] + [{'far': (1.8, 0.5)}] * 4)
@@ -783,6 +784,19 @@ class StageTests(unittest.TestCase):
     def test_a_placement_turns_toward_the_box_first(self):
         self.place([0], ['empty'])
         self.assertEqual([c[:3] for c in self.calls], [('placement', True, 'place_2.log')])
+        self.assertNotIn('--came-from', self.calls[0][3])
+
+    def test_the_placement_knows_where_the_patrol_stopped(self):
+        # 2026-10-21: with no room to turn, it may back all the way there.
+        self.calls = []
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(mission, 'run_stage', side_effect=self.stage([0])), \
+             patch.object(mission, 'arm_state', return_value='empty'), patch('builtins.print'):
+            mission.place_held(self.args, Path(folder) / 'scene_layout.json', Path(folder), 2,
+                               lambda: None, lambda: None, (0.5512, -0.25, 1.0))
+        argv = self.calls[0][3]
+        self.assertEqual(argv[argv.index('--came-from') + 1:argv.index('--came-from') + 3],
+                         ['0.551', '-0.250'])
 
     def test_still_holding_after_a_failure_looks_around_once_and_retries(self):
         self.place([2, 0], ['holding', 'empty'])

@@ -363,6 +363,27 @@ def bin_obstacle(box):
             BIN_HALF_DIAGONAL_M + (0.0 if box.get('verified') else BIN_UNVERIFIED_SLACK_M))
 
 
+# Backing toward where the patrol stopped retraces the approach only while that
+# spot lies close to the straight line behind the robot.
+RETRACE_MAX_LATERAL_M = 0.25
+RETRACE_MIN_M = 0.05
+
+
+def retrace_room(pose, came_from, max_lateral=RETRACE_MAX_LATERAL_M):
+    """How far straight back the robot is from `came_from` (the map spot where the
+    patrol stopped before the approach), or None when that spot is not behind it
+    near the backward line: then backing would not retrace the way it came."""
+    if pose is None or came_from is None or not finite(*pose, *came_from):
+        return None
+    x, y, yaw = pose
+    dx, dy = came_from[0] - x, came_from[1] - y
+    behind = -(dx * math.cos(yaw) + dy * math.sin(yaw))
+    lateral = abs(-dx * math.sin(yaw) + dy * math.cos(yaw))
+    if behind < RETRACE_MIN_M or lateral > max_lateral:
+        return None
+    return behind
+
+
 def segment_distance(point, start, end):
     px, py = point
     (ax, ay), (bx, by) = start, end

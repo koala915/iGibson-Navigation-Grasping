@@ -868,7 +868,9 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
             print('[PATROL] sugarbox {:.2f} m ahead, {:+.2f} m left{}: confirmed'.format(
                 seen[0], seen[1], ' (beyond the calibrated area, rough)' if far else ''),
                 flush=True)
-            return {'point': seen, 'map': where}
+            # Where it stands now is on the patrol route: the way back to it is the
+            # way the approach will have come (place_held).
+            return {'point': seen, 'map': where, 'stop': link.pose_now()}
     finally:
         if pid is not None and patrol_still_running(host, pid, link):
             stop_patrol(host, pid, link=link)
@@ -1276,14 +1278,20 @@ def fetch_sugarbox(args, sighting, log_dir, n):
     return 'missed_at_box' if code == runner.AT_BOX_EXIT else 'missed'
 
 
-def place_held(args, layout_copy, log_dir, n, new_reader, new_watcher):
+def place_held(args, layout_copy, log_dir, n, new_reader, new_watcher, came_from=None):
     """PLACE: turn toward the box and release over it. Still holding after a
-    failure: look around for the box once and try again from where it shows."""
+    failure: look around for the box once and try again from where it shows.
+
+    `came_from`: the map pose where the patrol stopped before this grasp; with
+    no room to turn, the runner may back all the way there first.
+    """
     argv = ['--target', 'placement', '--real', '--i-am-beside-the-robot'] + stage_options(args)
     if args.wall_m is not None:
         argv += ['--wall-m', str(args.wall_m)]
-    code = run_stage(args.host, argv + [
-        '--turn-to-box', '--box-map', str(layout_copy),
+    turn_argv = ['--turn-to-box', '--box-map', str(layout_copy)]
+    if came_from is not None:
+        turn_argv += ['--came-from', '{:.3f}'.format(came_from[0]), '{:.3f}'.format(came_from[1])]
+    code = run_stage(args.host, argv + turn_argv + [
         '--obs-log', str(log_dir / 'place_{}_obs.jsonl'.format(n))],
         log_dir / 'place_{}.log'.format(n))
     state = arm_state(args.host)
@@ -1402,7 +1410,7 @@ def patrol_mission(args, pc_ip, log_dir, room=None, new_link=VisionLink):
             failures[:] = [p for p in failures if not gone(p)]
             stage = 'PLACE {}'.format(n)
             place_held(args, layout_copy, log_dir, n, new_reader,
-                       lambda: PlacementWatcher(args.homography))
+                       lambda: PlacementWatcher(args.homography), sighting.get('stop'))
             delivered += 1
             print('[MISSION] {} delivered'.format(delivered), flush=True)
             stage = 'BACK_OUT {}'.format(n)

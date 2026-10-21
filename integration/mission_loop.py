@@ -58,6 +58,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from integration import placement_dock as dock
+from integration.relocalize import RelocalizeError, relocalize
 from integration.sugarbox_ground_calibration import (
     inside_calibration_hull, load_ground_calibration, pixel_to_ground, resolve_asset_paths)
 from integration.sugarbox_training_contract import GOAL_ORIGIN_OFFSET_X_M
@@ -1050,11 +1051,13 @@ def preflight(args):
             issues.append('the jaw holds something; release it first')
     except Exception as exc:
         issues.append('robot: ' + str(exc))
-    if not args.no_patrol:
+    if not args.no_patrol and not getattr(args, 'real', False):
+        # A real patrol relocalizes first (main), so only the check needs it now.
         try:
             dock.localization_pose(dock.read_localization(args.host))
         except (ValueError, OSError, subprocess.SubprocessError) as exc:
             issues.append('localization: ' + str(exc))
+    if not args.no_patrol:
         try:
             box = dock.fetch_box(args.host, args.scene)
             if not box['verified']:
@@ -1456,6 +1459,13 @@ def main(argv=None):
         return 3
     if args.no_patrol:
         return grasp_and_place(args, pc_ip, log_dir)
+    # Every patrol mission starts from a fresh seed (the user, 2026-10-21): an old
+    # one may have the symmetric room turned around.
+    try:
+        relocalize(args.host)
+    except (RelocalizeError, OSError, subprocess.SubprocessError) as exc:
+        print('[BLOCKED] relocalization: {}'.format(exc), flush=True)
+        return 2
     return patrol_mission(args, pc_ip, log_dir)
 
 

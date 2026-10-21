@@ -459,6 +459,21 @@ class PatrolTests(unittest.TestCase):
             self.run_patrol([None] * 5, running=lambda host, pid: False, reports=[refused] * 3,
                             make_room=lambda: False)
 
+    def test_a_patrol_that_declines_a_turn_is_started_again_once(self):
+        # 2026-10-21: three legs, then 'turn drift reserve outside mask' at a corner.
+        turn = {'ok': False, 'pulses': 81, 'error': 'turn drift reserve outside mask'}
+        self.assertTrue(mission.patrol_turn_refused(turn))
+        self.assertFalse(mission.patrol_turn_refused({'ok': False, 'error': 'AMCL uncertainty'}))
+        alive = iter([False] + [True] * 30)
+        seen, started, stopped, _ = self.run_patrol(
+            [None] * 5 + [None] * 5 + [(1.0, 0.1)] * 4, running=lambda host, pid: next(alive),
+            reports=[turn], clear_frames=5)
+        # Started once more from there, after five clear frames again.
+        self.assertEqual(len(started), 2)
+        self.assertIsNotNone(seen)
+        with self.assertRaises(mission.MissionError):   # declined again: the mission stops
+            self.run_patrol([None] * 20, running=lambda host, pid: False, reports=[turn] * 3)
+
     def test_a_refusal_means_it_never_moved(self):
         self.assertTrue(mission.patrol_refused(
             {'ok': False, 'pulses': 0, 'error': 'start outside navigation mask'}))

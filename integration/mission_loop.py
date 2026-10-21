@@ -158,6 +158,9 @@ POSE_LOST_S = 8.0
 # Until the Jetson end reports the patrol process, the loop asks over ssh, at
 # most this often (one ssh round trip, ~0.5 s, holds the permit renewals back).
 PATROL_CHECK_S = 1.0
+# A patrol that declines a turn mid-lap (patrol_turn_refused) is started again
+# this many times per lap before the mission stops.
+PATROL_TURN_RESTARTS = 1
 # The Jetson end reports the patrol process every 0.1 s; a report older than this
 # (the link stalled or ended) is not trusted and ssh is asked instead.
 PATROL_REPORT_MAX_AGE_S = 0.5
@@ -431,6 +434,14 @@ def patrol_refused(report):
             and ('navigation mask' in error or 'no reachable entry' in error))
 
 
+def patrol_turn_refused(report):
+    """The patrol drove, then declined a turn whose drift reserve would leave its
+    map mask (2026-10-21, at a corner after three legs). Where it stopped decides
+    that, a few cm either way: a patrol started again plans from there."""
+    error = str(report.get('error') or '')
+    return report.get('ok') is not True and 'turn' in error and 'mask' in error
+
+
 def stream_running(host, pc_ip, port=STREAM_PORT):
     # The [u] keeps pgrep from matching this very command line.
     pattern = '[u]dpsink host={} port={}'.format(pc_ip, port)
@@ -687,6 +698,7 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
     or None after EMPTY_LAPS_TO_END whole laps without one.
     """
     pid, empty_laps, last_stamp, clips, false_stops = None, 0, None, [], 0
+    turn_restarts = 0
     clear, unseen, no_pose_since, checked, unplaced_since = 0, [], None, None, None
     stopped_at, deferred_clear, far_cleared, last_deferred = None, 0, [], None
     wait_first_frame(reader, now, 'no rear camera frames; is the stream reaching this PC?')
@@ -708,12 +720,19 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
                     report, pid, stopped_at = patrol_report(host), None, now()
                     if report.get('ok'):
                         empty_laps += 1
-                        false_stops = 0
+                        false_stops = turn_restarts = 0
                         if empty_laps >= EMPTY_LAPS_TO_END:
                             return None
                     elif patrol_refused(report) and make_room is not None and make_room():
                         print('[PATROL] refused to start here ({}); backed off, asking again'
                               .format(report.get('error')), flush=True)
+                    elif patrol_turn_refused(report) and turn_restarts < PATROL_TURN_RESTARTS:
+                        # The user, 2026-10-21: start it once more from where it
+                        # stopped, after the usual clear frames, before giving up.
+                        turn_restarts += 1
+                        clear = 0
+                        print('[PATROL] stopped before a turn ({}); starting it again from '
+                              'here'.format(report.get('error')), flush=True)
                     else:
                         raise MissionError('patrol stopped: ' + str(report.get('error')))
             frame, last_stamp = fresh_frame(reader, last_stamp, now)

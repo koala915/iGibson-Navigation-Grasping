@@ -47,9 +47,10 @@ BOX_DEPTH_M = 0.135
 RELEASE_CENTER_X_M = 0.28
 # SAM measures the box's nearest bottom edge, so that edge stops half a box short,
 # and PLACEMENT_STOP_BACK_M farther: on 2026-10-21 the robot ran into the box at
-# the half-box stop (the user). The jaw then opens 3.75 cm past the near edge
-# instead of over the middle.
-PLACEMENT_STOP_BACK_M = 0.03
+# the half-box stop, and again 3 cm farther (the user), so 4 cm. The jaw then
+# opens 2.75 cm past the near edge instead of over the middle: about a
+# sugarbox's half width.
+PLACEMENT_STOP_BACK_M = 0.04
 PLACEMENT_FINAL_X_M = round(RELEASE_CENTER_X_M - BOX_DEPTH_M / 2 + PLACEMENT_STOP_BACK_M, 3)
 # The arm's centre line in the rear camera's frame: E1 y = rear y + 0.028 m.
 PLACEMENT_AIM_Y_M = -0.028

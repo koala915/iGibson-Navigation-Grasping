@@ -77,6 +77,9 @@ jobs:
       - name: Explicit relocalization and operator error guidance
         run: python tests/test_relocalize.py
 
+      - name: Loop console (2x2 m final arena) parsing, checks and API gates
+        run: python ui/loop_console/test_loop_console.py
+
       - name: Cross-stage safety and resident protocol contracts
         run: python tests/test_flow_contracts.py
 

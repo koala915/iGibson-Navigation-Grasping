@@ -9,8 +9,8 @@
     place     sugarbox_approach_grasp.py --target placement --turn-to-box: AMCL
               only turns toward the box (its position from ncu's scene layout),
               the camera does the rest
-    back out  straight back BACK_OUT_M: the patrol's map mask keeps 0.28 m around
-              the placement box and refuses to start inside it
+    back out  straight back to a centre with the patrol's turn reserve inside
+              its map mask; verify the actual stopped pose before restarting
 
 The design was settled with the user on 2026-10-19 (docs/planning/
 PATROL_LOOP_DECISIONS_2026-10-19.md). The loop runs until two whole laps find no
@@ -197,15 +197,19 @@ STREAM_STALE_S = 1.5
 PLACED_EXCLUDE_M = 0.35
 BACK_OUT_M = 0.20
 # The patrol refuses to start inside its map mask: back ROOM_STEP_M and ask
-# again, at most ROOM_MAX_M since the last stage (the user, 2026-10-19).
+# again, at most ROOM_MAX_M - BACK_OUT_M more since the last stage (the user,
+# 2026-10-19; two steps since 2026-10-21, when one left a turn-reserve refusal).
 ROOM_STEP_M = 0.10
-ROOM_MAX_M = 0.30
+ROOM_MAX_M = 0.40
 # leave() backs as far as the patrol's own map mask needs, when that is more than
 # asked: 2026-10-21 run 9, the centre came inside it only 48 cm back from the
 # placement box, and 0.20 + 0.10 left the next patrol refusing to start. The
-# centre has to be inside at the stop and MASK_MARGIN_M before it (AMCL ~4 cm);
+# centre and turn reserve must be inside at the stop and MASK_MARGIN_M before it
+# (AMCL ~4 cm);
 # never more than ROOM_EXIT_MAX_M (back_straight's own limit).
 MASK_MARGIN_M = 0.05
+PATROL_TURN_RESERVE_M = 0.06  # g2_map_patrol.Runner.rotation_allowed, 16 samples
+EXIT_CORRECTIONS = 2
 ROOM_EXIT_MAX_M = 0.60
 # Two whole laps with nothing to fetch end the mission (the user, 2026-10-19).
 EMPTY_LAPS_TO_END = 2
@@ -435,10 +439,12 @@ class VisionLink:
 
 def patrol_refused(report):
     """The patrol declined to start where the robot stands (outside its map mask,
-    e.g. next to the placement box) and never moved."""
+    e.g. next to the placement box, or too near its edge to turn toward the
+    route: 2026-10-21 run 19, after a release facing the box) and never moved."""
     error = str(report.get('error') or '')
-    return (report.get('ok') is not True and not report.get('pulses')
-            and ('navigation mask' in error or 'no reachable entry' in error))
+    return (report.get('ok') is not True and not report.get('cleanup_error') and report.get('pulses') == 0
+            and ('navigation mask' in error or 'no reachable entry' in error
+                 or 'cannot enter turn reserve' in error))
 
 
 def patrol_turn_refused(report):
@@ -446,7 +452,8 @@ def patrol_turn_refused(report):
     map mask (2026-10-21, at a corner after three legs). Where it stopped decides
     that, a few cm either way: a patrol started again plans from there."""
     error = str(report.get('error') or '')
-    return report.get('ok') is not True and 'turn' in error and 'mask' in error
+    return (report.get('ok') is not True and not report.get('cleanup_error')
+            and 'turn' in error and 'mask' in error)
 
 
 def stream_running(host, pc_ip, port=STREAM_PORT):
@@ -725,12 +732,15 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
                     alive = patrol_running(host, pid)
                 if alive is False:
                     report, pid, stopped_at = patrol_report(host), None, now()
+                    if report.get('cleanup_error'):
+                        raise MissionError('patrol cleanup failed: ' + str(report['cleanup_error']))
                     if report.get('ok'):
                         empty_laps += 1
                         false_stops = turn_restarts = 0
                         if empty_laps >= EMPTY_LAPS_TO_END:
                             return None
                     elif patrol_refused(report) and make_room is not None and make_room():
+                        clear, stopped_at = 0, now()  # earlier frames predate the recovery move
                         print('[PATROL] refused to start here ({}); backed off, asking again'
                               .format(report.get('error')), flush=True)
                     elif patrol_turn_refused(report) and turn_restarts < PATROL_TURN_RESTARTS:
@@ -999,8 +1009,9 @@ class Room:
     """Straight back-outs so the patrol may start again (the user, 2026-10-19).
 
     leave() after a delivery or a missed grasp backs BACK_OUT_M, or farther, up to
-    ROOM_EXIT_MAX_M, until the centre is inside the patrol's map `mask`. While the
-    patrol still refuses to start, make() backs ROOM_STEP_M more, up to ROOM_MAX_M -
+    ROOM_EXIT_MAX_M, until the centre and turn reserve are inside the map `mask`.
+    The actual stopped pose is verified, with at most two bounded corrections.
+    While the patrol still refuses to start, make() backs ROOM_STEP_M more, up to ROOM_MAX_M -
     BACK_OUT_M more since that stage; the runner checks the way back against the room's walls on
     the map before every step (nothing sees behind the robot). With
     no stage behind it (the mission's start), make() never backs: a robot set
@@ -1015,59 +1026,116 @@ class Room:
 
     def _back(self, metres):
         if self.back is not None:
-            self.back(self.host, metres)
+            travelled = self.back(self.host, metres)
         else:
-            runner.back_straight(self.host, metres, self.walls, obstacles=self.obstacles)
+            prepare_back_out(self.host)
+            travelled = runner.back_straight(self.host, metres, self.walls, obstacles=self.obstacles)
+            if not dock.finite(travelled) or travelled <= 0:
+                raise MissionError('back-out distance is unconfirmed; remaining stopped')
+        return travelled if dock.finite(travelled) and travelled > 0 else metres
+
+    def _pose(self):
+        try:
+            return self.locate(self.host)
+        except (ValueError, OSError, subprocess.SubprocessError) as exc:
+            raise MissionError('cannot verify the patrol exit: {}; remaining stopped'.format(exc)) from exc
 
     def exit_distance(self, metres):
-        """`metres`, or the shortest way back past it that puts the centre inside
-        the mask (see MASK_MARGIN_M); `metres` without a mask or a pose."""
+        """Shortest back-out with centre, turn reserve and margin inside the mask."""
         if self.mask is None or self.locate is None:
             return metres
-        try:
-            pose = self.locate(self.host)
-        except (ValueError, OSError, subprocess.SubprocessError) as exc:
-            print('[MISSION] backing {:.2f} m: no pose to check the patrol mask ({})'.format(
-                metres, exc), flush=True)
-            return metres
+        pose = self._pose()
         back = mask_exit(self.mask, pose, metres)
         if back is None:
-            print('[MISSION] the patrol mask is not within {:.2f} m straight back; backing '
-                  '{:.2f} m'.format(ROOM_EXIT_MAX_M, metres), flush=True)
-            return metres
+            raise MissionError('no patrol exit with turn reserve within {:.2f} m straight back; '
+                               'remaining stopped'.format(ROOM_EXIT_MAX_M))
         if back > metres + 1e-9:
             print('[MISSION] backing {:.2f} m, not {:.2f}: the patrol starts only with the '
-                  'centre inside its map mask'.format(back, metres), flush=True)
+                  'centre and turn reserve inside its map mask'.format(back, metres), flush=True)
         return back
 
     def leave(self, metres=BACK_OUT_M):
         metres = self.exit_distance(metres)
-        self._back(metres)
-        self.backed, self.extra = metres, 0.0
+        self.backed, self.extra = self._back(metres), 0.0
+        self._confirm_exit()
+
+    def _confirm_exit(self, extra=False):
+        if self.mask is None or self.locate is None:
+            return
+        for attempt in range(EXIT_CORRECTIONS + 1):
+            pose = self._pose()
+            if (self.backed > ROOM_EXIT_MAX_M + 1e-9
+                    or (extra and self.extra > ROOM_MAX_M-BACK_OUT_M+1e-9)):
+                raise MissionError('back-out travel exceeded its limit; remaining stopped')
+            if patrol_exit_allowed(self.mask, pose):
+                print('[MISSION] exit verified: centre, turn reserve and 5cm exit margin inside patrol mask', flush=True)
+                return
+            if attempt == EXIT_CORRECTIONS:
+                break
+            remaining = ROOM_EXIT_MAX_M-self.backed
+            if extra:
+                remaining = min(remaining, ROOM_MAX_M-BACK_OUT_M-self.extra)
+            correction = mask_exit(self.mask, pose, 0.01, limit=remaining)
+            if correction is None:
+                break
+            print('[MISSION] actual exit pose still near the mask edge; backing {:.2f} m more'
+                  .format(correction), flush=True)
+            travelled = self._back(correction)
+            self.backed += travelled
+            if extra:
+                self.extra += travelled
+        raise MissionError('patrol exit not confirmed within the back-out limit; remaining stopped')
 
     def make(self):
         if (self.backed is None
-                or self.extra + ROOM_STEP_M > ROOM_MAX_M - BACK_OUT_M + 1e-9):
+                or self.extra + ROOM_STEP_M > ROOM_MAX_M - BACK_OUT_M + 1e-9
+                or self.backed + ROOM_STEP_M > ROOM_EXIT_MAX_M + 1e-9):
             return False
-        self._back(ROOM_STEP_M)
-        self.backed += ROOM_STEP_M
-        self.extra += ROOM_STEP_M
+        metres = ROOM_STEP_M
+        if self.mask is not None and self.locate is not None:
+            remaining = min(ROOM_EXIT_MAX_M-self.backed, ROOM_MAX_M-BACK_OUT_M-self.extra)
+            metres = mask_exit(self.mask, self._pose(), metres, limit=remaining)
+            if metres is None:
+                return False
+        travelled = self._back(metres)
+        self.backed += travelled
+        self.extra += travelled
+        self._confirm_exit(extra=True)
         return True
 
     def reset(self):
         self.backed, self.extra = None, 0.0
 
 
+def patrol_start_allowed(mask, point):
+    """Same centre/16-point 6cm turn reserve as the Jetson patrol admission."""
+    x, y = point
+    return (mask.allowed(x, y) and all(
+        mask.allowed(x + PATROL_TURN_RESERVE_M * math.cos(i * math.pi / 8),
+                     y + PATROL_TURN_RESERVE_M * math.sin(i * math.pi / 8)) for i in range(16)))
+
+
+def patrol_exit_allowed(mask, pose, margin=None):
+    """Require the same turn reserve and forward margin at plan and actual stop."""
+    margin = MASK_MARGIN_M if margin is None else margin
+    x, y, yaw = pose
+    return (patrol_start_allowed(mask, (x, y)) and patrol_start_allowed(mask, (
+        x + margin * math.cos(yaw), y + margin * math.sin(yaw))))
+
+
 def mask_exit(mask, pose, at_least, limit=None, margin=None, step=0.01):
-    """Shortest straight way back, at least `at_least`, that leaves the centre in
-    the mask both there and `margin` short of there; None within `limit`."""
+    """Shortest back-out with centre/turn reserve allowed there and `margin` short.
+
+    The retreat itself may start outside this planning mask. back_straight still
+    checks the physical swept body against walls and the bin before each step.
+    """
     limit = ROOM_EXIT_MAX_M if limit is None else limit
     margin = MASK_MARGIN_M if margin is None else margin
     x, y, yaw = pose
     at = lambda d: (x - d * math.cos(yaw), y - d * math.sin(yaw))
     d = at_least
     while d <= limit + 1e-9:
-        if mask.allowed(*at(d)) and mask.allowed(*at(max(0.0, d - margin))):
+        if patrol_exit_allowed(mask, (*at(d), yaw), margin):
             return round(d, 3)
         d += step
     return None
@@ -1098,6 +1166,25 @@ def unlock(host):
     """ncu's navigation locks the wheels and arm when it ends; the approach needs them."""
     if runner.ctl(host, 'status').get('chassis', {}).get('maintenance') is True:
         runner.service_command(host, 'maintenance-unlock')
+
+
+def prepare_back_out(host):
+    """Patrol cleanup re-locks the owner; admit a retreat only in known idle travel."""
+    status, health = runner.ctl(host, 'status'), runner.ctl(host, 'health')
+
+    def idle(chassis):
+        return (chassis.get('moving') is False and chassis.get('arm_busy') is False
+                and chassis.get('arm_pose') == 'travel' and chassis.get('client') is None
+                and isinstance(chassis.get('maintenance'), bool))
+
+    chassis = status.get('chassis', {})
+    if not idle(chassis) or health.get('holding') is not False:
+        raise MissionError('back-out requires an idle, empty travel robot; remaining stopped')
+    if chassis['maintenance']:
+        result = runner.service_command(host, 'maintenance-unlock')
+        current = runner.ctl(host, 'status').get('chassis', {})
+        if result.get('ok') is not True or not idle(current) or current['maintenance'] is not False:
+            raise MissionError('back-out unlock was not confirmed; remaining stopped')
 
 
 def preflight(args):
@@ -1343,8 +1430,7 @@ def patrol_mission(args, pc_ip, log_dir, room=None, new_link=VisionLink):
             try:
                 mask = dock.fetch_nav_mask(args.host, args.scene)
             except (ValueError, OSError, subprocess.SubprocessError) as exc:
-                print('[WARN] {}: backing out by the fixed distances only'.format(exc))
-                mask = None
+                raise MissionError('cannot plan the patrol exit without its map mask: {}'.format(exc)) from exc
             room = Room(args.host, walls, obstacles=[obstacle] if obstacle else [], mask=mask,
                         locate=lambda host: dock.localization_pose(dock.read_localization(host)))
 

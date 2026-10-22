@@ -1,0 +1,40 @@
+{
+  "same_odom": true,
+  "run19_backed_m": 0.29700000000000004,
+  "cases": [
+    {
+      "basis": "run19",
+      "release_pose_estimated_from_backing": [
+        1.3805268036156417,
+        0.668117190011972,
+        0.7799332543002317
+      ],
+      "planned_back_m": 0.34,
+      "additional_vs_previous_actual_m": 0.043,
+      "endpoint": [
+        1.1388002413317193,
+        0.42901832115978145,
+        0.7799332543002317
+      ],
+      "endpoint_with_margin_ok": true,
+      "back_path_problem": null
+    },
+    {
+      "basis": "run20_relocalized",
+      "release_pose_estimated_from_backing": [
+        1.404659682775708,
+        0.6522772464760864,
+        0.72176373495964
+      ],
+      "planned_back_m": 0.36,
+      "additional_vs_previous_actual_m": 0.063,
+      "endpoint": [
+        1.1344287137588527,
+        0.4144217790505691,
+        0.72176373495964
+      ],
+      "endpoint_with_margin_ok": true,
+      "back_path_problem": null
+    }
+  ]
+}

@@ -460,6 +460,21 @@ class PatrolTests(unittest.TestCase):
             self.run_patrol([None] * 5, running=lambda host, pid: False, reports=[refused] * 3,
                             make_room=lambda: False)
 
+    def test_turn_reserve_refusal_backs_before_requesting_patrol_again(self):
+        alive = iter([False]+[True]*30)
+        order = []
+        def recover():
+            order.append(('back',len(self.started)))
+            return True
+        seen,started,_,_ = self.run_patrol(
+            [None,None,(1.,.1)]+[(1.,.1)]*3,
+            running=lambda h,p:next(alive),
+            reports=[{'ok':False,'pulses':0,'error':'cannot enter turn reserve'}],
+            make_room=recover)
+        self.assertIsNotNone(seen)
+        self.assertEqual(order,[('back',1)])  # only the first request exists when backing starts
+        self.assertEqual(len(started),2)
+
     def test_a_patrol_that_declines_a_turn_is_started_again_once(self):
         # 2026-10-21: three legs, then 'turn drift reserve outside mask' at a corner.
         turn = {'ok': False, 'pulses': 81, 'error': 'turn drift reserve outside mask'}
@@ -482,6 +497,42 @@ class PatrolTests(unittest.TestCase):
             {'ok': False, 'pulses': 3, 'error': 'start outside navigation mask'}))
         self.assertFalse(mission.patrol_refused({'ok': False, 'pulses': 0, 'error': 'AMCL'}))
         self.assertFalse(mission.patrol_refused({'ok': True}))
+
+    def test_a_patrol_cleanup_fault_never_triggers_a_back_or_restart(self):
+        report = {'ok': False, 'pulses': 0, 'error': 'cannot enter turn reserve',
+                  'cleanup_error': 'maintenance lock timeout'}
+        self.assertFalse(mission.patrol_refused(report))
+        self.assertFalse(mission.patrol_turn_refused(dict(report, error='turn drift reserve outside mask')))
+        recover = Mock(return_value=True)
+        with self.assertRaisesRegex(mission.MissionError, 'cleanup failed'):
+            self.run_patrol([None]*6, running=lambda h,p: False, reports=[report], make_room=recover)
+        recover.assert_not_called()
+
+    def test_after_a_back_out_patrol_waits_for_new_clear_frames(self):
+        recovered, seen_after, started_after = [False], [], []
+
+        class Watch(FakeWatcher):
+            def look(self, frame):
+                if recovered[0]:
+                    seen_after.append(1)
+                return super().look(frame)
+
+        class ObservedLink(FakeLink):
+            def watch(self, pid):
+                if recovered[0]:
+                    started_after.append(len(seen_after))
+                super().watch(pid)
+
+        def recover():
+            recovered[0] = True
+            return True
+
+        running = iter([False] + [True]*100)
+        self.run_patrol(clear_frames=5, watcher=Watch([None]*11+[(1, .1)]*4),
+                        link=ObservedLink(running=lambda host, pid: next(running)),
+                        reports=[{'ok': False, 'pulses': 0, 'error': 'cannot enter turn reserve'}],
+                        make_room=recover)
+        self.assertGreaterEqual(started_after[0], 5)
 
     def test_no_frames_never_starts_the_patrol(self):
         with patch.object(mission, 'start_patrol') as starting, \
@@ -594,6 +645,71 @@ class StopPatrolTests(unittest.TestCase):
 
 
 class RoomTests(unittest.TestCase):
+    def test_back_out_refuses_unknown_or_busy_service_and_unconfirmed_unlock(self):
+        idle = {'chassis': {'moving': False, 'arm_busy': False, 'arm_pose': 'travel',
+                            'maintenance': True, 'client': None}}
+        for holding, change in ((True, {}), (False, {'moving': True}),
+                                (False, {'arm_busy': True}), (False, {'arm_pose': 'e1'}),
+                                (False, {'client': 'other client'}), (False, {'maintenance': None})):
+            status = {'chassis': dict(idle['chassis'], **change)}
+            with patch.object(mission.runner, 'ctl', side_effect=lambda h,c: (
+                    {'holding': holding} if c == 'health' else status)), \
+                 patch.object(mission.runner, 'service_command') as unlock:
+                with self.assertRaises(mission.MissionError):
+                    mission.prepare_back_out('host')
+                unlock.assert_not_called()
+        with patch.object(mission.runner, 'ctl', side_effect=lambda h,c: (
+                {'holding': False} if c == 'health' else idle)), \
+             patch.object(mission.runner, 'service_command', return_value={'ok': True}):
+            with self.assertRaisesRegex(mission.MissionError, 'unlock was not confirmed'):
+                mission.prepare_back_out('host')
+
+    def test_retry_exit_is_replanned_and_verified_after_actual_motion(self):
+        class Band:
+            def allowed(self, x, y):
+                return x <= .60
+        position, moves = [.70], []
+
+        def back(host, metres):
+            moves.append(metres)
+            position[0] -= metres
+            return metres
+        room = mission.Room('host', mask=Band(), locate=lambda h: (position[0],0,0), back=back)
+        room.backed = .20
+        with patch('builtins.print'):
+            self.assertFalse(room.make())  # requires .21 m; retry budget is only .20 m
+            self.assertEqual(moves, [])
+            position[0] = .65
+            self.assertTrue(room.make())
+        self.assertGreaterEqual(moves[0], .16-1e-9)
+        self.assertTrue(mission.patrol_start_allowed(Band(), (position[0],0)))
+
+    def test_hardware_recovery_unlocks_only_an_idle_empty_travel_robot(self):
+        locked, commands = [True], []
+
+        def read(host, command):
+            return {'holding': False} if command == 'health' else {'chassis': {
+                'moving': False, 'arm_busy': False, 'arm_pose': 'travel',
+                'maintenance': locked[0], 'client': None}}
+
+        def service(host, command):
+            commands.append(command)
+            locked[0] = False
+            return {'ok': True}
+
+        def back(*args, **kwargs):
+            if locked[0]:
+                raise RuntimeError('maintenance still locked')
+            return .10
+
+        room = mission.Room('host', walls=[(-1,-1),(1,-1),(1,1),(-1,1)])
+        room.backed = .20
+        with patch.object(mission.runner, 'ctl', side_effect=read), \
+             patch.object(mission.runner, 'service_command', side_effect=service), \
+             patch.object(mission.runner, 'back_straight', side_effect=back):
+            self.assertTrue(room.make())
+        self.assertEqual(commands, ['maintenance-unlock'])
+
     def test_leaving_backs_until_the_centre_is_inside_the_patrol_mask(self):
         # 2026-10-21 run 9: from the release spot the mask began 48 cm back.
         class Band:                                   # allowed for x <= 0.52
@@ -601,24 +717,112 @@ class RoomTests(unittest.TestCase):
                 return x <= 0.52
         backs = []
 
-        def room(locate):
-            return mission.Room('host', back=lambda host, m: backs.append(round(m, 3)),
-                                mask=Band(), locate=locate)
+        def room(x):
+            position = [x]
+
+            def back(host, metres):
+                backs.append(round(metres, 3))
+                position[0] -= metres
+                return metres
+            return mission.Room('host', back=back, mask=Band(),
+                                locate=lambda host: (position[0], 0.0, 0.0))
         with patch('builtins.print'):
-            far = room(lambda host: (1.0, 0.0, 0.0))
+            far = room(1.0)
             far.leave()
-            self.assertEqual(backs, [0.53])           # 0.48 in, plus the 5 cm margin
-            self.assertTrue(far.make())               # and one more step if still refused
+            self.assertEqual(backs, [0.59])           # 0.48 + 6 cm turn reserve + 5 cm margin
             self.assertFalse(far.make())
-            room(lambda host: (0.40, 0.0, 0.0)).leave()
+            self.assertEqual(backs, [0.59])           # no extra 10 cm beyond total 60 cm
+            room(0.40).leave()
             self.assertEqual(backs[-1], 0.20)         # already inside: the usual 0.20 m
-            room(lambda host: (2.0, 0.0, 0.0)).leave()
-            self.assertEqual(backs[-1], 0.20)         # out of reach within 0.60 m
+            with self.assertRaises(mission.MissionError):
+                room(2.0).leave()                    # no exit: no fixed-distance gamble
+            self.assertEqual(backs, [0.59, 0.20])
 
             def lost(host):
                 raise ValueError('not localized')
-            room(lost).leave()
-            self.assertEqual(backs[-1], 0.20)         # no pose: as before
+            with self.assertRaises(mission.MissionError):
+                mission.Room('host', back=lambda host, m: backs.append(m), mask=Band(),
+                             locate=lost).leave()
+            self.assertEqual(backs, [0.59, 0.20])     # no pose: no backing
+
+    def test_actual_exit_is_checked_and_an_undershoot_is_corrected(self):
+        class Band:
+            def allowed(self, x, y):
+                return x <= .60
+        position, moves = [.8], []
+
+        def back(host, metres):
+            # The first back-out undershoots by 8 cm; then drive as requested.
+            actual = metres-.08 if not moves else metres
+            moves.append((metres, actual))
+            position[0] -= actual
+            return actual
+
+        room = mission.Room('host', mask=Band(), back=back,
+                            locate=lambda host: (position[0], 0, 0))
+        with patch('builtins.print'):
+            room.leave()
+        self.assertEqual(len(moves), 2)
+        self.assertAlmostEqual(moves[0][0], .31)
+        self.assertGreaterEqual(moves[1][0], .08-1e-9)
+        self.assertLessEqual(moves[1][0], .09+1e-9)   # one grid-search step for rounding
+        self.assertAlmostEqual(room.backed, sum(actual for _, actual in moves))
+        self.assertTrue(mission.patrol_start_allowed(Band(), (position[0], 0)))
+
+    def test_an_actual_pose_still_outside_never_gets_infinite_corrections(self):
+        class Band:
+            def allowed(self, x, y):
+                return x <= .60
+        calls = []
+        # Stuck or inconsistent map pose: never claim the exit is confirmed.
+        poses = iter([(.8, 0, 0)] + [(.55, 0, 0)]*4)
+        room = mission.Room('host', mask=Band(), locate=lambda host: next(poses),
+                            back=lambda host, m: calls.append(m) or m)
+        with patch('builtins.print'), self.assertRaises(mission.MissionError):
+            room.leave()
+        self.assertEqual(len(calls), 1 + mission.EXIT_CORRECTIONS)
+        self.assertLessEqual(room.backed, mission.ROOM_EXIT_MAX_M)
+
+    def test_exit_undershoot_does_not_discard_the_planned_five_cm_margin(self):
+        class Band:
+            def allowed(self, x, y):
+                return x <= .60
+        position, moves = [.80], []
+
+        def back(host, metres):
+            actual = metres-.03 if not moves else metres
+            position[0] -= actual
+            moves.append((metres, actual))
+            return actual
+
+        room = mission.Room('host', mask=Band(), back=back,
+                            locate=lambda host: (position[0],0,0))
+        with patch('builtins.print'):
+            room.leave()
+        # Bare turn clearance would accept x=.52 after the first move, even
+        # though the planned stop was x=.49. Keep the promised 5cm margin.
+        self.assertEqual(len(moves), 2)
+        self.assertTrue(mission.patrol_start_allowed(Band(), (position[0]+.05,0)))
+
+    def test_pose_loss_after_backing_does_not_trigger_another_move(self):
+        class AllFree:
+            def allowed(self, x, y):
+                return True
+        poses = Mock(side_effect=[(0, 0, 0), ValueError('localization lost')])
+        back = Mock(return_value=.20)
+        room = mission.Room('host', mask=AllFree(), locate=poses, back=back)
+        with self.assertRaises(mission.MissionError):
+            room.leave()
+        back.assert_called_once_with('host', .20)
+
+    def test_exit_path_still_passes_walls_and_bin_to_the_motion_guard(self):
+        walls, obstacle = [(-1, -1), (1, -1), (1, 1), (-1, 1)], (1, 0, .31)
+        room = mission.Room('host', walls=walls, obstacles=[obstacle])
+        with patch.object(mission, 'prepare_back_out'), \
+             patch.object(mission.runner, 'back_straight', side_effect=RuntimeError('box blocks retreat')) as back:
+            with self.assertRaisesRegex(RuntimeError, 'box blocks'):
+                room.leave()
+        back.assert_called_once_with('host', .20, walls, obstacles=[obstacle])
 
     def test_backs_out_then_a_step_more_up_to_the_limit(self):
         backs = []
@@ -626,10 +830,28 @@ class RoomTests(unittest.TestCase):
         self.assertFalse(room.make())                 # the start: back into the field by hand
         room.leave()
         self.assertTrue(room.make())
-        self.assertFalse(room.make())                 # 0.20 + 0.10 = 0.30 m in all
-        self.assertEqual(backs, [0.2, 0.1])
+        self.assertTrue(room.make())
+        self.assertFalse(room.make())                 # 0.20 + 2 x 0.10 = 0.40 m in all
+        self.assertEqual(backs, [0.2, 0.1, 0.1])
+        self.assertAlmostEqual(room.extra,.20)
         room.reset()
         self.assertFalse(room.make())
+
+
+class ExitGeometryTests(unittest.TestCase):
+    def test_side_clearance_that_backing_cannot_fix_is_rejected(self):
+        class Narrow:
+            def allowed(self, x, y):
+                return abs(y) <= .03
+        self.assertTrue(Narrow().allowed(0, 0))
+        self.assertIsNone(mission.mask_exit(Narrow(), (0, 0, 0), .2))
+
+    def test_diagonal_reserve_samples_match_patrol_not_just_four_axes(self):
+        class Hole:
+            def allowed(self, x, y):
+                px, py = .06*math.cos(math.pi/8), .06*math.sin(math.pi/8)
+                return math.hypot(x-px, y-py) > .001
+        self.assertFalse(mission.patrol_start_allowed(Hole(), (0, 0)))
 
 
 class StateTests(unittest.TestCase):

@@ -1,0 +1,19 @@
+{
+  "free_connected_components_4_neighbors": 1,
+  "allowed_cells": 3262,
+  "turn_ready_cell_centres": 2578,
+  "turn_ready_components": [
+    1
+  ],
+  "patrol_route_components": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "conclusion": "all legal centre cells and all route goals share one 4-connected component; no disconnected exit island in current static mask",
+  "scope": "offline static map only; dynamic obstacles and localization still checked at runtime"
+}

@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "dictionary": "DICT_4X4_50",
+  "registration_verified": true,
+  "registration_id": "coarse_wall_layout_20261021_v3",
+  "map_hash": "2274a1c2b4775645633fee7ac1dc4b730cdba773381bd89e241a098ab267ed7f",
+  "source": "Installation-plan approximate map coordinates, supported by decoded patrol images for all eight IDs and coarse map-bearing checks; bounded disambiguation only, not a metric marker survey.",
+  "camera": {
+    "camera_id": "rear-sonix-640x480",
+    "orientation_verified": true,
+    "fov_bound_verified": true,
+    "image_mirrored": false,
+    "yaw_rad": 0.0,
+    "yaw_uncertainty_deg": 10.0,
+    "offset_xy_m": [
+      0.0,
+      0.0
+    ],
+    "offset_uncertainty_m": 0.2,
+    "horizontal_fov_bound_deg": 100.0
+  },
+  "markers": {
+    "0": {
+      "point_map": [
+        1.742910610246717,
+        0.5395536273098955
+      ],
+      "normal_yaw_rad": 2.691787063207559,
+      "position_uncertainty_m": 0.2
+    },
+    "1": {
+      "point_map": [
+        -0.4732119273822012,
+        0.4990763828775038
+      ],
+      "normal_yaw_rad": -0.44980559038223444,
+      "position_uncertainty_m": 0.2
+    },
+    "2": {
+      "point_map": [
+        1.3081201399311535,
+        -0.36097801950923253
+      ],
+      "normal_yaw_rad": 2.691787063207559,
+      "position_uncertainty_m": 0.2
+    },
+    "3": {
+      "point_map": [
+        1.5100400219949346,
+        1.2072146858772417
+      ],
+      "normal_yaw_rad": -2.020601917177131,
+      "position_uncertainty_m": 0.2
+    },
+    "4": {
+      "point_map": [
+        0.6095083751758066,
+        1.6420051561928053
+      ],
+      "normal_yaw_rad": -2.020601917177131,
+      "position_uncertainty_m": 0.2
+    },
+    "5": {
+      "point_map": [
+        -0.03842145706663758,
+        1.3996080296966318
+      ],
+      "normal_yaw_rad": -0.44980559038223444,
+      "position_uncertainty_m": 0.2
+    },
+    "6": {
+      "point_map": [
+        -0.24999465507251356,
+        -0.18857848212329614
+      ],
+      "normal_yaw_rad": 1.1209907364126621,
+      "position_uncertainty_m": 0.2
+    },
+    "7": {
+      "point_map": [
+        0.6505369917466146,
+        -0.6233689524388597
+      ],
+      "normal_yaw_rad": 1.1209907364126621,
+      "position_uncertainty_m": 0.2
+    }
+  },
+  "verification_scope": "Partial coarse wall IDs only. Current three source frames decode C-wall ID1 left and ID5 right after bounded observation turn; consistent with prior 8-marker installation plan and historical patrol images. A0/A2 and D7 retained. Nominal positions retain +/-20cm uncertainty; not a metric survey.",
+  "verification_evidence": {
+    "review": "docs/calibration/live_2026-10-21/registry_v3_historical_review.json",
+    "historical_images": "docs/calibration/aruco_patrol_2026-10-18/",
+    "minimum_decoded_frames_per_id": 3,
+    "metric_survey_verified": false,
+    "position_uncertainty_m": 0.2,
+    "wall_id_order": {
+      "A": [
+        0,
+        2
+      ],
+      "B": [
+        3,
+        4
+      ],
+      "C": [
+        5,
+        1
+      ],
+      "D": [
+        6,
+        7
+      ]
+    }
+  }
+}

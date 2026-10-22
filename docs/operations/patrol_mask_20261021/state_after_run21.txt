@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\docs\operations\patrol_mask_20261021\read_start_state.py", line 33, in <module>
+    result=subprocess.run(['ssh','-o','BatchMode=yes','-o','ConnectTimeout=8',
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'jetson@10.53.253.252', 'python3 -']' returned non-zero exit status 255.

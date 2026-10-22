@@ -438,7 +438,10 @@ def back_straight(host, metres, walls, speed=0.08, localize=dock.read_localizati
             raise RuntimeError(problem + '; not backing')
         step = min(left, BACK_STEP_M)
         travelled = drive(host, -step, limit=BACK_STEP_M, speed=speed)
-        left -= travelled if isinstance(travelled, (int, float)) and travelled > 0 else step
+        if not dock.finite(travelled) or travelled <= 0:
+            raise RuntimeError('reverse distance is unconfirmed; remaining stopped')
+        left -= travelled
+    return metres - left  # include measured coast/undershoot in the caller's travel budget
 
 
 def settle(host, read, send_stop, sleep, now):
@@ -612,8 +615,12 @@ def face_box(host, box, localize=dock.read_localization, rotate=turn, back=None,
                                                     ' after backing {:.2f} m'.format(backed)))
             print('[FACE] no room to turn: back {:.2f} m the way the robot came'.format(
                 step), flush=True)
-            back(host, step)
-            backed += step
+            travelled = back(host, step)
+            if not dock.finite(travelled) or travelled <= 0:
+                raise RuntimeError('placement back-off distance is unconfirmed; remaining stopped')
+            backed += travelled
+            if backed > back_max + 1e-9:
+                raise RuntimeError('placement back-off exceeded its travel limit; remaining stopped')
             continue
         turn_if_clear(host, bearing, rotate=rotate, record=record)
         turns += 1
@@ -1033,8 +1040,8 @@ def main(argv=None):
             obstacle = dock.bin_obstacle(box)
 
             def back(host, metres, speed=0.08, margin=dock.BACK_WALL_MARGIN_M):
-                back_straight(host, metres, walls, speed=speed, margin=margin,
-                              obstacles=[obstacle] if obstacle else [])
+                return back_straight(host, metres, walls, speed=speed, margin=margin,
+                                     obstacles=[obstacle] if obstacle else [])
             face_back, face_max = back, FACE_BACKOFF_MAX_M
             if args.came_from is not None:
                 try:
@@ -1045,9 +1052,9 @@ def main(argv=None):
                 if retrace is not None:
                     core = dock.bin_obstacle(dict(box, verified=True))
 
-                    def face_back(host, metres):
-                        back_straight(host, metres, walls, obstacles=[core] if core else [])
-                    face_max = min(retrace, FACE_RETRACE_MAX_M)
+                    def retraced_back(host, metres):
+                        return back_straight(host, metres, walls, obstacles=[core] if core else [])
+                    face_back, face_max = retraced_back, min(retrace, FACE_RETRACE_MAX_M)
                     print('[FACE] where the patrol stopped is {:.2f} m straight back: the way '
                           'back there is clear'.format(retrace), flush=True)
             pose = face_box(args.host, box, back=face_back, back_max=face_max)

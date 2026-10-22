@@ -131,17 +131,20 @@ def seed(host, batch):
     return report
 
 
-def explain(report):
+def explain(report, seen=None):
+    """What went wrong and what to do; `seen`: the marker IDs the capture found
+    (the corner seed reports its own only when it localizes)."""
     status = report.get('status')
     reason = report.get('reason') or ''
-    markers = report.get('stable_marker_ids')
+    markers = report.get('stable_marker_ids') or seen
     if status == 'AMBIGUOUS':
-        return ('AMBIGUOUS: markers {} fit more than one place in the room (ID 0 sits on '
-                'both symmetric walls). Turn the robot by hand until the rear camera sees '
-                'another marker, then start again'.format(markers))
+        return ('AMBIGUOUS: markers {} fit more than one place in the room (the walls are '
+                'symmetric). Turn or move the robot by hand until the rear camera sees '
+                'another marker as well (two markers together), then start again'.format(markers))
     if status == 'NO_MATCH':
-        return ('NO_MATCH: no wall hypothesis agrees with markers {}; check that the rear '
-                'camera sees a marker and the walls are as mapped'.format(markers))
+        return ('NO_MATCH: no wall hypothesis agrees with markers {}; keep people and '
+                'objects away from the robot and use a view with verified markers '
+                '(2 and 7 from the start corner)'.format(markers))
     return '{}: {}'.format(status, reason)
 
 
@@ -177,12 +180,12 @@ def relocalize(host, log=print):
     started = time.monotonic()
     free_rear_camera(host)
     registration = registration_id(host)
-    batch, _ = capture(host, registration, log)
+    batch, captured = capture(host, registration, log)
     log('[RELOC] matching the walls on the robot (~40 s)')
     match(host)
     report = seed(host, batch)
     if report.get('status') != 'LOCALIZED' or report.get('seed_written') is not True:
-        raise RelocalizeError(explain(report))
+        raise RelocalizeError(explain(report, captured.get('ids')))
     seeded = (report.get('seed') or {}).get('pose') or report.get('pose')
     if not (isinstance(seeded, list) and len(seeded) == 3
             and all(isinstance(v, (int, float)) and math.isfinite(v) for v in seeded)):

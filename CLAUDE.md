@@ -139,6 +139,29 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 
 總控各階段（含投放重試、`--resume-at place`）共用同一份 `--homography`／`--gstreamer`，動作前走原有 maintenance 解鎖，服務拒絕時仍停止。巡航候選以影像可能拍攝的 0.30 s 內位姿歷史放上地圖（`VisionLink.frame_pose`），排除牆邊／已投放物前先扣掉移動與轉向造成的誤差；這是串流延遲上限 0.30 s 的假設，尚非來源時間同步。常駐 ssh 指令通道只在無回覆／回覆不符時關閉，服務拒絕或夾取未確認仍可續讀狀態。總控與接近端預檢要求車上 ncu G2 v23 的獨立 health、service PID、holding、chassis TCP readiness 與 maintenance 欄位；本 repo 舊的 arm-only service 不可整份覆蓋車上服務。`graspctl health` 使用 `/tmp/grasp_health.sock`，`release-preview` 由相容服務執行。離線修正與驗證見 `docs/operations/flow_fixes_2026-10-20/CHANGELOG.md`。
 
+**2026-10-21 巡航禁航區調整（使用者要求，已更新車上，待實車續巡驗證）**：
+`maps/demo_box_20261018_patrol/` 的牆面／原始地圖障礙預留從 0.40 改成 **0.35 m**；
+新增可用格採整個格子保守檢查，unknown 仍禁止，放置盒量測包絡與 0.283238 m 緩衝維持。
+`integration/g2_patrol_policy.py` 從車上現行版納入 repo，低於舊 0.40 m 時要求縮減紀錄、
+遮罩 SHA256 與幾何欄位相符，低於 0.35 m 拒絕。車上 `g2_map_patrol.py` 的 0.06 m
+轉彎外圈、煞停預測、定位與辨識許可閘維持。`integration/rebuild_patrol_mask.py` 只在本機
+產生候選，不連車。第 19 趟停車位置重播通過；備份、測試與回復方式見
+`docs/operations/patrol_mask_20261021/CHANGELOG.md`。AMCL 仍使用原始 `demo_box.pgm`。
+
+**投放後退出條件（2026-10-21，離線回歸，尚未實車驗證）**：總控 `mask_exit` 同時檢查
+中心及與車上巡航一致的 16 點／6 cm 轉彎外圈，另留原有沿退路 5 cm 餘量。後退後用新
+定位確認；不足時重新計算短距離，最多補退兩次，總距離以里程實際行進量計入 0.60 m
+預算。缺遮罩、定位失效或範圍內無出口時停止；每一步仍由 `back_straight` 檢查完整車身
+與牆／放置盒，不放寬禁航區。見 `docs/operations/patrol_mask_20261021/EXIT_FIX.md`。
+第20趟確認仍停在第19趟投放後終點後，再統一規劃與實際驗收：兩者均呼叫
+`patrol_exit_allowed`，保留轉彎外圈及沿退路5cm餘量；實際少退但勉強能轉時也不可提早
+結束退出。放置後起點反推／重新定位回放見 `docs/operations/patrol_mask_20261021/RUN20.md`。
+
+同日複查：所有真實退出後退先確認空手、travel、停止、無其他 client，若巡航清理已
+鎖住底盤則經服務解鎖並讀回確認。`Room.make` 也共用退出規劃與停車定位複查；補退後
+清空辨識確認計數。巡航 `cleanup_error` 不自動恢復。後退里程無效即停止，轉向放置盒
+前的後退也以實際里程計算上限。細節見 `docs/operations/patrol_mask_20261021/AUDIT.md`。
+
 **2026-10-20 等待時間優化（離線通過，尚未上車）**：`mission_loop.py` 預設使用
 `mission_runtime.py`：任務開始時預檢並暖機一次，後相機只開一個接收器，YOLO／SAM2／PPO
 保留在同一個背景程序；巡航辨識、接近、投放沿用模型。各段仍重新建立引擎模組、目標、

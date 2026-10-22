@@ -71,6 +71,12 @@ jobs:
       - name: Patrol, grasp and placement mission loop
         run: python tests/test_mission_loop.py
 
+      - name: Patrol mask geometry and run 19 turn-reserve replay
+        run: python tests/test_patrol_mask_reduction.py
+
+      - name: Explicit relocalization and operator error guidance
+        run: python tests/test_relocalize.py
+
       - name: Cross-stage safety and resident protocol contracts
         run: python tests/test_flow_contracts.py
 

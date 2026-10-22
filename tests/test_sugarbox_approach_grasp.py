@@ -6,7 +6,7 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location('runner', Path(__file__).resolve().parents[1] /
                                         'integration/sugarbox_approach_grasp.py')
@@ -820,7 +820,7 @@ class PlacementTests(unittest.TestCase):
             'host', {'x': 0.0, 'y': 1.0},
             localize=lambda host: {'ready': True, 'age': 0.1, 'state': {
                 'pose': list(next(poses)), 'turn_clear': next(clear)}},
-            rotate=lambda host, r: turns.append(r), back=lambda host, m: backs.append(m))
+            rotate=lambda host, r: turns.append(r), back=lambda host, m: backs.append(m) or m)
         self.assertEqual(backs, [0.10, 0.10])
         self.assertEqual(len(turns), 1)
         self.assertEqual(pose, (0, 0, 1.5))
@@ -829,7 +829,7 @@ class PlacementTests(unittest.TestCase):
             runner.face_box('host', {'x': 0.0, 'y': 1.0},
                             localize=self.localize([(0, 0, 0)] * 5, turn_clear=False),
                             rotate=lambda host, r: turns.append(r),
-                            back=lambda host, m: backs.append(m))
+                            back=lambda host, m: backs.append(m) or m)
         self.assertEqual(backs, [0.10] * 3)             # 0.30 m in all, then stop
 
     def test_no_room_to_turn_may_back_all_the_way_to_where_the_patrol_stopped(self):
@@ -840,13 +840,24 @@ class PlacementTests(unittest.TestCase):
             runner.face_box('host', {'x': 0.0, 'y': 1.0},
                             localize=self.localize([(0, 0, 0)] * 9, turn_clear=False),
                             rotate=lambda host, r: None,
-                            back=lambda host, m: backs.append(round(m, 3)), back_max=0.42)
+                            back=lambda host, m: backs.append(round(m, 3)) or m, back_max=0.42)
         self.assertEqual(backs, [0.10, 0.10, 0.10, 0.10])   # the last 2 cm not worth a step
         # The spot is straight behind: its distance; aside or ahead: not a retrace.
         self.assertAlmostEqual(runner.dock.retrace_room((1.0, 0.0, 0.0), (0.55, 0.05)), 0.45)
         self.assertIsNone(runner.dock.retrace_room((1.0, 0.0, 0.0), (0.55, 0.40)))
         self.assertIsNone(runner.dock.retrace_room((1.0, 0.0, 0.0), (1.30, 0.0)))
         self.assertIsNone(runner.dock.retrace_room(None, (0.55, 0.0)))
+
+    def test_placement_turn_back_off_counts_coast_against_its_limit(self):
+        moves = []
+        def back(host, metres):
+            moves.append(metres)
+            return .15  # asked for 10cm, actually travelled 15cm
+        with patch('builtins.print'), self.assertRaises(RuntimeError):
+            runner.face_box('host', {'x': 0., 'y': 1.},
+                            localize=self.localize([(0,0,0)]*6, turn_clear=False),
+                            rotate=Mock(), back=back, back_max=.30)
+        self.assertEqual(moves, [.10, .10])
 
     def test_came_from_lets_the_back_off_pass_the_unverified_box_slack(self):
         box = {'x': 0.30, 'y': -1.20, 'verified': False}     # behind-right, as in run 14
@@ -867,7 +878,7 @@ class PlacementTests(unittest.TestCase):
         # body): the AMCL pose and the room's walls decide.
         moves, poses = [], iter([(1.0, 1.0, 0.0), (0.8, 1.0, 0.0)])
         localize = lambda host: {'ready': True, 'age': 0.1, 'state': {'pose': list(next(poses))}}
-        drive = lambda host, m, limit, speed: moves.append((round(m, 3), limit, speed))
+        drive = lambda host, m, limit, speed: (moves.append((round(m, 3), limit, speed)) or abs(m))
         runner.back_straight('host', 0.40, ROOM, speed=0.06, localize=localize, drive=drive)
         self.assertEqual(moves, [(-0.2, 0.2, 0.06), (-0.2, 0.2, 0.06)])
         moves.clear()
@@ -901,12 +912,21 @@ class PlacementTests(unittest.TestCase):
             def drive(host, m, limit, speed):
                 moves.append(round(m, 3))
                 return next(went)
-            runner.back_straight('host', metres, ROOM, localize=pose, drive=drive)
+            actual = runner.back_straight('host', metres, ROOM, localize=pose, drive=drive)
+            self.assertAlmostEqual(actual, sum(travelled[:len(moves)]))
             return moves
         self.assertEqual(run(0.21, [0.24]), [-0.2])                 # went far enough
         self.assertEqual(run(0.21, [0.19]), [-0.2])                 # 2 cm short: left
         self.assertEqual(run(0.40, [0.15, 0.20, 0.06]), [-0.2, -0.2, -0.05])   # short: made up
         self.assertEqual(run(0.02, [0.02]), [-0.02])                # a small ask still goes
+
+    def test_unknown_backing_distance_is_not_counted_as_the_requested_distance(self):
+        pose = lambda host: {'ready': True, 'age': .1, 'state': {'pose': [1.,1.,0.]}}
+        for bad in (None, 0, -.1, float('nan'), float('inf'), True):
+            drive = Mock(return_value=bad)
+            with self.subTest(bad=bad), self.assertRaisesRegex(RuntimeError, 'distance'):
+                runner.back_straight('host', .4, ROOM, localize=pose, drive=drive)
+            self.assertEqual(drive.call_count, 1)
 
     def test_placement_needs_a_held_object_and_an_unlocked_service(self):
         for change in ('empty', 'locked'):

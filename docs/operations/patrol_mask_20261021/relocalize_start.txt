@@ -1,0 +1,3 @@
+[RELOC] captured: markers [3]
+[RELOC] matching the walls on the robot (~40 s)
+[RELOC] localized at map (1.18, 0.48), heading 42 deg, from markers [3] (53 s)

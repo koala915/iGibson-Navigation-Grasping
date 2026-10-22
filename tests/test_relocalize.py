@@ -1,6 +1,5 @@
-"""Relocalization before every patrol mission (integration/relocalize.py), no robot."""
+"""Explicitly requested relocalization (integration/relocalize.py), no robot."""
 import json
-import math
 import subprocess
 import sys
 import unittest
@@ -19,9 +18,10 @@ LOCALIZED = {'ok': True, 'localized': True, 'seed_written': True, 'status': 'LOC
 class FakeRobot:
     """Answers the ssh commands relocalize() sends, in order of need."""
 
-    def __init__(self, captures=(True,), seed_report=LOCALIZED, camera_busy=0):
+    def __init__(self, captures=(True,), seed_report=LOCALIZED, camera_busy=0, capture_ids=(2,)):
         self.captures, self.seed_report = list(captures), seed_report
         self.camera_busy, self.commands = camera_busy, []
+        self.capture_ids = list(capture_ids)
 
     def __call__(self, host, command, timeout):
         self.commands.append(command)
@@ -35,7 +35,7 @@ class FakeRobot:
             out = json.dumps({'registration_id': 'coarse_wall_layout_20261021_v3'})
         elif 'g2_corner_camera_capture.py' in command:
             ok = self.captures.pop(0)
-            out = json.dumps({'ok': True, 'ids': [2]}) if ok else ''
+            out = json.dumps({'ok': True, 'ids': self.capture_ids}) if ok else ''
             code = 0 if ok else 1
         elif 'g2_scan_match.py' in command:
             code = 0
@@ -82,6 +82,26 @@ class RelocalizeTests(unittest.TestCase):
             self.run_reloc(FakeRobot(seed_report=report))
         self.assertIn('AMBIGUOUS', str(raised.exception))
         self.assertIn('another marker', str(raised.exception))
+        self.assertIn('two markers together', str(raised.exception))
+        self.assertIn('markers [0]', str(raised.exception))
+
+    def test_failed_seed_report_uses_ids_seen_by_camera_when_ids_are_missing(self):
+        for status in ('AMBIGUOUS', 'NO_MATCH'):
+            report = {'ok': False, 'status': status, 'seed_written': False}
+            with self.subTest(status=status), self.assertRaises(reloc.RelocalizeError) as raised:
+                self.run_reloc(FakeRobot(seed_report=report, capture_ids=(5,)))
+            message = str(raised.exception)
+            self.assertIn(status, message)
+            self.assertIn('markers [5]', message)
+            self.assertNotIn('markers None', message)
+
+    def test_explanation_preserves_report_ids_and_no_match_guidance(self):
+        self.assertIn('markers [7]', reloc.explain(
+            {'status': 'AMBIGUOUS', 'stable_marker_ids': [7]}, seen=[5]))
+        self.assertIn('markers [5]', reloc.explain(
+            {'status': 'NO_MATCH', 'stable_marker_ids': []}, seen=[5]))
+        self.assertIn('verified markers', reloc.explain({'status': 'NO_MATCH'}, seen=[5]))
+        self.assertEqual(reloc.explain({'status': 'ERROR', 'reason': 'bad input'}), 'ERROR: bad input')
 
     def test_the_service_must_be_ready_where_the_seed_put_it(self):
         far = (0.95, 0.83, 2.88)                     # the old, turned-around pose

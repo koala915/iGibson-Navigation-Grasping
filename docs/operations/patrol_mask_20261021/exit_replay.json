@@ -1,0 +1,16 @@
+{
+  "run19_pose": [
+    1.1693715418558626,
+    0.4592572957499115,
+    0.7799332543002317
+  ],
+  "old_mask_center_allowed": true,
+  "old_mask_turn_allowed": false,
+  "planned_extra_back_from_run19_pose_m": 0.07,
+  "new_mask_turn_allowed": true,
+  "planned_point": [
+    1.1196043084444667,
+    0.4100310580450487
+  ],
+  "planned_turn_allowed": true
+}

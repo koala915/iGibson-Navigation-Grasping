@@ -19,7 +19,7 @@ class RecoveryFault(RuntimeError):
 def continuity(previous, current):
     if previous is None:
         return
-    if previous['context'] != current['context']:
+    if 'context' in previous and previous['context'] != current['context']:
         raise RecoveryFault('CONTEXT_CHANGED', 'owner/boot/map changed; re-anchor the task')
     old, new = previous['odom'], current['odom']
     p, q = previous['pose'], current['pose']
@@ -34,11 +34,17 @@ def continuity(previous, current):
 
 
 def wait_snapshot(read, stop, previous=None, seconds=30., clock=time.monotonic,
-                  sleep=time.sleep, events=None):
+                  sleep=time.sleep, events=None, anchor=None):
     """Normally one read; after a transient outage require five new stable poses.
 
     Count the supervisor's existing outage time against this same episode. A
     daemon already waiting 20s gets at most another 10s, not a fresh 30s.
+
+    `previous` binds the owner/boot/map context. The AMCL/odometry jump test runs
+    only across an outage, against `anchor`: the last good stopped state just
+    before it. Against an older snapshot (before a grasp, a placement or a patrol
+    lap) ordinary odometry drift alone exceeds 15cm/10deg and would stop a
+    healthy task.
     """
     if not 0 < seconds <= 60:
         raise ValueError('recovery wait must be 0..60 seconds')
@@ -51,9 +57,9 @@ def wait_snapshot(read, stop, previous=None, seconds=30., clock=time.monotonic,
             value = read()
             if expected is not None and value['context'] != expected:
                 raise RecoveryFault('CONTEXT_CHANGED', 'owner/boot/map changed while stopped')
-            continuity(previous, value)
             if not waiting:
                 return value
+            continuity(anchor, value)
             if clock() - started + offset >= seconds:
                 raise RecoveryFault('RECOVERY_TIMEOUT', 'localization recovery budget exhausted')
             if last is not None and value['stamp'] < last['stamp']:
@@ -156,8 +162,13 @@ def bind_patrol(mission, rooms, folder):
                             raise RecoveryFault('AMCL_STALE' if localization else 'PERMIT_LINK_FAILED',
                                                 str(exc), True, elapsed)
                         return room._snapshot_once()
+                    trace = report.get('trace')
+                    last = trace[-1] if isinstance(trace, list) and trace else None
+                    anchor = (last if isinstance(last, dict) and 'pose' in last
+                              and 'odom' in last else None)
                     value = wait_snapshot(read, lambda: mission.runner.stop(host),
-                                          previous=room._last_snapshot, events=events)
+                                          previous=room._last_snapshot, events=events,
+                                          anchor=anchor)
                     room._last_snapshot = value
                     link = call_args[4] if len(call_args) > 4 else call_kwargs['link']
                     if link_failure or not link.alive():

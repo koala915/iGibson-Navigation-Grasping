@@ -311,20 +311,18 @@ class Runner:
                 if vx:
                     brake=getattr(self,'front_brake_m',.5)
                     if getattr(self,'boundary_micro',False) and duration<=.08:brake=min(brake,.35)
-                    if not getattr(self,'boundary_recovery',False) and s['front']<brake:
+                    # The laser brake stays in every patrol pulse: the operator
+                    # stands in the room during a mission (koala review,
+                    # 2026-10-22), and only the laser sees a person. The map
+                    # geometry below is an added check, never a replacement.
+                    if s['front']<brake:
                         raise Transient('front brake')
                     distance=.35*max(0,duration-(time.time()-start))+stop_reserve(duration)
                     if not self.policy.stopping_path_allowed(pose,distance):raise Transient('predicted stop crosses mask')
                     if getattr(self,'boundary_recovery',False):
-                        # Operator-declared empty room: short returns may be the
-                        # robot itself. Physical fitted walls and the fixed bin
-                        # replace the independent 50cm laser brake, not scan
-                        # freshness or the predicted stopping-path check.
                         geometry=RecoveryPolicy(self.policy)
                         end=(pose[0]+distance*math.cos(pose[2]),pose[1]+distance*math.sin(pose[2]))
                         if not geometry.segment(pose,end):raise Transient('predicted stop violates physical wall/bin geometry')
-                        self.report['front_check']='map_walls_and_fixed_bin'
-                        if s['front']<brake:self.report['near_scan_admissions']=self.report.get('near_scan_admissions',0)+1
                 else:
                     if not self.rotation_allowed(pose):
                         if getattr(self,'boundary_recovery',False):

@@ -4,7 +4,7 @@
     "enabled": true,
     "environment": "walls_and_fixed_bin",
     "body_radius_m": 0.25,
-    "error_budget_m": 0.10,
+    "error_budget_m": 0.1,
     "source": "operator: outer body radius <25cm; no unmodeled obstacles, 2026-10-22",
     "hardware_validated": false,
     "scope": "offline-configured bounded recovery; normal patrol mask remains separate"
@@ -35,23 +35,23 @@
       1.849873853106196
     ]
   ],
-  "center_wall_margin_m": 0.4,
+  "center_wall_margin_m": 0.35,
   "center_allowed_polygon": [
     [
-      -0.16613163162820088,
-      0.2151132236359115
+      -0.2328977374849355,
+      0.19182616481073328
     ],
     [
-      0.8947751182298509,
-      -0.29710880249837374
+      0.9180621770550295,
+      -0.3638749083551085
     ],
     [
-      1.4261769985506219,
-      0.8035229801180341
+      1.4929431044073567,
+      0.826810038943212
     ],
     [
-      0.3652702486925701,
-      1.3157450062523195
+      0.34198318986739173,
+      1.3825111121090536
     ]
   ],
   "outside_center_polygon": "forbidden",
@@ -252,7 +252,7 @@
     "min_measured_obstacle_clearance_m": 0.5188448708429139
   },
   "runtime_enforcement": true,
-  "mask_rule": "known free AND >=40cm from occupied cells AND >=40cm inside fitted walls AND measured paper-box distance >= body corner radius +5cm",
+  "mask_rule": "known free AND >=35cm from occupied/unknown cells and fitted walls (whole-cell conservative additions); existing bin envelope/buffer unchanged",
   "runtime_enforcement_scope": "g2_map_patrol.py command path only; direct owner TCP7000 and other clients are not globally filtered",
   "patrol_primary": {
     "point_map": [
@@ -301,7 +301,7 @@
     "route_file": "outer_patrol_goals.json",
     "wall_inset_m": 0.55,
     "box_corner_clipped": true,
-    "general_wall_margin_m": 0.4,
+    "general_wall_margin_m": 0.35,
     "command_options": [
       "--goals",
       "maps/demo_box_20261018_patrol/outer_patrol_goals.json",
@@ -312,5 +312,19 @@
     ],
     "validation": "all outward route segments traversed via interrupted run plus successful bounded resume; uninterrupted new-mode full loop pending",
     "evidence": "docs/calibration/nav_outer_2026-10-18/outer_resume.json"
+  },
+  "navigation_mask_reduction_20261021": {
+    "schema": 1,
+    "wall_map_margin_m": 0.35,
+    "turn_reserve_m": 0.06,
+    "bin_buffer_m": 0.283238075793812,
+    "before_sha256": "23566c869736384cf68afd5aecea23a288b8e62dcc76cba0cb936c5338096a47",
+    "sha256": "91829173a070731da5971ca1a1fb2066a898d7778554eb4f87c52474a8a45279",
+    "raw_map_sha256": "00d5ec32b01ffd299b5626eb4ccfeb93af7c62a70bc43e986e7bded6dd6b269b",
+    "old_allowed_cells": 3058,
+    "added_cells": 204,
+    "allowed_cells": 3262,
+    "added_area_m2": 0.0816,
+    "physical_validation": "offline only; next supervised run required"
   }
 }

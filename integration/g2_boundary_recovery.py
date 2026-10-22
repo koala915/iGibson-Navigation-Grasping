@@ -86,8 +86,11 @@ class RecoveryPolicy:
         if not self.segment(pose, target):
             raise ValueError('escape corridor lost after localization update')
         bearing = math.atan2(target[1] - pose[1], target[0] - pose[0])
-        forward, reverse = wrap(bearing - pose[2]), wrap(bearing - pose[2] + math.pi)
-        sign, error = (1, forward) if abs(forward) <= abs(reverse) else (-1, reverse)
+        # Forward only: the team allows reversing only in the enoch approach
+        # (koala, 2026-10-12), and nothing sees behind the robot. A target
+        # behind is faced by turning in place; the clearance circle bounds
+        # every heading, so that turn needs no more room than a smaller one.
+        sign, error = 1, wrap(bearing - pose[2])
         if abs(error) > math.radians(4):
             if abs(measured_vx) > .01:
                 raise ValueError('must stop translation before an escape turn')

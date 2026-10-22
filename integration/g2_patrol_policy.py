@@ -43,13 +43,27 @@ class Policy:
             self.layout=json.load(f)
         with open(os.path.join(folder,'navigation_center_mask.yaml')) as f:
             meta=yaml.safe_load(f)
-        if self.layout.get('frame_id')!='map' or self.layout.get('center_wall_margin_m',0)<.4:
+        # 2026-10-21: operator requested a smaller no-go region. Below the old
+        # 40cm limit accept only the rebuilt, hashed scene, down to 35cm. Keep
+        # the runner's independent 6cm turn reserve and all motion-ready gates.
+        margin=self.layout.get('center_wall_margin_m',0)
+        if self.layout.get('frame_id')!='map' or not finite(margin) or margin<.35:
             raise ValueError('unapproved scene policy')
         self.resolution=float(meta['resolution'])
         self.origin=tuple(float(x) for x in meta['origin'])
         if self.resolution<=0 or self.origin[2]!=0:
             raise ValueError('unsupported mask geometry')
         self.width,self.height,self.cells=read_pgm(os.path.join(folder,meta['image']))
+        if margin<.4:
+            import hashlib
+            record=self.layout.get('navigation_mask_reduction_20261021',{})
+            with open(os.path.join(folder,meta['image']),'rb') as f:
+                digest=hashlib.sha256(f.read()).hexdigest()
+            if (record.get('sha256')!=digest or
+                    record.get('wall_map_margin_m')!=margin or
+                    record.get('bin_buffer_m')!=self.layout['bin'].get('center_keepout_buffer_m') or
+                    record.get('bin_buffer_m',0)<.283 or record.get('turn_reserve_m')!=.06):
+                raise ValueError('reduced mask approval/geometry mismatch')
         self.folder=folder;self.dock_cells=None
 
     def require_geometry(self,current_offset):

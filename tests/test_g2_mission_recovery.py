@@ -61,8 +61,23 @@ def test_context_change_never_automatically_reanchors_a_task(context):
 
 
 def test_pose_jump_after_recovery_requires_an_absolute_reference():
+    clock, values = Clock(), iter([recovery.RecoveryFault('AMCL_STALE', 'restarted', True)]
+                                  + [sample(s, pose=[1.3, 1., 0.]) for s in (1., 2., 3., 4., 5.)])
+    def read():
+        value = next(values)
+        if isinstance(value, Exception): raise value
+        return value
     with pytest.raises(recovery.RecoveryFault, match='REFERENCE_REQUIRED'):
-        recovery.wait_snapshot(lambda: sample(pose=[1.3, 1., 0.]), Mock(), previous=sample())
+        recovery.wait_snapshot(read, Mock(), previous=sample(), anchor=sample(),
+                               clock=clock.now, sleep=clock.sleep)
+
+
+def test_drift_since_an_old_snapshot_is_not_a_jump():
+    # The snapshot before a grasp and placement is no baseline for a jump: the
+    # odometry drift the controllers accumulated meanwhile would stop a healthy
+    # task right after a successful release. Without an outage nothing is compared.
+    assert recovery.wait_snapshot(lambda: sample(pose=[1.3, 1., 0.]), Mock(),
+                                  previous=sample())['pose'] == [1.3, 1., 0.]
 
 
 def test_repeated_old_odom_cannot_satisfy_recovery_acknowledgement():
@@ -111,10 +126,14 @@ def test_patrol_localization_failure_redispatches_only_the_patrol(tmp_path, monk
     def read():
         stamp[0] += 1
         return sample(stamp[0])
-    room = SimpleNamespace(_last_snapshot=sample(0.), _snapshot_once=read)
+    # A whole lap from the room's last snapshot: 3 m of odometry against a map
+    # pose back near it. Only the patrol's own last stopped state is the anchor.
+    room = SimpleNamespace(_last_snapshot=dict(sample(0.), odom=[3., 0., 0.]),
+                           _snapshot_once=read)
     patrol = Mock(side_effect=[RuntimeError('patrol stopped: ' + reason), {'point': [1., 0.]}])
     mission = SimpleNamespace(patrol_until_sugarbox=patrol, MissionError=RuntimeError,
-        patrol_report=lambda host: {'sensor_wait_elapsed_s': 20.},
+        patrol_report=lambda host: {'sensor_wait_elapsed_s': 20.,
+                                    'trace': [{'pose': [1., 1., 0.], 'odom': [0., 0., 0.]}]},
         runner=SimpleNamespace(stop=Mock()), VisionLink=Mock())
     recovery.bind_patrol(mission, {'host': room}, tmp_path)
     link = SimpleNamespace(alive=lambda: True)

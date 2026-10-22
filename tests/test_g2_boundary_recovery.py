@@ -35,10 +35,12 @@ def test_soft_forbidden_point_has_a_physical_escape_corridor():
     assert recovery.command(pose, target) == (.08, 0.)
 
 
-def test_can_back_out_without_turning_toward_wall():
+def test_a_target_behind_is_faced_by_turning_never_by_reversing():
+    # Reversing is allowed only in the enoch approach (koala, 2026-10-12).
     recovery = RecoveryPolicy(Scene())
     pose = (.38, 1., math.pi)
-    assert recovery.command(pose, recovery.target(pose)) == (-.08, 0.)
+    vx, wz = recovery.command(pose, recovery.target(pose))
+    assert vx == 0. and abs(wz) == 1.
 
 
 def test_parallel_heading_uses_bounded_turn_in_physical_clearance():
@@ -154,21 +156,24 @@ def test_fault_during_escape_stops_and_clears_exception_mode():
     assert not runner._boundary_recovery_active
 
 
-def test_declared_empty_room_uses_physical_map_instead_of_phantom_front_hit():
+def test_the_laser_brake_stays_in_patrol_pulses_with_boundary_recovery():
+    # The operator stands in the room during a mission and only the laser sees
+    # a person: the map geometry is added to the brake, never put in its place.
     runner, plant, clock, sleep = simulated_runner((.6, 1., 0.))
     runner.policy.stopping_path_allowed = lambda pose, distance: True
     runner.ready = lambda: runner.state()
     with patch.object(patrol.time, 'time', side_effect=lambda: clock[0]), \
-            patch.object(patrol.time, 'sleep', side_effect=sleep):
+            patch.object(patrol.time, 'sleep', side_effect=sleep), \
+            pytest.raises(patrol.Transient, match='front brake'):
         runner.pulse(.15, 0., .08)
-    assert any(c['action'] == 'velocity' for c in plant['commands'])
-    assert runner.report['front_check'] == 'map_walls_and_fixed_bin'
-    assert runner.report['near_scan_admissions'] > 0
+    assert not any(c['action'] == 'velocity' for c in plant['commands'])
 
 
 def test_empty_room_mode_still_rejects_real_wall_even_with_bad_soft_mask():
     runner, plant, clock, sleep = simulated_runner((1.59, 1., 0.))
     runner.policy.stopping_path_allowed = lambda pose, distance: True
+    original = runner.state
+    runner.state = lambda check_vision=True: dict(original(check_vision), front=2.)
     runner.ready = lambda: runner.state()
     with patch.object(patrol.time, 'time', side_effect=lambda: clock[0]), \
             patch.object(patrol.time, 'sleep', side_effect=sleep), \

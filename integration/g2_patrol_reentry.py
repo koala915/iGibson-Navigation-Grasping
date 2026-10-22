@@ -132,6 +132,7 @@ def bind_mission(mission, scene, report_folder, health, recovery=None, placement
             self.reentry_used = 0.
             self.reentry_reports = []
             self._last_snapshot = None
+            self._anchor = None
             self.recovery_events = []
             rooms[self.host] = self
             if recovery is not None:
@@ -193,11 +194,15 @@ def bind_mission(mission, scene, report_folder, health, recovery=None, placement
             if recovery is None:
                 return self._snapshot_once(holding=holding)
             value = recovery.wait_snapshot(lambda: self._snapshot_once(holding=holding), lambda: mission.runner.stop(self.host),
-                                           previous=self._last_snapshot, events=self.recovery_events)
-            self._last_snapshot = value
+                                           previous=self._last_snapshot, events=self.recovery_events,
+                                           anchor=self._anchor)
+            self._last_snapshot = self._anchor = value
             return value
 
         def _leave_ready(self, minimum, holding=False):
+            # The grasp/placement controllers moved the robot since the last
+            # snapshot: a jump test against it would only measure their drift.
+            self._anchor = None
             result = {}
             try:
                 retreat_to_patrol(
@@ -234,6 +239,7 @@ def bind_mission(mission, scene, report_folder, health, recovery=None, placement
 
         def reset(self):
             super().reset()
+            self._anchor = None
             self.reentry_used = 0.
             post_place['pending'] = False
             if recovery is not None:

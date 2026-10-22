@@ -423,14 +423,15 @@ def back_straight(host, metres, walls, speed=0.08, localize=dock.read_localizati
         raise ValueError('refusing to back {!r} m'.format(metres))
     if not walls:
         raise RuntimeError('no room walls to check the way back against; not backing')
-    left, first = metres, True
+    left, first, last = metres, True, None
     # The rest counts down by what odometry says each step travelled, and a rest
     # under BACK_MIN_REST_M is left: 2026-10-21 run 16, a 0.20 m step went 0.24 m,
     # and the 1 cm "still to go" was refused at a wall and ended the mission.
     while left > 1e-6 and (first or left >= BACK_MIN_REST_M):
         first = False
         try:
-            pose = dock.localization_pose(localize(host))
+            last = dock.wait_localization(host, localize, before=last)
+            pose = dock.localization_pose(last)
         except ValueError as exc:
             raise RuntimeError('cannot check the way back ({}); not backing'.format(exc))
         problem = dock.back_path_problem(pose, left, walls, margin, obstacles)
@@ -596,10 +597,12 @@ def face_box(host, box, localize=dock.read_localization, rotate=turn, back=None,
     FACE_BACKOFF_STEP_M at a time, up to `back_max`: the way the robot came in to
     the grasp is clear. Returns the final map pose.
     """
-    turns, backed = 0, 0.0
+    turns, backed, last = 0, 0.0, None
     while True:
-        record = localize(host)
+        # Stopped here, so an outage is waited out (run 21, after a turn).
+        record = dock.wait_localization(host, localize, before=last)
         pose = dock.localization_pose(record)
+        last = record
         bearing, distance = dock.box_bearing(pose, box)
         print('[FACE] placement box {:.2f} m away, bearing {:+.1f} deg'.format(
             distance, math.degrees(bearing)), flush=True)
@@ -1045,7 +1048,7 @@ def main(argv=None):
             face_back, face_max = back, FACE_BACKOFF_MAX_M
             if args.came_from is not None:
                 try:
-                    start = dock.localization_pose(dock.read_localization(args.host))
+                    start = dock.localization_pose(dock.wait_localization(args.host))
                 except ValueError:
                     start = None
                 retrace = dock.retrace_room(start, args.came_from)

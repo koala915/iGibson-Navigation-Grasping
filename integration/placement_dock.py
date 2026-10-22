@@ -58,6 +58,21 @@ PLACEMENT_AIM_Y_M = -0.028
 ARRIVAL_MAX_Y_ERROR_M = 0.04
 ARRIVAL_MAX_X_OVERSHOOT_M = 0.03
 LOCALIZATION_MAX_AGE_S = 1.0
+# A short localization outage is waited out with the robot stopped: 2026-10-21
+# run 21 ended its placement on "waiting for fresh scan" read once, right after a
+# 120 deg turn. The wait ends on LOCALIZATION_STABLE_READS new ready records that
+# agree within LOCALIZATION_STABLE_M/RAD.
+LOCALIZATION_WAIT_S = 20.0
+LOCALIZATION_POLL_S = 0.3
+LOCALIZATION_STABLE_READS = 3
+LOCALIZATION_STABLE_M = 0.03
+LOCALIZATION_STABLE_RAD = math.radians(3)
+# Across an outage the map pose may move only as far as odometry did since the
+# last good record before it (ncu's recovery gate, 2026-10-22); more is a jump the
+# robot did not make, and needs a relocalization. Checked only across an outage:
+# against an older record, normal odometry drift alone would trip it.
+LOCALIZATION_JUMP_M = 0.15
+LOCALIZATION_JUMP_RAD = math.radians(10)
 TURN_TOLERANCE_RAD = math.radians(8)
 SEED_MIN_M, SEED_MAX_M = 0.30, 3.00
 # A taught wall distance is trusted only for small corrections: a bigger error
@@ -239,6 +254,74 @@ def localization_pose(record):
     if not (isinstance(pose, list) and len(pose) == 3 and finite(*pose)):
         raise ValueError('localization pose missing')
     return tuple(float(v) for v in pose)
+
+
+def localization_jump(before, after):
+    """Why `after`'s map pose cannot follow from `before`'s by odometry, or None.
+
+    None too when either record lacks pose and odometry: the supervisor's own
+    reference checks then stand alone.
+    """
+    a, b = [(r.get('state') or {}) if isinstance(r, dict) else {} for r in (before, after)]
+    p, o, q, n = a.get('pose'), a.get('odom'), b.get('pose'), b.get('odom')
+    if not all(isinstance(v, (list, tuple)) and len(v) == 3 and finite(*v)
+               for v in (p, o, q, n)):
+        return None
+    turn = p[2] - o[2]                   # map <- odom rotation at `before`
+    dx, dy = n[0] - o[0], n[1] - o[1]
+    x = p[0] + math.cos(turn) * dx - math.sin(turn) * dy
+    y = p[1] + math.sin(turn) * dx + math.cos(turn) * dy
+    offset = math.hypot(x - q[0], y - q[1])
+    rotation = abs(wrap(p[2] + wrap(n[2] - o[2]) - q[2]))
+    if offset <= LOCALIZATION_JUMP_M and rotation <= LOCALIZATION_JUMP_RAD:
+        return None
+    return ('the map pose moved {:.2f} m / {:.0f} deg away from where odometry puts the '
+            'robot'.format(offset, math.degrees(rotation)))
+
+
+def wait_localization(host, read=None, before=None, wait_s=None, sleep=None, now=None):
+    """A ready health record; a short outage waited out with the robot stopped.
+
+    Usually one read, as before. After a failed one, LOCALIZATION_STABLE_READS new
+    ready records that agree end the wait, if the last does not jump from `before`
+    (the last good record before the outage, if the caller has one). Callers keep
+    the robot stopped meanwhile. ValueError after `wait_s`, or on a jump.
+    """
+    read, sleep, now = read or read_localization, sleep or time.sleep, now or time.monotonic
+    wait_s = LOCALIZATION_WAIT_S if wait_s is None else wait_s
+    record = read(host)
+    try:
+        localization_pose(record)
+        return record
+    except ValueError as exc:
+        reason = str(exc)
+    print('[LOCALIZE] {}: waiting up to {:.0f} s with the robot stopped'.format(
+        reason, wait_s), flush=True)
+    started = now()
+    good = []
+    while now() - started < wait_s:
+        sleep(LOCALIZATION_POLL_S)
+        record = read(host)
+        try:
+            pose = localization_pose(record)
+        except ValueError as exc:
+            reason, good = str(exc), []
+            continue
+        if good and record.get('stamp') == good[-1][0].get('stamp'):
+            continue                     # the same record again, not a new one
+        if good and (math.hypot(pose[0] - good[0][1][0], pose[1] - good[0][1][1])
+                     > LOCALIZATION_STABLE_M
+                     or abs(wrap(pose[2] - good[0][1][2])) > LOCALIZATION_STABLE_RAD):
+            good = []
+        good.append((record, pose))
+        if len(good) >= LOCALIZATION_STABLE_READS:
+            jump = localization_jump(before, record)
+            if jump:
+                raise ValueError('not localized: {} during the outage; relocalize before '
+                                 'going on'.format(jump))
+            print('[LOCALIZE] back after {:.1f} s'.format(now() - started), flush=True)
+            return record
+    raise ValueError('not localized after waiting {:.0f} s: {}'.format(wait_s, reason))
 
 
 def relative_point(pose, point):
@@ -450,7 +533,7 @@ def read_localization(host):
     try:
         record = json.loads(lines[0]) if len(lines) == 2 else None
         record['age'] = float(lines[1]) - float(record['stamp'])
-    except (TypeError, ValueError, KeyError):
+    except (TypeError, ValueError, KeyError, IndexError):   # IndexError: ssh said nothing
         return None
     return record
 

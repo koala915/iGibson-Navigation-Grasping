@@ -447,7 +447,40 @@ class PatrolTests(unittest.TestCase):
     def test_a_failed_patrol_stops_the_mission(self):
         with self.assertRaises(mission.MissionError):
             self.run_patrol([None] * 5, running=lambda host, pid: False,
-                            reports=[{'ok': False, 'error': 'AMCL uncertainty', 'pulses': 7}])
+                            reports=[{'ok': False, 'error': 'waypoint timeout', 'pulses': 7}])
+
+    def test_a_localization_outage_waits_and_starts_the_patrol_once_more(self):
+        # ncu, 2026-10-22: wait for the localization with the robot stopped, then
+        # start the patrol again from there, once; a second outage stops the mission.
+        lost = {'ok': False, 'pulses': 7, 'error': 'sensor recovery timeout: localization '
+                'supervisor: waiting for fresh scan',
+                'trace': [{'pose': [1.0, 1.0, 0.0], 'odom': [0.0, 0.0, 0.0]}]}
+        alive = iter([False] + [True] * 30)
+        with patch.object(mission.dock, 'wait_localization') as waiting:
+            seen, started, _, _ = self.run_patrol(
+                [None, None, (1.0, 0.1)] + [(1.0, 0.1)] * 3,
+                running=lambda host, pid: next(alive), reports=[lost])
+        self.assertIsNotNone(seen)
+        self.assertEqual(len(started), 2)
+        self.assertEqual(waiting.call_args.kwargs['before'], {'state': lost['trace'][-1]})
+        with patch.object(mission.dock, 'wait_localization'), \
+                self.assertRaises(mission.MissionError):
+            self.run_patrol([None] * 9, running=lambda host, pid: False, reports=[lost] * 3)
+        with patch.object(mission.dock, 'wait_localization',
+                          side_effect=ValueError('not localized after waiting 20 s')), \
+                self.assertRaisesRegex(mission.MissionError, 'did not come back'):
+            self.run_patrol([None] * 5, running=lambda host, pid: False, reports=[lost])
+
+    def test_only_a_localization_outage_counts_as_one(self):
+        for error, lost in (('stale scan/odom', True), ('missing ROS data', True),
+                            ('not localized: waiting for fresh scan', True),
+                            ('AMCL uncertainty', True), ('waypoint timeout', False),
+                            ('turn drift reserve outside mask', False)):
+            with self.subTest(error=error):
+                self.assertEqual(mission.patrol_localization_lost(
+                    {'ok': False, 'error': error}), lost)
+        self.assertFalse(mission.patrol_localization_lost(
+            {'ok': False, 'error': 'stale AMCL', 'cleanup_error': 'unlock'}))
 
     def test_a_refusal_to_start_makes_room_and_asks_again(self):
         refused = {'ok': False, 'pulses': 0, 'error': 'no reachable entry to patrol route'}

@@ -7957,7 +7957,12 @@ def main(resources=None, go_stream=None, headless=False):
 
         obs_logger.close()
 
-        cv2.destroyAllWindows()
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            # A headless OpenCV build has no windows to close (ncu's PC,
+            # 2026-10-21): that must not replace the stage's own result.
+            pass
 
         print(
             "[INFO] ended"

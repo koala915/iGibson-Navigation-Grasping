@@ -651,6 +651,21 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual(turns, [round(math.pi / 2, 3)])
         self.assertEqual(pose, (0.0, 0.0, 1.5))
 
+    def test_face_box_waits_out_an_outage_after_a_turn(self):
+        # 2026-10-21 run 21: right after a 120 deg turn one read said "waiting for
+        # fresh scan", and the placement ended there with the box held.
+        reads = iter([{'ready': True, 'age': 0.1, 'stamp': 1,
+                       'state': {'pose': [0, 0, 0], 'odom': [0, 0, 0], 'turn_clear': True}},
+                      {'ready': False, 'reason': 'waiting for fresh scan', 'stamp': 2}]
+                     + [{'ready': True, 'age': 0.1, 'stamp': s,
+                         'state': {'pose': [0, 0, 1.55], 'odom': [0, 0, 1.55],
+                                   'turn_clear': True}} for s in (3, 4, 5)])
+        turns = []
+        with patch.object(runner.dock.time, 'sleep'), patch('builtins.print'):
+            pose = runner.face_box('host', {'x': 0.0, 'y': 1.0}, localize=lambda h: next(reads),
+                                   rotate=lambda host, r: turns.append(r))
+        self.assertEqual((len(turns), pose), (1, (0.0, 0.0, 1.55)))
+
     def test_face_box_never_turns_without_room_and_gives_up_after_its_tries(self):
         turns = []
         with self.assertRaises(RuntimeError):
@@ -894,7 +909,8 @@ class PlacementTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):         # the rear edge would reach the wall
             runner.back_straight('host', 0.20, ROOM, localize=near_wall, drive=drive)
         for walls, localize in ((ROOM, lambda host: None), (None, near_wall)):
-            with self.subTest(walls=walls), self.assertRaises(RuntimeError):
+            with self.subTest(walls=walls), self.assertRaises(RuntimeError), \
+                    patch.object(runner.dock, 'LOCALIZATION_WAIT_S', 0.0), patch('builtins.print'):
                 runner.back_straight('host', 0.20, walls, localize=localize, drive=drive)
         self.assertEqual(moves, [])
         for metres in (0.0, -0.1, 0.7, float('nan')):

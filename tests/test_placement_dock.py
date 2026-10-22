@@ -142,6 +142,73 @@ class LocalizationTests(unittest.TestCase):
                 dock.localization_pose(bad)
 
 
+class WaitLocalizationTests(unittest.TestCase):
+    """A short outage is waited out with the robot stopped (2026-10-21 run 21)."""
+
+    def good(self, stamp, pose=(1.0, 0.5, 0.3), odom=(0.0, 0.0, 0.0)):
+        return {'ready': True, 'age': 0.1, 'stamp': stamp,
+                'state': {'pose': list(pose), 'odom': list(odom)}}
+
+    def wait(self, records, before=None, wait_s=20.0):
+        records, clock, reads = iter(records), [0.0], []
+
+        def read(host):
+            reads.append(host)
+            return next(records)
+
+        def sleep(seconds):
+            clock[0] += seconds
+        with patch('builtins.print'):
+            record = dock.wait_localization('h', read, before=before, wait_s=wait_s,
+                                            sleep=sleep, now=lambda: clock[0])
+        return record, len(reads), clock[0]
+
+    def test_a_ready_record_is_one_read_with_no_wait(self):
+        self.assertEqual(self.wait([self.good(1)])[1:], (1, 0.0))
+
+    def test_an_outage_ends_on_three_new_agreeing_records(self):
+        lost = {'ready': False, 'reason': 'waiting for fresh scan', 'stamp': 1}
+        record, reads, waited = self.wait(
+            [lost, lost, self.good(3), self.good(3), self.good(4),
+             self.good(5, pose=(1.10, 0.5, 0.3)),      # moved 10 cm: not settled yet
+             self.good(6, pose=(1.10, 0.5, 0.3)), self.good(7, pose=(1.11, 0.5, 0.3))])
+        self.assertEqual((record['stamp'], reads), (7, 8))
+        self.assertAlmostEqual(waited, 7 * dock.LOCALIZATION_POLL_S)
+
+    def test_an_outage_that_lasts_gives_up(self):
+        lost = {'ready': False, 'reason': 'stale AMCL'}
+        with self.assertRaisesRegex(ValueError, 'after waiting 2 s: not localized: stale AMCL'):
+            self.wait([lost] * 20, wait_s=2.0)
+
+    def test_a_pose_odometry_cannot_explain_is_a_jump(self):
+        lost = {'ready': False, 'reason': 'AMCL restarted'}
+        before = self.good(0, pose=(1.0, 0.5, 0.0), odom=(0.0, 0.0, 0.0))
+        # Odometry went 0.20 m ahead: the map pose should be near (1.20, 0.5).
+        after = lambda stamp, x: self.good(stamp, pose=(x, 0.5, 0.0), odom=(0.20, 0.0, 0.0))
+        record, _, _ = self.wait([lost] + [after(s, 1.22) for s in (1, 2, 3)], before=before)
+        self.assertEqual(record['stamp'], 3)
+        with self.assertRaisesRegex(ValueError, 'relocalize'):
+            self.wait([lost] + [after(s, 1.50) for s in (1, 2, 3)], before=before)
+        # No odometry to compare: the supervisor's own checks stand alone.
+        self.assertIsNone(dock.localization_jump({'state': {'pose': [0, 0, 0]}},
+                                                 after(1, 1.50)))
+        # The jump test runs only across an outage, never on a first good read.
+        self.assertEqual(self.wait([after(1, 1.50)], before=before)[1], 1)
+
+    def test_odometry_turns_are_carried_into_the_map_frame(self):
+        # map = odom rotated +90 deg: 0.20 m along odom x is 0.20 m along map y.
+        before = self.good(0, pose=(1.0, 1.0, math.pi / 2), odom=(0.0, 0.0, 0.0))
+        moved = self.good(1, pose=(1.0, 1.2, math.pi / 2 + 0.1), odom=(0.2, 0.0, 0.1))
+        self.assertIsNone(dock.localization_jump(before, moved))
+        self.assertIn('0.28 m', dock.localization_jump(
+            before, self.good(1, pose=(1.2, 1.0, math.pi / 2), odom=(0.2, 0.0, 0.0))))
+
+    def test_an_empty_ssh_reply_is_no_record(self):
+        done = subprocess.CompletedProcess([], 255, stdout='', stderr='timeout')
+        with patch.object(dock.subprocess, 'run', return_value=done):
+            self.assertIsNone(dock.read_localization('h'))
+
+
 class ArrivalTests(unittest.TestCase):
     final, aim = 0.212, -0.028
 

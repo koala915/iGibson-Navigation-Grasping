@@ -161,6 +161,9 @@ PATROL_CHECK_S = 1.0
 # A patrol that declines a turn mid-lap (patrol_turn_refused) is started again
 # this many times per lap before the mission stops.
 PATROL_TURN_RESTARTS = 1
+# A patrol ended by a localization outage (patrol_localization_lost) is started
+# again this many times per lap, once the localization is back (ncu, 2026-10-22).
+PATROL_LOCALIZATION_RESTARTS = 1
 # The Jetson end reports the patrol process every 0.1 s; a report older than this
 # (the link stalled or ended) is not trusted and ssh is asked instead.
 PATROL_REPORT_MAX_AGE_S = 0.5
@@ -456,6 +459,26 @@ def patrol_turn_refused(report):
             and 'turn' in error and 'mask' in error)
 
 
+# The patrol's own words for its localization or sensors dropping out (ncu's
+# g2_map_patrol Sensors/Runner.state), as listed in his recovery of 2026-10-22.
+LOCALIZATION_LOST_WORDS = ('localiz', 'stale amcl', 'stale map tf', 'stale scan/odom',
+                           'missing ros data', 'map tf:', 'amcl uncertainty')
+
+
+def patrol_localization_lost(report):
+    """The patrol stopped because its localization or sensors dropped out."""
+    error = str(report.get('error') or '').lower()
+    return (report.get('ok') is not True and not report.get('cleanup_error')
+            and any(word in error for word in LOCALIZATION_LOST_WORDS))
+
+
+def last_patrol_state(report):
+    """The patrol's last stopped state as a health record, for localization_jump."""
+    trace = report.get('trace')
+    state = trace[-1] if isinstance(trace, list) and trace else None
+    return {'state': state} if isinstance(state, dict) else None
+
+
 def stream_running(host, pc_ip, port=STREAM_PORT):
     # The [u] keeps pgrep from matching this very command line.
     pattern = '[u]dpsink host={} port={}'.format(pc_ip, port)
@@ -712,7 +735,7 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
     or None after EMPTY_LAPS_TO_END whole laps without one.
     """
     pid, empty_laps, last_stamp, clips, false_stops = None, 0, None, [], 0
-    turn_restarts = 0
+    turn_restarts = localization_restarts = 0
     clear, unseen, no_pose_since, checked, unplaced_since = 0, [], None, None, None
     stopped_at, deferred_clear, far_cleared, last_deferred = None, 0, [], None
     wait_first_frame(reader, now, 'no rear camera frames; is the stream reaching this PC?')
@@ -736,7 +759,7 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
                         raise MissionError('patrol cleanup failed: ' + str(report['cleanup_error']))
                     if report.get('ok'):
                         empty_laps += 1
-                        false_stops = turn_restarts = 0
+                        false_stops = turn_restarts = localization_restarts = 0
                         if empty_laps >= EMPTY_LAPS_TO_END:
                             return None
                     elif patrol_refused(report) and make_room is not None and make_room():
@@ -750,6 +773,21 @@ def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(),
                         clear = 0
                         print('[PATROL] stopped before a turn ({}); starting it again from '
                               'here'.format(report.get('error')), flush=True)
+                    elif (patrol_localization_lost(report)
+                          and localization_restarts < PATROL_LOCALIZATION_RESTARTS):
+                        # The patrol has stopped the wheels; wait for the
+                        # localization with them stopped, then start it again.
+                        localization_restarts += 1
+                        print('[PATROL] stopped by a localization outage ({})'.format(
+                            report.get('error')), flush=True)
+                        try:
+                            dock.wait_localization(host, before=last_patrol_state(report))
+                        except ValueError as exc:
+                            raise MissionError('patrol stopped and the localization did not '
+                                               'come back: {}'.format(exc)) from exc
+                        clear, no_pose_since = 0, None
+                        print('[PATROL] localization back; starting the patrol again from '
+                              'here', flush=True)
                     else:
                         raise MissionError('patrol stopped: ' + str(report.get('error')))
             frame, last_stamp = fresh_frame(reader, last_stamp, now)
@@ -1432,7 +1470,7 @@ def patrol_mission(args, pc_ip, log_dir, room=None, new_link=VisionLink):
             except (ValueError, OSError, subprocess.SubprocessError) as exc:
                 raise MissionError('cannot plan the patrol exit without its map mask: {}'.format(exc)) from exc
             room = Room(args.host, walls, obstacles=[obstacle] if obstacle else [], mask=mask,
-                        locate=lambda host: dock.localization_pose(dock.read_localization(host)))
+                        locate=lambda host: dock.localization_pose(dock.wait_localization(host)))
 
         def new_reader():
             return _runtime.reader() if _runtime is not None else StreamReader(STREAM_PORT, args.gstreamer)

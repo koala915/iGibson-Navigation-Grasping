@@ -37,6 +37,10 @@ class ParseTests(unittest.TestCase):
                     '[RELOC] matching the walls on the robot (~40 s)'])
         self.assertEqual(hub.state['stage'], 'relocalizing')
         self.assertIn('40', hub.state['detail'])
+        hub = feed(['[RELOC] captured: markers [3, 4]',
+                    '[RELOC] turned -29 deg to look for a marker on another wall'])
+        self.assertIn('轉動', hub.state['detail'])
+        self.assertIn('29', hub.log[-1]['text'])
         hub = feed(['[BLOCKED] relocalization: AMBIGUOUS: markers [2] fit more than one place'])
         self.assertIn('AMBIGUOUS', hub.state['detail'])
         self.assertEqual(hub.log[-1]['kind'], 'crit')
@@ -233,7 +237,7 @@ class ApiTests(unittest.TestCase):
             self.assertIn(flag, argv)
         self.assertEqual(argv[argv.index('--max-deliveries') + 1], '3')
         # One job at a time.
-        self.assertEqual(self.post('/api/relocalize')[0], 409)
+        self.assertEqual(self.post('/api/relocalize', {'beside_robot': True})[0], 409)
 
     def test_bad_input_is_refused(self):
         self.assertEqual(self.post('/api/start', raw=b'[1, 2]')[0], 400)
@@ -247,8 +251,13 @@ class ApiTests(unittest.TestCase):
         self.assertIn('restart_arm_camera', self.procs[0].argv[-1])
 
     def test_relocalize_runs_the_script_and_stop_reaches_the_robot(self):
-        self.assertEqual(self.post('/api/relocalize')[0], 200)
+        # It may turn in place to find a second wall's markers: operator first.
+        self.assertEqual(self.post('/api/relocalize')[0], 400)
+        self.assertEqual(self.procs, [])
+        self.assertEqual(self.post('/api/relocalize', {'beside_robot': True})[0], 200)
         self.assertIn('integration/relocalize.py', self.procs[0].argv)
+        for flag in ('--look', '--i-am-beside-the-robot'):
+            self.assertIn(flag, self.procs[0].argv)
         # 2026-10-29: run as a script it could not import `integration.` (exit 1).
         paths = self.procs[0].kw['env']['PYTHONPATH'].split(server.os.pathsep)
         self.assertIn(str(server.REPO), paths)

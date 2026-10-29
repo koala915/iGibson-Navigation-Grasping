@@ -1236,7 +1236,8 @@ class MainTests(unittest.TestCase):
             with patch.object(mission, 'preflight', return_value=[]), \
                  patch.object(mission, 'pc_address', return_value='10.0.0.2'), \
                  patch.object(mission, 'relocalize',
-                              side_effect=lambda host: order.append('reloc')), \
+                              side_effect=lambda host, look=None: order.append(
+                                  'reloc' if callable(look) else 'reloc without look')), \
                  patch.object(mission, 'patrol_mission',
                               side_effect=lambda *a: order.append('patrol') or 0) as patrolling, \
                  patch.object(mission, 'grasp_and_place') as one, patch('builtins.print'):

@@ -58,7 +58,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from integration import placement_dock as dock
-from integration.relocalize import RelocalizeError, relocalize
+from integration.relocalize import RelocalizeError, relocalize, robot_look
 from integration.sugarbox_ground_calibration import (
     inside_calibration_hull, load_ground_calibration, pixel_to_ground, resolve_asset_paths)
 from integration.sugarbox_training_contract import GOAL_ORIGIN_OFFSET_X_M
@@ -1679,9 +1679,11 @@ def main(argv=None):
         return grasp_and_place(args, pc_ip, log_dir)
     if args.relocalize:
         # Only when asked (the user, 2026-10-21: a minute every start was too
-        # long); integration/relocalize.py does the same on its own.
+        # long); integration/relocalize.py does the same on its own. The robot
+        # turns in place to look when one wall's markers are all it sees
+        # (2026-10-29); --real with the operator beside it is required here.
         try:
-            relocalize(args.host)
+            relocalize(args.host, look=robot_look(args.host))
         except (RelocalizeError, OSError, subprocess.SubprocessError) as exc:
             print('[BLOCKED] relocalization: {}'.format(exc), flush=True)
             return 2

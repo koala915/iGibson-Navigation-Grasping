@@ -87,7 +87,7 @@ function render(s) {
     hint.textContent = '還沒定位：先按「重新定位」，或開始時勾選「先重新定位」。';
     hint.className = 'hint why';
   } else {
-    hint.textContent = '重新定位時車子不會動。開始 loop 前會先確認人在車旁。';
+    hint.textContent = '重新定位看不到兩面牆的標記時，車子會原地轉動找。兩個都會先確認人在車旁。';
     hint.className = 'hint';
   }
 
@@ -346,9 +346,7 @@ function drawMap() {
 window.addEventListener('resize', drawMap);
 
 // ── actions ────────────────────────────────────────────────────────────
-$('relocBtn').onclick = async () => {
-  try { await post('/api/relocalize'); } catch (e) { banner(e.message); }
-};
+$('relocBtn').onclick = () => openModal('reloc');
 $('estopBtn').onclick = async () => {
   try { await post('/api/stop'); } catch (e) { banner('停止沒送出：' + e.message + '。請用電源開關'); }
 };
@@ -365,16 +363,19 @@ function fix(what) {
 function openModal(kind) {
   pending = kind;
   const start = kind === 'start';
-  $('modalTitle').textContent = start ? '開始 loop' : '收回手臂';
-  $('modalText').textContent = start
-    ? '車子會開始巡航、夾取與放置，直到連續 2 圈沒看到糖果盒（或達到送達上限）。'
-    : '手臂會先張開夾爪移到 E1，再收回行駛姿態，最後重啟夾取服務（約 1 分鐘）。夾爪裡要是空的。';
+  $('modalTitle').textContent = {start: '開始 loop', reloc: '重新定位', arm_stow: '收回手臂'}[kind];
+  $('modalText').textContent = {
+    start: '車子會開始巡航、夾取與放置，直到連續 2 圈沒看到糖果盒（或達到送達上限）。',
+    reloc: '用後相機看牆上的標記定位（約 1 分鐘）。只看到同一面牆的標記時，車子會原地往右轉，'
+      + '每次 30°，看到兩面牆的標記就停。四周要留 40 cm；地上的盒子雷達看不到，請留意。',
+    arm_stow: '手臂會先張開夾爪移到 E1，再收回行駛姿態，最後重啟夾取服務（約 1 分鐘）。夾爪裡要是空的。',
+  }[kind];
   $('startOpts').hidden = !start;
   $('optReloc').checked = start && !(S && S.pose && S.pose.ready);
   $('optBeside').checked = false;
   $('optMax').value = '';
   $('modalErr').hidden = true;
-  $('modalOk').textContent = start ? '開始' : '收回';
+  $('modalOk').textContent = {start: '開始', reloc: '定位', arm_stow: '收回'}[kind];
   $('modal').hidden = false;
   $('optBeside').focus();
 }
@@ -401,6 +402,8 @@ $('modalOk').onclick = async () => {
     if (pending === 'start') {
       await post('/api/start', {beside_robot: true, relocalize: $('optReloc').checked,
                                 max_deliveries: max || null});
+    } else if (pending === 'reloc') {
+      await post('/api/relocalize', {beside_robot: true});
     } else {
       await post('/api/fix', {what: 'arm_stow', beside_robot: true});
     }

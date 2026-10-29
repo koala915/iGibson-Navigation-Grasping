@@ -8,7 +8,8 @@ same network can open http://<this PC>:8090.
     python ui/loop_console/server.py --simulate logs/mission_20261021_patrol19/mission.out
 
 What it does, and nothing more:
-  * Relocalize: runs integration/relocalize.py (the robot stays still).
+  * Relocalize: runs integration/relocalize.py --look: while the rear camera sees
+    markers on one wall only it turns in place 30 deg at a time (operator beside it).
   * Start the loop: runs integration/mission_loop.py --real --i-am-beside-the-robot,
     only after the operator confirms they stand at the robot's power switch.
   * Stop: ends that process, the robot's patrol, and sends the wheels a stop. The
@@ -355,6 +356,7 @@ NUM = r'[-+]?\d+(?:\.\d+)?'
 PATTERNS = [
     ('reloc_seen', re.compile(r'^\[RELOC\] captured: markers \[(.*)\]')),
     ('reloc_match', re.compile(r'^\[RELOC\] matching the walls')),
+    ('reloc_turn', re.compile(r'^\[RELOC\] turned ({0}) deg'.format(NUM))),
     ('reloc_ok', re.compile(r'^\[RELOC\] localized at map \(({0}), ({0})\), heading ({0}) deg'
                             .format(NUM))),
     ('reloc_failed', re.compile(r'^\[RELOC\] (?:not localized|capture \d/\d failed): (.*)')),
@@ -419,6 +421,9 @@ class Feed:
         if name == 'reloc_seen':
             update(stage='relocalizing', detail='看到標記 ' + g[0] + '，準備比對牆面')
             note('後相機看到標記 {}，比對牆面中'.format(g[0]))
+        elif name == 'reloc_turn':
+            update(stage='relocalizing', detail='只看到一面牆的標記：原地轉動找另一面牆')
+            note('原地轉了 {:.0f}°，找另一面牆的標記'.format(abs(float(g[0]))))
         elif name == 'reloc_match':
             update(stage='relocalizing', detail='車上正在比對牆面（約 40 秒，車子不會動）')
         elif name == 'reloc_ok':
@@ -570,8 +575,11 @@ class Console:
         threading.Thread(target=self.self_check, daemon=True).start()
 
     def relocalize(self):
+        # --look: markers on one wall only (3 and 4, 2026-10-29) cannot place the
+        # robot in this symmetric room, so it turns in place until two walls show.
         self.start_job('relocalize', [self.python, '-u', 'integration/relocalize.py',
-                                      '--host', self.host], 'relocalizing')
+                                      '--host', self.host, '--look',
+                                      '--i-am-beside-the-robot'], 'relocalizing')
 
     def start_mission(self, max_deliveries=None, relocalize=False):
         argv = [self.python, '-u', 'integration/mission_loop.py', '--host', self.host,
@@ -949,6 +957,8 @@ def handler_for(console, simulate_log=None):
                     threading.Thread(target=console.load_map, daemon=True).start()
                     return self.json(200, {'ok': True})
                 if path == '/api/relocalize':
+                    if body.get('beside_robot') is not True:      # it may turn in place
+                        return self.json(400, {'error': '要先確認人在車旁、手放電源開關'})
                     console.relocalize()
                     return self.json(200, {'ok': True})
                 if path in ('/api/start', '/api/fix'):

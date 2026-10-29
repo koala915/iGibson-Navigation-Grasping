@@ -29,6 +29,7 @@ import subprocess
 import time
 
 from integration import placement_dock as dock
+from integration.sugarbox_lidar_geometry import robot_scan_samples
 
 JETSON_ROOT = dock.JETSON_ROOT
 SCENE = dock.SCENE
@@ -48,6 +49,25 @@ READY_WAIT_S = 20.0
 # The service's pose once ready has to be where the seed put it.
 SEED_AGREE_M = 0.25
 SEED_AGREE_RAD = math.radians(20)
+# Looking around (--look, the user 2026-10-29): markers 3 and 4, both on the top
+# wall, came back AMBIGUOUS in the symmetric room. Markers on two walls pin the
+# map; until the capture sees that, turn in place a step and capture again.
+LOOK_STEP_RAD = math.radians(30)
+LOOK_MAX_STEPS = 11              # 330 deg: every heading once, no second lap
+# A turn sweeps the outline's farthest corner around the centre; every LiDAR
+# return outside the outline has to be beyond it by this much. Self returns are
+# the body rectangles widened by ncu's 2.5 cm profile tolerance. The scan plane
+# is 9.5 cm up: boxes on the floor do not show, so the operator stands by.
+LOOK_SWEEP_M = max(math.hypot(x, y) for r in dock.BODY_RECTANGLES
+                   for x in (r[0], r[2]) for y in (r[1], r[3]))
+LOOK_MARGIN_M = 0.05
+SELF_RETURN_TOLERANCE_M = 0.025
+# Returns outside ncu's outline that stayed put in the robot frame at two places
+# in the arena, with the operator stepped back (2026-10-29): beside the right
+# wheel, and two side spots ~0.32 m out just behind the centre. Small boxes only:
+# a wall that near still shows at the neighbouring angles (r = d / cos) and refuses.
+LOOK_SELF_RETURNS = ((-0.02, -0.185, 0.00, -0.165), (-0.09, 0.28, -0.03, 0.34),
+                     (0.02, 0.32, 0.04, 0.35), (-0.06, -0.35, 0.06, -0.31))
 
 
 class RelocalizeError(RuntimeError):
@@ -87,12 +107,90 @@ def free_rear_camera(host, wait_s=5.0):
         time.sleep(0.5)
 
 
-def registration_id(host):
+def read_landmarks(host):
     result = ssh(host, 'cat {}/{}'.format(JETSON_ROOT, LANDMARKS), 20)
     try:
-        return json.loads(result.stdout)['registration_id']
+        landmarks = json.loads(result.stdout)
+        landmarks['registration_id']
+        return landmarks
     except (ValueError, KeyError, TypeError):
         raise RelocalizeError('marker registration unreadable on the robot: ' + LANDMARKS)
+
+
+def registration_id(host):
+    return read_landmarks(host)['registration_id']
+
+
+def marker_walls(ids, landmarks):
+    """How many walls the seen markers are on (markers on one wall face one way)."""
+    markers = landmarks.get('markers') or {}
+    faces = set()
+    for marker in ids or ():
+        normal = (markers.get(str(marker)) or {}).get('normal_yaw_rad')
+        if isinstance(normal, (int, float)) and math.isfinite(normal):
+            faces.add(round(math.degrees(dock.wrap(normal))) % 360)
+    return len(faces)
+
+
+def turn_room(scans, cell=0.02, persist=2):
+    """Nearest LiDAR return outside the robot's own outline, from the chassis centre.
+
+    A return counts once `persist` scans hit the same 2 cm cell: on 2026-10-29
+    single-scan returns at (-0.01..-0.02, -0.17..-0.18), each in 1 of 8 scans
+    beside the right wheel, refused every turn. A wall or a person is in all.
+    """
+    pad = SELF_RETURN_TOLERANCE_M
+    seen = {}
+    for scan in scans:
+        cells = set()
+        ranges = [float('nan') if r is None else r for r in scan['ranges']]
+        for sample in robot_scan_samples(ranges, scan['angle_min'], scan['angle_increment'],
+                                         dock.LIDAR):
+            if sample.range_m is None:
+                continue
+            x = sample.range_m * math.cos(sample.angle_rad)
+            y = sample.range_m * math.sin(sample.angle_rad)
+            if any(x1 - pad <= x <= x2 + pad and y1 - pad <= y <= y2 + pad
+                   for x1, y1, x2, y2 in dock.BODY_RECTANGLES + LOOK_SELF_RETURNS):
+                continue
+            key =(int(math.floor(x / cell)), int(math.floor(y / cell)))
+            if key not in cells:
+                cells.add(key)
+                hits, nearest = seen.get(key, (0, float('inf')))
+                seen[key] = (hits + 1, min(nearest, sample.range_m))
+    return min((nearest for hits, nearest in seen.values() if hits >= persist),
+               default=float('inf'))
+
+
+def robot_look(host, step=LOOK_STEP_RAD):
+    """A look(log) that turns the robot in place by `step` (right), or refuses.
+
+    The turn itself is the approach runner's: odometry-measured, direction and
+    stall checks, stop on every exit. Before it: travel pose, nothing else on the
+    chassis, and LiDAR room for the sweep. Localization is not asked: it is
+    exactly what is in doubt here.
+    """
+    from integration import sugarbox_approach_grasp as runner
+
+    def look(log):
+        chassis = runner.ctl(host, 'status').get('chassis', {})
+        if (chassis.get('arm_pose') != 'travel' or chassis.get('moving') is not False
+                or chassis.get('client') is not None):
+            raise RelocalizeError('not turning to look: the arm is not in travel or the chassis '
+                                  'is busy ({})'.format({k: chassis.get(k) for k in
+                                                         ('arm_pose', 'moving', 'client')}))
+        if chassis.get('maintenance') is True:
+            runner.service_command(host, 'maintenance-unlock')
+        room = turn_room(dock.read_scans(host, count=5))
+        if room < LOOK_SWEEP_M + LOOK_MARGIN_M:
+            raise RelocalizeError(
+                'not turning to look: something is {:.2f} m from the centre and a turn needs '
+                '{:.2f} m; move the robot toward the middle (or step back from it)'.format(
+                    room, LOOK_SWEEP_M + LOOK_MARGIN_M))
+        turned = runner.turn(host, -step)
+        log('[RELOC] turned {:.0f} deg to look for a marker on another wall'.format(
+            math.degrees(turned)))
+    return look
 
 
 def capture(host, registration, log=print):
@@ -140,7 +238,7 @@ def explain(report, seen=None):
     if status == 'AMBIGUOUS':
         return ('AMBIGUOUS: markers {} fit more than one place in the room (the walls are '
                 'symmetric). Turn or move the robot by hand until the rear camera sees '
-                'another marker as well (two markers together), then start again'.format(markers))
+                'markers on two different walls, then start again'.format(markers))
     if status == 'NO_MATCH':
         return ('NO_MATCH: no wall hypothesis agrees with markers {}; keep people and '
                 'objects away from the robot and use a view with verified markers '
@@ -172,15 +270,27 @@ def wait_ready(host, seeded, wait_s=None, read=None, sleep=None, now=None):
         wait_s, problem))
 
 
-def relocalize(host, log=print):
+def relocalize(host, log=print, look=None):
     """Seed AMCL from the rear camera's markers and a LiDAR snapshot; the map pose.
 
+    With `look` (robot_look): while the capture sees markers on fewer than two
+    walls, turn in place a step and capture again, up to LOOK_MAX_STEPS; then
+    match whatever the last view has. Without it nothing moves.
     Raises RelocalizeError, with what to do, on anything but a clean LOCALIZED.
     """
     started = time.monotonic()
     free_rear_camera(host)
-    registration = registration_id(host)
+    landmarks = read_landmarks(host)
+    registration = landmarks['registration_id']
     batch, captured = capture(host, registration, log)
+    if look is not None:
+        for _ in range(LOOK_MAX_STEPS):
+            if marker_walls(captured.get('ids'), landmarks) >= 2:
+                break
+            look(log)
+            batch, captured = capture(host, registration, log)
+        else:
+            log('[RELOC] no view with markers on two walls in a full turn; matching the last one')
     log('[RELOC] matching the walls on the robot (~40 s)')
     match(host)
     report = seed(host, batch)
@@ -201,9 +311,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--host', required=True)
+    parser.add_argument('--look', action='store_true',
+                        help='turn in place until markers on two walls are in view (moves the robot)')
+    parser.add_argument('--i-am-beside-the-robot', action='store_true')
     args = parser.parse_args(argv)
+    if args.look and not args.i_am_beside_the_robot:
+        parser.error('--look turns the robot: it needs --i-am-beside-the-robot')
     try:
-        relocalize(args.host)
+        relocalize(args.host, look=robot_look(args.host) if args.look else None)
     except (RelocalizeError, OSError, subprocess.SubprocessError) as exc:
         print('[RELOC] not localized: {}'.format(exc))
         return 2

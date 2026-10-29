@@ -148,6 +148,16 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 產生候選，不連車。第 19 趟停車位置重播通過；備份、測試與回復方式見
 `docs/operations/patrol_mask_20261021/CHANGELOG.md`。AMCL 仍使用原始 `demo_box.pgm`。
 
+**2026-10-29 放置盒往內移、巡航圈改 0.80 m（使用者要求，已更新車上，待實車續巡）**：
+盒子中心離右牆、上牆各 45 cm（操作台畫面的方向；右牆＝ncu 的 `photo_back_wall`），長邊平行右牆。
+`integration/move_placement_box.py` 從頭重建禁航區（不沿用舊可走格；35 cm、0.283 m 緩衝不變，
+盒子尺寸外加 6 cm），並用車上同一支 `Policy` 檢查巡航圈：盒子在 45 cm 時 0.70 m 的圈穿過緩衝、
+巡航拒絕啟動，所以 `mission_loop.PATROL_INSET_M` 改成 **0.80**（圈約 38×42 cm；0.70 時盒子最多
+離牆 34 cm）。同日以後相機空跑從兩個垂直方向驗證，`pose_map_valid_for_current_placement=true`：
+只採沿視線的距離（誤差 +1.6／+1.9／+0.1 cm），橫向讀數不可用 —— 放置盒的接地點取遮罩最底 5 px
+帶的中位數，會落在最靠近相機的角，偏約半個面寬（7–8 cm）。車上舊檔在
+`backups/box_move_20261029/`。
+
 **投放後退出條件（2026-10-21，離線回歸，尚未實車驗證）**：總控 `mask_exit` 同時檢查
 中心及與車上巡航一致的 16 點／6 cm 轉彎外圈，另留原有沿退路 5 cm 餘量。後退後用新
 定位確認；不足時重新計算短距離，最多補退兩次，總距離以里程實際行進量計入 0.60 m
@@ -227,7 +237,7 @@ raw LiDAR hard-stop／forward-block 仍優先停車。**行駛姿態的夾爪就
 | `static/` | 前端：連線 / 主控台 / 任務設定 / 地圖 / 紀錄 |
 | `make_qr.py` | 開機偵測 IP 並把連線 QR code 畫到桌面（`--watch` 隨 IP 變動重畫） |
 | `jetson_check.sh` | ★上機一鍵檢查：連接埠、防火牆、UDP 迴路、序列埠占用、路線 |
-| `test_server.py` | 回歸測試，須 **62** 全過 |
+| `test_server.py` | 回歸測試，須 **66** 全過 |
 | `prototype.html` | 早期靜態原型，單檔雙擊即開、免 Python。功能以 `static/` 為準 |
 
 ```bash
@@ -262,7 +272,7 @@ align/latch 接上量測 homography 後，才可重新開放 `mission_pipeline.p
 主控台的「定點夾取」（2026-10-27）不受此限：它把 `home → grasp → stow`（放開為
 `release → stow`）送給常駐夾取服務的 socket，安全閘在服務端，操作台不碰序列埠；
 另加任務執行中／停止鎖定時拒絕、開始前讀 health（停穩、無其他 client、持物狀態），
-維護鎖先解後復，失敗仍收臂。見 `ui/README.md`「安全設計」。
+維護鎖先解後復，失敗仍收臂；「手臂回原位」只送 home，收臂不在 E1 時先 home 再 stow（持物則拒絕）。見 `ui/README.md`「安全設計」。
 網頁上的停止鈕送的是 `SIGINT`（走任務自己的關機路徑，才會把輪子歸零），
 夾取途中按下會等該次夾取結束才生效 —— **真正的急停是電源開關**。
 

@@ -67,8 +67,8 @@
   "bin": {
     "type": "paper_box",
     "pose_map": {
-      "x": 1.758375212841007,
-      "y": 0.8763281751406377,
+      "x": 1.3594108926938877,
+      "y": 0.7802359212928556,
       "yaw": 1.1209907364126621
     },
     "dimensions_m": {
@@ -76,31 +76,31 @@
       "width": 0.135,
       "height": 0.06
     },
-    "status": "dock_candidate_failed_physical_alignment_recalibration_required",
+    "status": "pose_map verified 2026-10-29 by rear-camera range from two perpendicular directions",
     "dimension_source": "operator tape measurement",
     "laser_scan_plane_height_m": 0.095,
     "side_wall_below_scan_plane": true,
     "footprint_map": [
       [
-        1.6584581843523152,
-        0.8246286836732166
+        1.2594938642051958,
+        0.7285364298254347
       ],
       [
-        1.7800299566728977,
-        0.7659319701806155
+        1.381065636525778,
+        0.6698397163328336
       ],
       [
-        1.858292241329699,
-        0.9280276666080585
+        1.4593279211825796,
+        0.8319354127602767
       ],
       [
-        1.7367204690091167,
-        0.9867243801006595
+        1.3377561488619971,
+        0.8906321262528778
       ]
     ],
     "wall_clearance_m": {
-      "photo_back_wall": 0.065,
-      "photo_left_wall": 0.1
+      "photo_back_wall": 0.3825,
+      "photo_left_wall": 0.36
     },
     "long_edge_parallel_to": "photo_back_wall",
     "photo_map_correspondence": {
@@ -118,7 +118,8 @@
       "required_release_center_reach_m": 0.41037330566205193,
       "verified": false,
       "note": "diagonal corner approach; release reach and paper-box aperture not yet validated",
-      "center_mask_allowed": true
+      "center_mask_allowed": true,
+      "superseded": "box moved; recompute before any use"
     },
     "center_keepout_buffer_m": 0.283238075793812,
     "physical_validation_20261017": {
@@ -171,11 +172,11 @@
       "long_edge_parallel_to": "photo_back_wall",
       "source": "operator confirmation; same original corner moved inward",
       "midpoint_pose_map_candidate": {
-        "x": 1.5599413405605012,
-        "y": 0.8333281945387369,
+        "x": 1.3594108926938877,
+        "y": 0.7802359212928556,
         "yaw": 1.1209907364126621
       },
-      "coordinate_status": "candidate_only; photo-map correspondence and physical alignment still unverified",
+      "coordinate_status": "candidate_only; taped centre-to-wall, not registered",
       "position_uncertainty_from_wall_ranges_m": 0.03535533905932738,
       "current_relative_alignment": {
         "turn_right_deg_approx": 30,
@@ -192,7 +193,7 @@
         "evidence": "docs/calibration/release_preview_2026-10-17/right30_partial.json"
       }
     },
-    "pose_map_valid_for_current_placement": false,
+    "pose_map_valid_for_current_placement": true,
     "navigation_preparation": {
       "point_map": [
         1.0255803634102147,
@@ -227,6 +228,75 @@
       "map_pose_estimate": null,
       "pose_basis": "AMCL estimate only; final physical arrival confirmed by operator after relative adjustments",
       "evidence": "docs/calibration/nav_outer_2026-10-18/final_dock_state.json"
+    },
+    "moves": [
+      {
+        "right_wall_to_centre_m": 0.45,
+        "top_wall_to_centre_m": 0.45,
+        "long_edge_parallel_to": "right wall (as the loop console draws it)",
+        "slack_m": 0.06,
+        "source": "operator tape measurement",
+        "note": "2026-10-29 operator moved the box inward to avoid ending placement in the wall no-go band; patrol ring 0.80",
+        "previous": {
+          "pose_map": {
+            "x": 1.758375212841007,
+            "y": 0.8763281751406377,
+            "yaw": 1.1209907364126621
+          },
+          "midpoint_pose_map_candidate": {
+            "x": 1.5599413405605012,
+            "y": 0.8333281945387369,
+            "yaw": 1.1209907364126621
+          },
+          "envelope_room_uv": [
+            0.9099533867254699,
+            1.17495338672547,
+            1.2736860404957706,
+            1.5836860404957707
+          ],
+          "mask_sha256": "91829173a070731da5971ca1a1fb2066a898d7778554eb4f87c52474a8a45279"
+        }
+      }
+    ],
+    "pose_map_verification_20261029": {
+      "method": "rear-camera placement dry run (no motion), fresh ArUco relocalization before each view; only the range along the line of sight is used: it ends at the box bottom edge, corrected to the centre through the box rectangle. The sideways reading is not used: the engine takes the median of the lowest 5 px band, which falls near the corner nearest the camera (sideways readings -7.7/-8.2 cm on the 18 cm face, -7.0 cm on the 13.5 cm face, about half the face).",
+      "tolerance_m": 0.05,
+      "views": [
+        {
+          "view_deg": -25.9,
+          "range_m": 1.077,
+          "robot_pose": [
+            0.3718,
+            1.1743,
+            -0.419
+          ],
+          "along_error_m": 0.016,
+          "frames": 45
+        },
+        {
+          "view_deg": -26.7,
+          "range_m": 0.941,
+          "robot_pose": [
+            0.4992,
+            1.1213,
+            -0.369
+          ],
+          "along_error_m": 0.019,
+          "frames": 43
+        },
+        {
+          "view_deg": 64.6,
+          "range_m": 1.031,
+          "robot_pose": [
+            0.9808,
+            -0.1797,
+            1.2009
+          ],
+          "along_error_m": 0.001,
+          "frames": 43
+        }
+      ],
+      "result": "taped centre kept: along-view errors +1.6/+1.9 cm (room u axis) and +0.1 cm (room v axis)"
     }
   },
   "interior_lidar_clusters": [],
@@ -236,7 +306,7 @@
     "verify bin map corner correspondence and docking release"
   ],
   "mask_warning": "center-planning constraint only; do not feed this inflated mask to AMCL",
-  "patrol_inset_from_fitted_wall_m": 0.7,
+  "patrol_inset_from_fitted_wall_m": 0.8,
   "static_route_checks": {
     "samples": 404,
     "all_center_mask_allowed_with_bin": true,
@@ -272,21 +342,21 @@
   "navigation_mask_valid_for_current_bin_placement": true,
   "historical_state": "fixed_scene_patrol_two_runs_passed_full_mission_pending",
   "navigation_mask_validation": {
-    "method": "original known-free 40cm mask intersected with conservative moved-box envelope exclusion",
+    "method": "rebuilt from scratch: known free, 35 cm from walls/map, moved-box envelope + 0.283 m keepout",
     "wall_gap_range_m": [
       0.2,
       0.25
     ],
     "additional_registration_allowance_m": 0.04,
     "envelope_room_uv": [
-      0.9099533867254699,
-      1.17495338672547,
-      1.2736860404957706,
-      1.5836860404957707
+      0.75745338672547,
+      1.01245338672547,
+      1.1436860404957705,
+      1.4436860404957708
     ],
     "removed_free_cells": 186,
     "exact_box_pose_registered": false,
-    "source": "operator retained original corner, wall-gap measurements; 2026-10-18 reply after reposition"
+    "source": "operator tape measurement after moving the box inward"
   },
   "preferred_patrol": {
     "route_file": "outer_patrol_goals.json",
@@ -309,13 +379,11 @@
     "wall_map_margin_m": 0.35,
     "turn_reserve_m": 0.06,
     "bin_buffer_m": 0.283238075793812,
-    "before_sha256": "23566c869736384cf68afd5aecea23a288b8e62dcc76cba0cb936c5338096a47",
-    "sha256": "91829173a070731da5971ca1a1fb2066a898d7778554eb4f87c52474a8a45279",
+    "before_sha256": "91829173a070731da5971ca1a1fb2066a898d7778554eb4f87c52474a8a45279",
+    "sha256": "a0114ee73c255e7b8ec500e71a94e994a29d60f6d38b17d273c27de5699af466",
     "raw_map_sha256": "00d5ec32b01ffd299b5626eb4ccfeb93af7c62a70bc43e986e7bded6dd6b269b",
-    "old_allowed_cells": 3058,
-    "added_cells": 204,
-    "allowed_cells": 3262,
-    "added_area_m2": 0.0816,
+    "allowed_cells": 2966,
+    "rebuilt_for_box_move": true,
     "physical_validation": "offline only; next supervised run required"
   }
 }

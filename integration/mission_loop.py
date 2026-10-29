@@ -92,6 +92,11 @@ PERMIT_SCRIPT = ROOT / 'integration/patrol_vision_permit_jetson.py'
 # followed by a >= 0.45 s settle. The pulse length does not delay a stop: the patrol
 # reads the permit every 0.04 s inside a pulse and stops on the first denial.
 PATROL_FORWARD_PULSE_S = 0.6
+# The patrol-cycle ring's distance inside the fitted walls. 0.70 until 2026-10-29,
+# when the user moved the placement box inward (centre 45 cm from the right and top
+# walls): its keepout then cuts the 0.70 ring's corner and the robot's policy refuses
+# to start, so the ring is 0.80 (integration/move_placement_box.py checks this).
+PATROL_INSET_M = 0.80
 # Frames in a row without a candidate before a patrol is started: one frame where
 # YOLO misses a box right ahead must not set the robot going toward it.
 START_CLEAR_FRAMES = 5
@@ -250,10 +255,11 @@ def patrol_command(scene=SCENE, output=PATROL_OUTPUT, log=PATROL_LOG):
     inner = ('source /opt/ros/melodic/setup.bash; '
              'export ROS_MASTER_URI=http://127.0.0.1:11311 ROS_IP=127.0.0.1; '
              'exec /usr/bin/python deploy/ros/g2_map_patrol.py --scene {} '
-             '--destination patrol-cycle --inset .70 --boundary-micro --keep-heading '
+             '--destination patrol-cycle --inset {} --boundary-micro --keep-heading '
              '--vision-permit {} --forward-pulse-max {} '
              '--seconds 600 --output {} --real').format(
-                 shlex.quote(scene), PERMIT_PATH, PATROL_FORWARD_PULSE_S, shlex.quote(output))
+                 shlex.quote(scene), PATROL_INSET_M, PERMIT_PATH, PATROL_FORWARD_PULSE_S,
+                 shlex.quote(output))
     # The braces keep `&` on nohup alone: backgrounding the whole `cd && ...` list
     # would make $! a subshell's PID (SIGTERM would miss the patrol) and that
     # subshell would hold the ssh session open.

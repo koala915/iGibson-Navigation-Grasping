@@ -61,6 +61,10 @@ CHECK_IDLE_PERIOD_S = 10.0
 SSE_CLIENTS = 6
 ARM_FRAME_MAX_AGE_S = 2.0
 JETSON_MIN_FREE_MB = 500
+# How long a stage usually takes, for the "about N s" the page shows. Relocalize
+# took 56-58 s in the 10-21 runs, ~40 s of it the wall match on the Jetson, with
+# the robot standing still all along, which reads like a hang without a clock.
+STAGE_ETA_S = {'relocalizing': 60.0}
 
 STAGES = {
     'idle': '待命', 'relocalizing': '重新定位中', 'localized': '已定位',
@@ -224,6 +228,15 @@ def map_payload(layout, mask=None, landmarks=None, cell=MASK_CELL_M):
         box = dock.box_from_layout(layout)
     except ValueError:
         box = None
+    if box is not None:
+        # The long edge's map heading, from the same entry box_from_layout used, so
+        # the page draws the box turned as it stands (2026-10-29: drawn level, it
+        # read as the long edge on the top wall when it ran along the right one).
+        entry = layout['bin']
+        pose = (entry.get('pose_map') if box['verified']
+                else (entry.get('placement_update') or {}).get('midpoint_pose_map_candidate'))
+        yaw = (pose or {}).get('yaw')
+        box['yaw'] = yaw if isinstance(yaw, (int, float)) and math.isfinite(yaw) else None
     xs, ys = [p[0] for p in walls], [p[1] for p in walls]
     bounds = [min(xs), min(ys), max(xs), max(ys)]
     grid = None
@@ -256,7 +269,7 @@ class Hub:
             'host': host, 'link': False, 'job': None, 'stage': 'idle', 'detail': '',
             'delivered': 0, 'failures': 0, 'lap': 0, 'started_at': None, 'ended_at': None,
             'pose': None, 'relocalized': None, 'sightings': [], 'checks': None,
-            'map': None, 'map_error': None,
+            'map': None, 'map_error': None, 'stage_since': None, 'stage_eta_s': None,
         }
         self.next_sighting = 1
 
@@ -270,6 +283,9 @@ class Hub:
 
     def update(self, **changes):
         with self.lock:
+            stage = changes.get('stage', self.state['stage'])
+            if stage != self.state['stage'] or self.state['stage_since'] is None:
+                changes.update(stage_since=time.time(), stage_eta_s=STAGE_ETA_S.get(stage))
             self.state.update(changes)
         self.broadcast()
 
@@ -338,6 +354,7 @@ class Hub:
 NUM = r'[-+]?\d+(?:\.\d+)?'
 PATTERNS = [
     ('reloc_seen', re.compile(r'^\[RELOC\] captured: markers \[(.*)\]')),
+    ('reloc_match', re.compile(r'^\[RELOC\] matching the walls')),
     ('reloc_ok', re.compile(r'^\[RELOC\] localized at map \(({0}), ({0})\), heading ({0}) deg'
                             .format(NUM))),
     ('reloc_failed', re.compile(r'^\[RELOC\] (?:not localized|capture \d/\d failed): (.*)')),
@@ -400,8 +417,10 @@ class Feed:
         name, g = event
         hub, update, note = self.hub, self.hub.update, self.hub.note
         if name == 'reloc_seen':
-            update(stage='relocalizing', detail='看到標記 ' + g[0])
+            update(stage='relocalizing', detail='看到標記 ' + g[0] + '，準備比對牆面')
             note('後相機看到標記 {}，比對牆面中'.format(g[0]))
+        elif name == 'reloc_match':
+            update(stage='relocalizing', detail='車上正在比對牆面（約 40 秒，車子不會動）')
         elif name == 'reloc_ok':
             x, y, heading = float(g[0]), float(g[1]), float(g[2])
             update(stage='localized', detail='',
@@ -511,7 +530,11 @@ class Console:
         with self.job_lock:
             if self.proc is not None and self.proc.poll() is None:
                 raise RuntimeError('已有工作在執行：{}'.format(self.hub.state['job']))
-            env = dict(os.environ, PYTHONIOENCODING='utf-8', PYTHONUNBUFFERED='1')
+            # relocalize.py runs as a script yet imports `integration.`: the repo
+            # root must be on the path (2026-10-29: ModuleNotFoundError, exit 1).
+            env = dict(os.environ, PYTHONIOENCODING='utf-8', PYTHONUNBUFFERED='1',
+                       PYTHONPATH=os.pathsep.join(
+                           p for p in (str(REPO), os.environ.get('PYTHONPATH')) if p))
             flags = getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
             self.proc = self.popen(argv, cwd=str(REPO), stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, text=True, encoding='utf-8',
@@ -521,7 +544,9 @@ class Console:
             with self.hub.lock:
                 self.hub.trail.clear()
                 self.hub.state.update(delivered=0, failures=0, lap=0, sightings=[])
-        self.hub.update(job=kind, stage=stage, detail='', started_at=time.time(), ended_at=None)
+        detail = '拍後相機畫面、找牆上的標記' if stage == 'relocalizing' else ''
+        self.hub.update(job=kind, stage=stage, detail=detail, started_at=time.time(),
+                        ended_at=None)
         threading.Thread(target=self._pump, args=(kind, proc), daemon=True).start()
 
     def _pump(self, kind, proc):

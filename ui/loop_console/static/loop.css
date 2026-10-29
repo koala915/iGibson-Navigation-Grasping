@@ -35,6 +35,12 @@
 .metrics .v{font-size:1.25rem; font-weight:650; line-height:1.2}
 .metrics .k{font-size:.72rem; color:var(--ink-3)}
 .detail{margin:10px 0 0; font-size:.82rem; color:var(--ink-2); min-height:1.2em}
+.eta{display:grid; grid-template-columns:1fr auto; gap:10px; align-items:center; margin-top:8px}
+.eta .bar{height:6px; border-radius:3px; background:var(--line-soft); overflow:hidden}
+.eta .bar i{display:block; height:100%; width:0; background:var(--accent, #4a8cff);
+  transition:width .9s linear}
+.eta.late .bar i{background:var(--warn)}
+.eta span{font-size:.78rem; color:var(--ink-2)}
 
 /* 自檢 */
 .checks{list-style:none; margin:0; padding:0}

@@ -33,6 +33,10 @@ class ParseTests(unittest.TestCase):
                     '[RELOC] localized at map (0.22, 0.24), heading -46 deg, from markers [2, 7] (57 s)'])
         self.assertEqual(hub.state['stage'], 'localized')
         self.assertAlmostEqual(hub.state['relocalized']['yaw'], math.radians(-46))
+        hub = feed(['[RELOC] captured: markers [1, 6]',
+                    '[RELOC] matching the walls on the robot (~40 s)'])
+        self.assertEqual(hub.state['stage'], 'relocalizing')
+        self.assertIn('40', hub.state['detail'])
         hub = feed(['[BLOCKED] relocalization: AMBIGUOUS: markers [2] fit more than one place'])
         self.assertIn('AMBIGUOUS', hub.state['detail'])
         self.assertEqual(hub.log[-1]['kind'], 'crit')
@@ -173,7 +177,7 @@ class FakeRobot:
 
 class FakeProc:
     def __init__(self, argv, **kw):
-        self.argv, self.stdout, self.pid = argv, iter(()), 4321
+        self.argv, self.stdout, self.pid, self.kw = argv, iter(()), 4321, kw
         self.done = threading.Event()
 
     def poll(self):
@@ -245,6 +249,14 @@ class ApiTests(unittest.TestCase):
     def test_relocalize_runs_the_script_and_stop_reaches_the_robot(self):
         self.assertEqual(self.post('/api/relocalize')[0], 200)
         self.assertIn('integration/relocalize.py', self.procs[0].argv)
+        # 2026-10-29: run as a script it could not import `integration.` (exit 1).
+        paths = self.procs[0].kw['env']['PYTHONPATH'].split(server.os.pathsep)
+        self.assertIn(str(server.REPO), paths)
+        # A minute of standing still gets a clock and a usual duration.
+        state = self.console.hub.state
+        self.assertEqual(state['stage_eta_s'], 60.0)
+        self.assertIsNotNone(state['stage_since'])
+        self.assertTrue(state['detail'])
         with patch.object(server.subprocess, 'run') as run:
             self.assertEqual(self.post('/api/stop')[0], 200)
         self.assertEqual(self.robot.stops, 1)

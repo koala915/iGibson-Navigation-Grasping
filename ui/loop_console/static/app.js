@@ -101,7 +101,24 @@ function render(s) {
   drawMap();
 }
 
+// A stage with a usual duration (relocalize ~60 s, the robot standing still
+// throughout) gets a running clock, so a long quiet step does not read as a hang.
+function tickEta() {
+  const box = $('stageEta');
+  const eta = S && S.job && S.stage_eta_s;
+  box.hidden = !eta || !S.stage_since;
+  if (box.hidden) return;
+  const t = Math.max(0, Math.round(Date.now() / 1000 - S.stage_since));
+  const late = t > eta;
+  box.classList.toggle('late', late);
+  $('stageEtaBar').style.width = Math.min(100, 100 * t / eta) + '%';
+  $('stageEtaTxt').textContent = late
+    ? '已 ' + t + ' 秒，比平常久，仍在等車上回覆'
+    : '已 ' + t + ' 秒 · 通常約 ' + Math.round(eta) + ' 秒';
+}
+
 function tickClock() {
+  tickEta();
   if (!S || !S.started_at) { $('mTime').textContent = '—'; return; }
   const end = S.job ? Date.now() / 1000 : (S.ended_at || Date.now() / 1000);
   const t = Math.max(0, Math.round(end - S.started_at));
@@ -240,14 +257,22 @@ function drawMap() {
   }
   // placement box
   if (m.box) {
-    const [bx, by] = P(m.box.x, m.box.y);
-    const a = bx - BOX.w * k / 2, b = by - BOX.d * k / 2;
+    // Long edge (BOX.w) along the layout's yaw; level when the layout has none.
+    const yaw = m.box.yaw != null ? m.box.yaw : theta;
+    const ux = Math.cos(yaw), uy = Math.sin(yaw);
+    const corners = [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([i, j]) =>
+      P(m.box.x + i * BOX.w / 2 * ux - j * BOX.d / 2 * uy,
+        m.box.y + i * BOX.w / 2 * uy + j * BOX.d / 2 * ux));
+    const a = Math.min(...corners.map((p) => p[0])), b = Math.min(...corners.map((p) => p[1]));
     g.fillStyle = css('--warn-soft');
     g.strokeStyle = css('--warn');
     g.lineWidth = 1.5;
     g.setLineDash(m.box.verified ? [] : [4, 3]);
-    g.fillRect(a, b, BOX.w * k, BOX.d * k);
-    g.strokeRect(a, b, BOX.w * k, BOX.d * k);
+    g.beginPath();
+    corners.forEach(([px, py], i) => (i ? g.lineTo(px, py) : g.moveTo(px, py)));
+    g.closePath();
+    g.fill();
+    g.stroke();
     g.setLineDash([]);
     g.fillStyle = css('--warn');
     g.font = '12px ' + css('--sans');

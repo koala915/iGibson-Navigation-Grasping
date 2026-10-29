@@ -99,11 +99,16 @@ def build(source, destination, right_m, top_m, long_edge, inset, slack=SLACK_M, 
                     'midpoint_pose_map_candidate'),
                 'envelope_room_uv': layout['navigation_mask_validation'].get('envelope_room_uv'),
                 'mask_sha256': digest(source/meta['image'])}
+    # A verified position stays verified when only the mask is rebuilt around it
+    # (2026-10-29: slack cut to 2 cm after the camera check); a moved box is not.
+    old = box.get('pose_map') or {}
+    same = (box.get('pose_map_valid_for_current_placement') is True
+            and math.hypot(old.get('x', 1e9) - pose['x'], old.get('y', 1e9) - pose['y']) < 1e-3)
     box.update(pose_map=pose, footprint_map=footprint, long_edge_parallel_to=(
         'photo_back_wall' if long_edge == 'right' else 'photo_left_wall'),
         wall_clearance_m={'photo_back_wall': round(right_m - half_u, 4),
                           'photo_left_wall': round(top_m - half_v, 4)},
-        pose_map_valid_for_current_placement=False, registration_verified=False)
+        pose_map_valid_for_current_placement=same, registration_verified=False)
     update = box.setdefault('placement_update', {})
     update.update(midpoint_pose_map_candidate=dict(pose),
                   coordinate_status='candidate_only; taped centre-to-wall, not registered')
@@ -136,16 +141,75 @@ def build(source, destination, right_m, top_m, long_edge, inset, slack=SLACK_M, 
                 ring=ring, inset=inset)
 
 
+ROUTE_INSET_M = 0.55             # ncu's outer route: 55 cm inside the fitted walls
+ROUTE_MARGIN_M = 0.03            # beyond the keepout, so rounding never lands a point on it
+
+
+def write_route(folder, inset=ROUTE_INSET_M, margin=ROUTE_MARGIN_M):
+    """ncu's patrol-cycle route (preferred_patrol.route_file), clipped around the box.
+
+    patrol-cycle follows this file, not patrol_points(--inset): on 2026-10-29 the
+    old file's box corner (made for the corner box) sat on the moved box's keepout
+    and the patrol stopped with "invalid patrol point". The ring keeps `inset`
+    from the walls; at the u/v-max corner it steps around the box envelope plus
+    the keepout. Every point must be allowed and every leg plannable, as the
+    robot's g2_navigation_goals checks.
+    """
+    folder = Path(folder)
+    layout = json.loads((folder/'scene_layout.json').read_text())
+    a = layout['room_heading_rad']
+    c, s = math.cos(a), math.sin(a)
+    polygon = [(px*c + py*s, -px*s + py*c) for px, py in layout['room_polygon']]
+    umin, umax = min(p[0] for p in polygon), max(p[0] for p in polygon)
+    vmin, vmax = min(p[1] for p in polygon), max(p[1] for p in polygon)
+    env = layout['navigation_mask_validation']['envelope_room_uv']
+    meta = yaml.safe_load((folder/'navigation_center_mask.yaml').read_text())
+    clear = float(layout['bin']['center_keepout_buffer_m']) + float(meta['resolution'])/math.sqrt(2) + margin
+    beside_right, beside_top = (umax - env[0]) + clear, (vmax - env[2]) + clear
+    corner = inset
+    while math.hypot(max(0., env[0] - (umax - corner)), max(0., env[2] - (vmax - corner))) < clear:
+        corner += 0.01
+    to_map = lambda pu, pv: [pu*c - pv*s, pu*s + pv*c]
+    uv = [(umin+inset, vmin+inset), (umax-inset, vmin+inset), (umax-inset, vmax-beside_top),
+          (umax-corner, vmax-corner), (umax-beside_right, vmax-inset), (umin+inset, vmax-inset),
+          (umin+inset, vmin+inset)]
+    route = [{'name': 'outer_ccw_%d' % i, 'point': to_map(*p)} for i, p in enumerate(uv)]
+    name = layout['preferred_patrol']['route_file']
+    (folder/name).write_text(json.dumps(route, indent=2) + '\n')
+    policy = Policy(str(folder))
+    for item in route:
+        if not policy.allowed(*item['point']):
+            raise ValueError('route point {} is outside the centre mask'.format(item['name']))
+    for one, two in zip(route, route[1:]):
+        policy.plan(one['point'], two['point'])
+    return dict(route_file=name, points=route, beside_box_m=[beside_right, beside_top],
+                corner_m=corner, sha256=digest(folder/name))
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--source', type=Path, required=True)
-    parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--right-m', type=float, required=True)
-    parser.add_argument('--top-m', type=float, required=True)
-    parser.add_argument('--long-edge', choices=('right', 'top'), required=True)
-    parser.add_argument('--inset', type=float, required=True)
+    parser.add_argument('--output', type=Path)
+    parser.add_argument('--right-m', type=float)
+    parser.add_argument('--top-m', type=float)
+    parser.add_argument('--long-edge', choices=('right', 'top'))
+    parser.add_argument('--inset', type=float)
     parser.add_argument('--note', default='')
+    parser.add_argument('--slack', type=float, default=SLACK_M,
+                        help='added to the box size before the keepout: 0.06 taped, 0.02 once '
+                             'verified by the camera')
+    parser.add_argument('--route-only', action='store_true',
+                        help='rewrite only the patrol-cycle route file in --source, in place')
     args = parser.parse_args()
-    print(json.dumps(build(args.source, args.output, args.right_m, args.top_m, args.long_edge,
-                           args.inset, note=args.note), indent=2))
+    if args.route_only:
+        print(json.dumps(write_route(args.source), indent=2))
+    else:
+        if None in (args.output, args.right_m, args.top_m, args.long_edge, args.inset):
+            parser.error('--output, --right-m, --top-m, --long-edge and --inset are required')
+        if not 0.02 <= args.slack <= 0.10:
+            parser.error('slack must be 0.02..0.10 m')
+        report = build(args.source, args.output, args.right_m, args.top_m, args.long_edge,
+                       args.inset, slack=args.slack, note=args.note)
+        report['route'] = write_route(args.output)
+        print(json.dumps(report, indent=2))

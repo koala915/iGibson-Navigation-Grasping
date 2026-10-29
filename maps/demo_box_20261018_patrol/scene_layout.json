@@ -256,6 +256,33 @@
           ],
           "mask_sha256": "91829173a070731da5971ca1a1fb2066a898d7778554eb4f87c52474a8a45279"
         }
+      },
+      {
+        "right_wall_to_centre_m": 0.45,
+        "top_wall_to_centre_m": 0.45,
+        "long_edge_parallel_to": "right wall (as the loop console draws it)",
+        "slack_m": 0.02,
+        "source": "operator tape measurement",
+        "note": "2026-10-29 slack 6 -> 2 cm after the camera verification (along-view error <= 1.9 cm), to give placement more room",
+        "previous": {
+          "pose_map": {
+            "x": 1.3594108926938877,
+            "y": 0.7802359212928556,
+            "yaw": 1.1209907364126621
+          },
+          "midpoint_pose_map_candidate": {
+            "x": 1.3594108926938877,
+            "y": 0.7802359212928556,
+            "yaw": 1.1209907364126621
+          },
+          "envelope_room_uv": [
+            0.75745338672547,
+            1.01245338672547,
+            1.1436860404957705,
+            1.4436860404957708
+          ],
+          "mask_sha256": "a0114ee73c255e7b8ec500e71a94e994a29d60f6d38b17d273c27de5699af466"
+        }
       }
     ],
     "pose_map_verification_20261029": {
@@ -349,10 +376,10 @@
     ],
     "additional_registration_allowance_m": 0.04,
     "envelope_room_uv": [
-      0.75745338672547,
-      1.01245338672547,
-      1.1436860404957705,
-      1.4436860404957708
+      0.79745338672547,
+      0.97245338672547,
+      1.1836860404957705,
+      1.4036860404957707
     ],
     "removed_free_cells": 186,
     "exact_box_pose_registered": false,
@@ -379,10 +406,10 @@
     "wall_map_margin_m": 0.35,
     "turn_reserve_m": 0.06,
     "bin_buffer_m": 0.283238075793812,
-    "before_sha256": "91829173a070731da5971ca1a1fb2066a898d7778554eb4f87c52474a8a45279",
-    "sha256": "a0114ee73c255e7b8ec500e71a94e994a29d60f6d38b17d273c27de5699af466",
+    "before_sha256": "a0114ee73c255e7b8ec500e71a94e994a29d60f6d38b17d273c27de5699af466",
+    "sha256": "2b38925b3dd5282c375b756cf58e380d7106c8f1e37f183533cb99c8215a6039",
     "raw_map_sha256": "00d5ec32b01ffd299b5626eb4ccfeb93af7c62a70bc43e986e7bded6dd6b269b",
-    "allowed_cells": 2966,
+    "allowed_cells": 3051,
     "rebuilt_for_box_move": true,
     "physical_validation": "offline only; next supervised run required"
   }

@@ -815,13 +815,18 @@ class ReplayRobot:
 
 
 def replay_argv(log_path, python):
-    """A job that prints the recorded mission output at a readable pace."""
+    """A job that prints the recorded mission output at a readable pace, and ends
+    with the exit code mission_loop gave it: 2 for a mission that stopped."""
     script = ('import sys, time\n'
+              'code = 0\n'
               'for line in open(%r, encoding="utf-8", errors="replace"):\n'
               '    if line.startswith(("[RUN]", "[VISION_LAT]")):\n'
               '        continue\n'
+              '    if line.startswith("[MISSION] stopped in"):\n'
+              '        code = 2\n'
               '    print(line.rstrip(), flush=True)\n'
-              '    time.sleep(0.35)\n') % str(log_path)
+              '    time.sleep(0.35)\n'
+              'sys.exit(code)\n') % str(log_path)
     return [python, '-u', '-c', script]
 
 

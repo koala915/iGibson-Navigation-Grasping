@@ -251,7 +251,10 @@ function drawMap() {
     g.setLineDash([]);
     g.fillStyle = css('--warn');
     g.font = '12px ' + css('--sans');
-    g.fillText(m.box.verified ? '放置盒' : '放置盒（未驗證）', a, b - 5);
+    const label = m.box.verified ? '放置盒' : '放置盒（未驗證）';
+    // Kept inside the canvas: the box sits near a wall, and a phone is narrow.
+    const lx = Math.max(4, Math.min(a, g.canvas.clientWidth - g.measureText(label).width - 4));
+    g.fillText(label, lx, b - 5);
   }
   // trail
   const trail = S.trail || [];

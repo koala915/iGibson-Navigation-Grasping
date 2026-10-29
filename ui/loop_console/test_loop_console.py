@@ -52,6 +52,18 @@ class ParseTests(unittest.TestCase):
         f.line('{"ok": true, "confirmed": true, "outcome": "confirmed", "elapsed_s": 7.5}')
         self.assertEqual((hub.state['stage'], hub.state['sightings']), ('grasped', []))
 
+    def test_a_replay_ends_with_the_recorded_missions_exit_code(self):
+        # Run 19 stopped with exit 2; its replay must not report a clean exit 0.
+        import subprocess
+        import tempfile
+        for text, code in (('[MISSION] stopped in PATROL 2: patrol stopped\n', 2),
+                           ('[MISSION] 1 delivered: done\n', 0)):
+            with tempfile.TemporaryDirectory() as folder:
+                log = Path(folder) / 'mission.out'
+                log.write_text(text, encoding='utf-8')
+                done = subprocess.run(server.replay_argv(log, sys.executable), capture_output=True)
+            self.assertEqual(done.returncode, code)
+
     def test_a_localization_outage_is_told_in_the_log(self):
         hub = feed(['[LOCALIZE] not localized: waiting for fresh scan: waiting up to 20 s '
                     'with the robot stopped', '[LOCALIZE] back after 2.4 s'])

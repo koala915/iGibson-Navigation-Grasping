@@ -107,14 +107,17 @@ ARM_TIMEOUTS = {"home": 75.0, "grasp": 200.0, "release": 150.0, "stow": 75.0,
                 "health": 5.0, "maintenance-lock": 15.0, "maintenance-unlock": 15.0}
 # Each operator action is the checked one-click path, step by step. grasp needs
 # E1 first (the service refuses it anywhere else); release reaches from E1 on
-# its own and ends there; both finish back in the travel pose.
+# its own and ends there; both finish back in the travel pose. The service's
+# stow only starts from E1, so stow from any other pose goes home first (see
+# arm_steps); home itself reaches E1 from any pose under the floor guard.
 ARM_ACTIONS = {
     "grasp": ("home", "grasp", "stow"),
     "release": ("release", "stow"),
     "stow": ("stow",),
+    "home": ("home",),
 }
 ARM_LABELS = {"grasp": "夾取前方物體", "release": "放開物體", "stow": "收臂",
-              "home": "手臂移到 E1 姿態", "maintenance-unlock": "解除維護鎖",
+              "home": "手臂回原位（E1）", "maintenance-unlock": "解除維護鎖",
               "maintenance-lock": "恢復維護鎖"}
 SAFE_PATH = re.compile(r"\A[A-Za-z0-9_][A-Za-z0-9._/-]{0,119}\Z")
 
@@ -426,7 +429,7 @@ class SimulatedService:
                                 "arm_busy": False, "arm_pose": self.pose,
                                 "maintenance": False}}
         if command == "home":
-            self.pose = "e1"
+            self.holding, self.pose = False, "e1"     # home opens the jaw
             return {"ok": True}
         if command == "grasp":
             self.holding = True
@@ -465,9 +468,26 @@ def arm_problem(action: str, health: Dict) -> Optional[str]:
         return "夾爪已經夾著東西，請先放開。"
     if action == "release" and not holding:
         return "夾爪是空的，沒有東西可以放開。"
-    if action in ("grasp", "release") and chassis.get("arm_pose") not in ("travel", "e1"):
-        return "手臂不在行駛或 E1 姿態（目前：%s），請先收臂。" % chassis.get("arm_pose")
+    pose = chassis.get("arm_pose")
+    if action in ("grasp", "release") and pose not in ("travel", "e1"):
+        return "手臂不在行駛或 E1 姿態（目前：%s），請先按「手臂回原位」或「收臂」。" % pose
+    if action == "stow" and pose not in ("travel", "e1") and holding:
+        # The way to travel from here passes through home, which opens the jaw.
+        return "夾爪持物、手臂姿態不明（目前：%s）：收臂要先回 E1，會鬆開物體。請先手動處理。" % pose
     return None
+
+
+def arm_steps(action: str, health: Dict) -> tuple:
+    """The service commands for `action` from the pose the robot reports.
+
+    The service's stow is only E1 -> travel. From travel it answers "already";
+    from anything else (startup_failed after a boot with the jaw closed, or
+    unknown) home comes first. arm_problem has already refused that while holding.
+    """
+    pose = (health.get("chassis") or {}).get("arm_pose")
+    if action == "stow" and pose not in ("travel", "e1"):
+        return ("home", "stow")
+    return ARM_ACTIONS[action]
 
 
 class ArmJob:
@@ -519,11 +539,12 @@ class ArmJob:
         if problem:
             return {"ok": False, "error": problem}
         locked = (health.get("chassis") or {}).get("maintenance") is True
+        steps = arm_steps(action, health)
         self._update(running=True, action=action, step=None, steps=[],
                      started_at=time.time(), result=None, error=None,
                      holding=health.get("holding"))
-        self.thread = threading.Thread(target=self._run, args=(action, locked, stopped),
-                                       daemon=True)
+        self.thread = threading.Thread(target=self._run,
+                                       args=(action, locked, stopped, steps), daemon=True)
         self.thread.start()
         return {"ok": True}
 
@@ -536,7 +557,7 @@ class ArmJob:
         self.hub.publish("arm", self.snapshot())
         return reply
 
-    def _run(self, action: str, locked: bool, stopped) -> None:
+    def _run(self, action: str, locked: bool, stopped, steps=None) -> None:
         error, result = None, None
         try:
             if locked:
@@ -544,7 +565,7 @@ class ArmJob:
                 # the service unlocks only when idle, and it is locked again after.
                 if self._step("maintenance-unlock").get("ok") is not True:
                     raise RuntimeError("夾取服務不允許解除維護鎖。")
-            steps = ARM_ACTIONS[action]
+            steps = steps or ARM_ACTIONS[action]
             for i, command in enumerate(steps):
                 if stopped():
                     raise RuntimeError("已按停止，剩下的步驟沒有執行。")

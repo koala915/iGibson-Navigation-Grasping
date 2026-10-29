@@ -445,9 +445,11 @@ function applyProcess(p) {
 /* ── 定點夾取 ───────────────────────────────────────────
  * 指令送給車上的常駐夾取服務；這個網頁和伺服器都不直接碰手臂。
  * 每一步是一個不能中途打斷的動作，停止鍵在步驟之間才生效。 */
-const ARM_STEP = { "home": "手臂升到 E1", "grasp": "夾取", "release": "放開", "stow": "收臂",
+const ARM_STEP = { "home": "手臂回到 E1", "grasp": "夾取", "release": "放開", "stow": "收臂",
                    "maintenance-unlock": "解除維護鎖", "maintenance-lock": "恢復維護鎖" };
-const ARM_ACTION = { grasp: "夾取前方物體", release: "放開物體", stow: "收臂" };
+const ARM_ACTION = { grasp: "夾取前方物體", release: "放開物體", stow: "收臂", home: "手臂回原位" };
+// home opens the jaw at E1, so whatever is held is let go there.
+const ARM_WARN = { home: "\n\n手臂會回到 E1 並張開夾爪：夾著的東西會在 E1 鬆開。" };
 
 function armBlocked() {
   if (!allowReal && !simulate) return "這台伺服器不允許驅動硬體，需在機器人上以 --allow-real 啟動操作台。";
@@ -497,7 +499,7 @@ el("armConfirm").addEventListener("change", paintArmButtons);
 document.querySelectorAll("[data-arm]").forEach(b => b.addEventListener("click", async () => {
   const action = b.dataset.arm;
   if (action !== "stow" &&
-      !confirm(`即將驅動實體手臂：${ARM_ACTION[action]}。\n\n確認手臂周圍淨空、有人在場、手放在電源開關上？`)) return;
+      !confirm(`即將驅動實體手臂：${ARM_ACTION[action]}。${ARM_WARN[action] || ""}\n\n確認手臂周圍淨空、有人在場、手放在電源開關上？`)) return;
   const r = await api("/api/arm", { action, confirm: el("armConfirm").checked })
     .catch(() => ({ ok: false, error: "伺服器沒有回應。" }));
   if (!r.ok) banner(r.error, "crit"); else banner(null);

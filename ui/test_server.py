@@ -594,6 +594,39 @@ class TestFixedPointGrasp(unittest.TestCase):
         self.assertTrue(self.run_arm(c, "release")["ok"])
         self.assertEqual(service.sent, ["health", "release", "stow", "health"])
 
+    def test_stow_goes_home_first_from_a_failed_boot_pose(self):
+        # 2026-10-29: the service booted with the jaw closed, left the arm in
+        # place ("startup_failed"), and its stow refused arm_not_at_e1.
+        for pose, expected in (("startup_failed", ["home", "stow"]), ("unknown", ["home", "stow"]),
+                               ("e1", ["stow"]), ("travel", ["stow"])):
+            with self.subTest(pose=pose):
+                service = FakeService(health={"chassis": {"arm_pose": pose}})
+                c = self.console(service)
+                self.assertTrue(self.run_arm(c, "stow")["ok"])
+                self.assertEqual(service.sent, ["health"] + expected + ["health"])
+
+    def test_stow_from_an_unknown_pose_never_opens_a_holding_jaw(self):
+        service = FakeService(health={"holding": True, "chassis": {"arm_pose": "startup_failed"}})
+        c = self.console(service)
+        r = self.run_arm(c, "stow")
+        self.assertFalse(r["ok"])
+        self.assertIn("鬆開物體", r["error"])
+        self.assertEqual(service.sent, ["health"])
+
+    def test_home_is_one_service_command_from_any_pose(self):
+        service = FakeService(health={"chassis": {"arm_pose": "startup_failed"}})
+        c = self.console(service)
+        self.assertTrue(self.run_arm(c, "home")["ok"])
+        self.assertEqual(service.sent, ["health", "home", "health"])
+        self.assertIsNone(c.arm.snapshot()["error"])
+
+    def test_grasp_from_a_failed_boot_pose_points_at_home(self):
+        service = FakeService(health={"chassis": {"arm_pose": "startup_failed"}})
+        r = self.run_arm(self.console(service), "grasp")
+        self.assertFalse(r["ok"])
+        self.assertIn("手臂回原位", r["error"])
+        self.assertEqual(service.sent, ["health"])
+
     def test_nothing_moves_without_both_gates(self):
         for args, body, why in (({"allow_real": False}, {}, "--allow-real"),
                                 ({}, {"confirm": False}, "勾選"),

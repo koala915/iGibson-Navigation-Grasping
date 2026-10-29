@@ -168,6 +168,8 @@ input[aria-invalid="true"]{border-color:var(--crit); background:var(--crit-soft)
 .go:disabled{background:var(--line); color:var(--ink-3); cursor:not-allowed}
 .go.ghost{background:var(--panel-2); color:var(--ink-2); border:1px solid var(--line); font-weight:600}
 .go.ghost:hover{background:var(--panel-2); border-color:var(--accent); color:var(--accent)}
+.go.ghost:disabled, .go.ghost:disabled:hover{background:var(--panel-2); border-color:var(--line);
+  color:var(--ink-3); opacity:.55; cursor:not-allowed}
 .recents{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px}
 .recents button{border:1px solid var(--line); background:var(--panel-2); border-radius:100px;
   padding:4px 11px; font-family:var(--mono); font-size:.76rem; color:var(--ink-2); cursor:pointer}

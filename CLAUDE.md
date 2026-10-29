@@ -227,14 +227,14 @@ raw LiDAR hard-stop／forward-block 仍優先停車。**行駛姿態的夾爪就
 | `static/` | 前端：連線 / 主控台 / 任務設定 / 地圖 / 紀錄 |
 | `make_qr.py` | 開機偵測 IP 並把連線 QR code 畫到桌面（`--watch` 隨 IP 變動重畫） |
 | `jetson_check.sh` | ★上機一鍵檢查：連接埠、防火牆、UDP 迴路、序列埠占用、路線 |
-| `test_server.py` | 回歸測試，須 **48** 全過 |
+| `test_server.py` | 回歸測試，須 **62** 全過 |
 | `prototype.html` | 早期靜態原型，單檔雙擊即開、免 Python。功能以 `static/` 為準 |
 
 ```bash
 ./ui/jetson_check.sh                # ★上機前先跑這個
 python3 ui/server.py --simulate     # 開發機，無硬體（狀態與位置由模擬器產生）
 python3 ui/server.py                # Jetson，唯讀監看（不驅動硬體）
-python3 ui/server.py --allow-real   # 只開第一道閘；目前 A/B/C 實機仍 fail-closed
+python3 ui/server.py --allow-real   # 只開第一道閘；A/B/C 實機仍 fail-closed，定點夾取可用
 ```
 
 ⚠️ **操作台刻意不顯示相機畫面。** Jetson Nano 跑這個專案 RAM 已經吃到九成，
@@ -259,6 +259,10 @@ MJPEG 端點、`vision_grasp_pipeline` 的預覽掛勾）已全部移除，有�
 serial owner、LiDAR 方向與 grasp-home homography 等模式專用證據，因此 A/B/C
 實機請求都會被 server 拒絕；dry-run 與 simulation 可用。完整任務的 final
 align/latch 接上量測 homography 後，才可重新開放 `mission_pipeline.py --real`。
+主控台的「定點夾取」（2026-10-27）不受此限：它把 `home → grasp → stow`（放開為
+`release → stow`）送給常駐夾取服務的 socket，安全閘在服務端，操作台不碰序列埠；
+另加任務執行中／停止鎖定時拒絕、開始前讀 health（停穩、無其他 client、持物狀態），
+維護鎖先解後復，失敗仍收臂。見 `ui/README.md`「安全設計」。
 網頁上的停止鈕送的是 `SIGINT`（走任務自己的關機路徑，才會把輪子歸零），
 夾取途中按下會等該次夾取結束才生效 —— **真正的急停是電源開關**。
 

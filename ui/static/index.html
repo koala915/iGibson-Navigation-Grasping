@@ -188,6 +188,25 @@
               </div>
             </div>
           </div>
+
+          <div class="card">
+            <header><h2>定點夾取</h2><div class="spacer"></div><span class="tok" id="armTok">待命</span></header>
+            <div class="body" style="display:grid; gap:11px">
+              <p class="human" style="margin:0">把物體放在車子正前方手臂相機看得到的位置，按「夾取前方物體」：手臂升到 E1 姿態、確認物體、夾起後收回。</p>
+              <label class="toggle">
+                <input type="checkbox" id="armConfirm"><span class="sw"></span>
+                <span style="font-size:.85rem; font-weight:600">我在車旁，手放在電源開關上</span>
+              </label>
+              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px">
+                <button class="go" id="armGrasp" data-arm="grasp">夾取前方物體</button>
+                <button class="go ghost" id="armRelease" data-arm="release">放開物體</button>
+                <button class="go ghost" id="armStow" data-arm="stow">收臂</button>
+              </div>
+              <div class="note warn" id="armBlock" hidden></div>
+              <div class="note" id="armNote" hidden></div>
+              <div class="tl" id="armSteps"></div>
+            </div>
+          </div>
         </div>
 
         <div class="grid" style="align-content:start">

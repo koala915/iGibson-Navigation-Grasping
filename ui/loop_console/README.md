@@ -17,6 +17,9 @@
 python ui/loop_console/server.py --simulate logs/mission_20261021_patrol19/mission.out
 ```
 
+機器人桌面的「決賽操作台 QR」圖示（`finals_qr.py --install` 建立）：雙擊後從連著車子的 ssh 找出
+這台電腦，確認 8090 真的是操作台才顯示 QR。IP 每次現找，換網路不會過期；操作台沒開時跳錯誤訊息。
+
 ## 功能
 
 | 區塊 | 內容 |

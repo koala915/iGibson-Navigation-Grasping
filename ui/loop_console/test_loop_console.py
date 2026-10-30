@@ -12,6 +12,7 @@ from urllib.error import HTTPError
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import finals_qr  # noqa: E402
 import server  # noqa: E402
 
 REPO = HERE.parents[1]
@@ -25,6 +26,22 @@ def feed(lines, pose=(0.0, 0.0, 0.0)):
     for line in lines:
         f.line(line)
     return hub
+
+
+class FinalsQrTests(unittest.TestCase):
+    SS = ('Recv-Q Send-Q Local Address:Port Peer Address:Port\n'
+          '0 0 10.0.0.2:22 10.0.0.9:56019\n'
+          '0 0 10.0.0.2:22 10.0.0.9:49172\n'
+          '0 0 [::ffff:10.0.0.2]:22 [::ffff:10.0.0.7]:50000\n'
+          '0 0 [fe80::1]:22 [fe80::2]:50001\n')
+
+    def test_peers_are_ipv4_and_unique(self):
+        self.assertEqual(finals_qr.ssh_peers(self.SS), ['10.0.0.9', '10.0.0.7'])
+
+    def test_only_a_host_answering_as_the_console_gets_a_qr(self):
+        with patch.object(finals_qr, 'answers', side_effect=lambda ip, port: ip == '10.0.0.7'):
+            self.assertEqual(finals_qr.pick(['10.0.0.9', '10.0.0.7'], 8090), '10.0.0.7')
+            self.assertIsNone(finals_qr.pick(['10.0.0.9'], 8090))
 
 
 class ParseTests(unittest.TestCase):

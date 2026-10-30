@@ -322,9 +322,10 @@ class VisionLink:
     """
 
     def __init__(self, host, popen=subprocess.Popen, clock=time.monotonic):
-        command = 'python3 -u -c {} {} {} {}'.format(
+        # The patrol report lets the Jetson end ack ncu's recovery pauses (70ca5eb).
+        command = 'python3 -u -c {} {} {} {} {}'.format(
             shlex.quote(PERMIT_SCRIPT.read_text(encoding='utf-8')), PERMIT_PATH,
-            dock.LOCALIZATION_HEALTH, HEALTH_SOCKET)
+            dock.LOCALIZATION_HEALTH, HEALTH_SOCKET, PATROL_OUTPUT)
         self.clock, self.allowed = clock, False
         self.pose, self.pose_at = None, None
         self.pose_history = deque(maxlen=100)
@@ -462,13 +463,14 @@ def patrol_turn_refused(report):
     that, a few cm either way: a patrol started again plans from there."""
     error = str(report.get('error') or '')
     return (report.get('ok') is not True and not report.get('cleanup_error')
-            and 'turn' in error and 'mask' in error)
+            and ('physical turn' in error or ('turn' in error and 'mask' in error)))
 
 
 # The patrol's own words for its localization or sensors dropping out (ncu's
 # g2_map_patrol Sensors/Runner.state), as listed in his recovery of 2026-10-22.
 LOCALIZATION_LOST_WORDS = ('localiz', 'stale amcl', 'stale map tf', 'stale scan/odom',
-                           'missing ros data', 'map tf:', 'amcl uncertainty')
+                           'missing ros data', 'map tf:', 'amcl uncertainty',
+                           'sensor recovery')
 
 
 def patrol_localization_lost(report):

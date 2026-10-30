@@ -4,6 +4,16 @@ import json
 import math
 import os
 import heapq
+import hashlib
+try:
+    from .g2_patrol_entry import BODY_RADIUS,TURN_MARGIN,EntryGeometry
+except (ImportError, ValueError):  # Python 2: relative import outside a package
+    from g2_patrol_entry import BODY_RADIUS,TURN_MARGIN,EntryGeometry
+
+
+def compact_geometry_hash(layout):
+    values={key:layout[key] for key in ('room_polygon','room_heading_rad','navigation_mask_validation')}
+    return hashlib.sha256(json.dumps(values,sort_keys=True,separators=(',',':')).encode('ascii')).hexdigest()
 
 
 def finite(x):
@@ -47,15 +57,35 @@ class Policy:
         # 40cm limit accept only the rebuilt, hashed scene, down to 35cm. Keep
         # the runner's independent 6cm turn reserve and all motion-ready gates.
         margin=self.layout.get('center_wall_margin_m',0)
-        if self.layout.get('frame_id')!='map' or not finite(margin) or margin<.35:
+        compact=self.layout.get('compact_patrol',{})
+        self.compact=compact.get('enabled') is True
+        minimum=.34 if self.compact else .35
+        if self.layout.get('frame_id')!='map' or not finite(margin) or margin<minimum:
             raise ValueError('unapproved scene policy')
         self.resolution=float(meta['resolution'])
         self.origin=tuple(float(x) for x in meta['origin'])
         if self.resolution<=0 or self.origin[2]!=0:
             raise ValueError('unsupported mask geometry')
         self.width,self.height,self.cells=read_pgm(os.path.join(folder,meta['image']))
-        if margin<.4:
-            import hashlib
+        if self.compact:
+            if os.path.basename(compact['raw_image'])!=compact['raw_image']:
+                raise ValueError('raw map must be scene-relative')
+            with open(os.path.join(folder,meta['image']),'rb') as f:digest=hashlib.sha256(f.read()).hexdigest()
+            with open(os.path.join(folder,compact['raw_image']),'rb') as f:raw_digest=hashlib.sha256(f.read()).hexdigest()
+            if (compact.get('schema')!=1 or compact.get('mask_sha256')!=digest
+                    or compact.get('raw_sha256')!=raw_digest
+                    or compact.get('geometry_sha256')!=compact_geometry_hash(self.layout)
+                    # Python 2's math.hypot differs from 3.8+ in the last bit
+                    # (0.3080990100600779 vs ...795, 2026-10-29): not exact.
+                    or not abs(float(compact.get('body_radius_m',0))-BODY_RADIUS)<=1e-9
+                    or compact.get('physical_margin_m')!=TURN_MARGIN
+                    or compact.get('extra_turn_ring_m')!=0
+                    or compact.get('grid')!=[self.width,self.height,self.resolution,list(self.origin)]
+                    or compact.get('center_wall_margin_m')!=margin
+                    or compact.get('bin_buffer_m')!=self.layout['bin']['center_keepout_buffer_m']
+                    or compact.get('bin_buffer_m',0)<.283):
+                raise ValueError('compact mask approval/geometry mismatch')
+        elif margin<.4:
             record=self.layout.get('navigation_mask_reduction_20261021',{})
             with open(os.path.join(folder,meta['image']),'rb') as f:
                 digest=hashlib.sha256(f.read()).hexdigest()
@@ -65,6 +95,9 @@ class Policy:
                     record.get('bin_buffer_m',0)<.283 or record.get('turn_reserve_m')!=.06):
                 raise ValueError('reduced mask approval/geometry mismatch')
         self.folder=folder;self.dock_cells=None
+
+    def compact_turn_allowed(self,pose):
+        return self.allowed(*pose[:2]) and EntryGeometry(self).turn_allowed(pose)
 
     def require_geometry(self,current_offset):
         record=self.layout.get('sensor_geometry',{})

@@ -2,7 +2,7 @@
   "schema": 1,
   "frame_id": "map",
   "map": "demo_box.yaml",
-  "state": "outer_route_segments_and_operator_guided_dock_pose_confirmed_full_mission_pending",
+  "state": "compact_patrol_offline_verified_hardware_pending",
   "room_size_m": [
     1.9780893582201173,
     2.0222022252122693
@@ -26,7 +26,7 @@
       1.849873853106196
     ]
   ],
-  "center_wall_margin_m": 0.35,
+  "center_wall_margin_m": 0.34,
   "center_allowed_polygon": [
     [
       -0.2328977374849355,
@@ -196,21 +196,16 @@
     "pose_map_valid_for_current_placement": true,
     "navigation_preparation": {
       "point_map": [
-        1.0255803634102147,
-        0.6638006271669645
+        0.8701517373846286,
+        0.6121972083681837
       ],
       "face_point_approx_map": [
-        1.55994134056,
-        0.83332819454
+        1.3594108926938877,
+        0.7802359212928556
       ],
-      "validated": "navigation to preparation area only",
-      "front_edge_to_bin_range_m": [
-        0.35,
-        0.4
-      ],
-      "further_advance_operator_m": 0.3,
+      "validated": "offline navigation geometry only; hardware pending",
       "exact_release_dock_verified": false,
-      "evidence": "docs/calibration/nav_retest_2026-10-18/dropoff_real.json"
+      "source": "compact route node; replaces historical preparation measurements"
     },
     "operator_confirmed_dock": {
       "operator_confirmation": "arrived",
@@ -340,7 +335,7 @@
     "min_measured_obstacle_clearance_m": 0.5188448708429139
   },
   "runtime_enforcement": true,
-  "mask_rule": "known free AND >=35cm from occupied/unknown cells and fitted walls (whole-cell conservative additions); existing bin envelope/buffer unchanged",
+  "mask_rule": "raw known-free + swept body/error budget; physical turns, no extra ring",
   "runtime_enforcement_scope": "g2_map_patrol.py command path only; direct owner TCP7000 and other clients are not globally filtered",
   "patrol_primary": {
     "point_map": [
@@ -391,14 +386,12 @@
     "box_corner_clipped": true,
     "general_wall_margin_m": 0.35,
     "command_options": [
-      "--goals",
-      "maps/demo_box_20261018_patrol/outer_patrol_goals.json",
-      "--inset",
-      ".70",
+      "--destination",
+      "patrol-cycle",
       "--boundary-micro",
       "--keep-heading"
     ],
-    "validation": "all outward route segments traversed via interrupted run plus successful bounded resume; uninterrupted new-mode full loop pending",
+    "validation": "offline compact-mask route checked; hardware validation pending",
     "evidence": "docs/calibration/nav_outer_2026-10-18/outer_resume.json"
   },
   "navigation_mask_reduction_20261021": {
@@ -412,5 +405,36 @@
     "allowed_cells": 3051,
     "rebuilt_for_box_move": true,
     "physical_validation": "offline only; next supervised run required"
+  },
+  "boundary_recovery": {
+    "enabled": true,
+    "environment": "walls_and_fixed_bin",
+    "body_radius_m": 0.30809901006007795,
+    "error_budget_m": 0.03,
+    "hardware_validated": false
+  },
+  "compact_patrol": {
+    "schema": 1,
+    "enabled": true,
+    "body_radius_m": 0.30809901006007795,
+    "physical_margin_m": 0.03,
+    "extra_turn_ring_m": 0,
+    "center_wall_margin_m": 0.34,
+    "bin_buffer_m": 0.283238075793812,
+    "mask_sha256": "5b0090884fc5bd067f9377c2a451ccbb5419cd3f09bc309ea3d5cbec1fc06c97",
+    "raw_image": "demo_box.pgm",
+    "raw_sha256": "00d5ec32b01ffd299b5626eb4ccfeb93af7c62a70bc43e986e7bded6dd6b269b",
+    "grid": [
+      704,
+      704,
+      0.02,
+      [
+        -2.0,
+        -2.0,
+        0.0
+      ]
+    ],
+    "geometry_sha256": "ee482707d46bddfdac52369be531a10e84b7383d67ffe7d831c40e588599f4fa",
+    "hardware_validated": false
   }
 }

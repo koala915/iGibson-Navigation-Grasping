@@ -1121,6 +1121,17 @@ class MissionTests(unittest.TestCase):
         self.assertEqual(copied, LAYOUT)               # what this run turned by, kept
         return code, order
 
+    def test_the_new_patrols_words_reach_the_restart_rules(self):
+        # ncu 70ca5eb: a sensor wait ran out, or a turn drifted near the box.
+        self.assertTrue(mission.patrol_localization_lost(
+            {'error': 'sensor recovery timeout: stale scan/odom'}))
+        self.assertTrue(mission.patrol_localization_lost(
+            {'error': 'sensor recovery timeout: mission recovery pause'}))
+        self.assertTrue(mission.patrol_turn_refused(
+            {'error': 'physical turn stopped outside reserve'}))
+        self.assertTrue(mission.patrol_refused(
+            {'error': 'cannot enter turn reserve toward route entry', 'pulses': 0}))
+
     def test_it_runs_until_two_empty_laps(self):
         spot = {'point': (1.0, 0.0), 'map': (0.5, 0.5)}
         code, order = self.run_mission([spot, spot, None], ['held', 'held'])

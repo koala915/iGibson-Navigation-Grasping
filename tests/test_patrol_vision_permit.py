@@ -34,6 +34,45 @@ class PermitTests(unittest.TestCase):
                               'allow': True})
             self.assertEqual([p.name for p in Path(folder).iterdir()], ['permit.json'])
 
+    def test_a_pause_is_acked_only_after_fresh_allowed_frames(self):
+        ack = permit.RecoveryAck(frames=3)
+        self.assertEqual(ack.update(None, True, 10.0, 10.0), 0)       # no pause: nothing
+        self.assertEqual(ack.update(1, True, 9.9, 11.0), 0)           # frame from before it
+        self.assertEqual(ack.update(1, True, 11.1, 11.2), 0)
+        self.assertEqual(ack.update(1, False, 11.2, 11.3), 0)         # a candidate resets
+        for t in (11.4, 11.5):
+            self.assertEqual(ack.update(1, True, t, t), 0)
+        self.assertEqual(ack.update(1, True, 11.6, 11.6), 1)          # third fresh in a row
+        self.assertEqual(ack.update(1, True, 11.7, 11.7), 1)          # stays acked
+        self.assertEqual(ack.update(2, True, 11.8, 11.8), 1)          # a new pause starts over
+
+    def test_an_earlier_patrols_report_cannot_shift_the_ack(self):
+        # 2026-10-29: read before the new patrol removed it, an old report's pause 9
+        # was acked, the new patrol waited on 1, and 9 never equalled 1.
+        ack = permit.RecoveryAck(frames=1)
+        self.assertEqual(ack.update(9, True, 11.0, 10.0), 9)
+        ack.reset()                                       # {"watch": PID}: a new patrol
+        self.assertEqual(ack.update(None, True, 12.0, 12.0), 0)
+        self.assertEqual(ack.update(1, True, 13.0, 12.5), 1)
+        # Even without the reset the ack follows the number the patrol shows.
+        ack = permit.RecoveryAck(frames=1)
+        self.assertEqual(ack.update(9, True, 11.0, 10.0), 9)
+        self.assertEqual(ack.update(1, True, 13.0, 12.5), 1)
+
+    def test_the_pause_is_read_from_the_patrol_report(self):
+        with tempfile.TemporaryDirectory() as folder:
+            report = Path(folder) / 'patrol.json'
+            self.assertIsNone(permit.patrol_pause(str(report)))
+            report.write_text(json.dumps({'task_checkpoint': {'recovery_generation': 2,
+                                                              'requires_observation': True}}))
+            self.assertEqual(permit.patrol_pause(str(report)), 2)
+            report.write_text(json.dumps({'task_checkpoint': {'recovery_generation': 2,
+                                                              'requires_observation': False}}))
+            self.assertIsNone(permit.patrol_pause(str(report)))
+            path = str(Path(folder) / 'permit.json')
+            permit.write_permit(path, 1, 'b', True, 9.0, 2)
+            self.assertEqual(json.loads(Path(path).read_text())['recovery_ack'], 2)
+
     def test_poses_come_from_the_localization_health_file(self):
         with tempfile.TemporaryDirectory() as folder:
             health = Path(folder) / 'health.json'

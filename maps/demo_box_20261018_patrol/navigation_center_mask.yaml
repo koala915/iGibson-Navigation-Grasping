@@ -1,9 +1,9 @@
+free_thresh: 0.196
 image: navigation_center_mask.pgm
-resolution: 0.02
+negate: 0
+occupied_thresh: 0.65
 origin:
 - -2.0
 - -2.0
 - 0.0
-negate: 0
-occupied_thresh: 0.65
-free_thresh: 0.196
+resolution: 0.02

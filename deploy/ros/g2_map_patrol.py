@@ -18,7 +18,7 @@ from g2_patrol_policy import Policy,wrap,finite,guided_heading,stop_reserve
 from g2_geometry import LIDAR_FORWARD_M
 from g2_navigation_goals import resolve_destination,nearest_route_entry,patrol_goals
 from g2_boundary_recovery import RecoveryPolicy
-from g2_patrol_entry import EntryGeometry,uncertainty_allowed
+from g2_patrol_entry import EntryGeometry,MAX_POSITION_SIGMA,MAX_TURN_TRANSLATION_M,uncertainty_allowed
 import g2_task_recovery as task_recovery
 
 
@@ -240,7 +240,7 @@ class Runner:
         if not self.mask_rotation_allowed(s['pose']):
             if getattr(self.policy,'compact',False) and not uncertainty_allowed(s):
                 raise Transient('compact patrol localization uncertainty exceeds budget')
-            if getattr(self,'boundary_recovery',False) and max(s['cov'][:2])>(.04/3.)**2:
+            if getattr(self,'boundary_recovery',False) and max(s['cov'][:2])>MAX_POSITION_SIGMA**2:
                 raise Transient('map geometry localization uncertainty exceeds budget')
         if not self.policy.allowed(*s['pose'][:2]) and not getattr(self,'_boundary_recovery_active',False):
             raise BoundaryRequired('current centre outside navigation mask')
@@ -290,7 +290,7 @@ class Runner:
                 state=self.state();pose=state['pose']
                 # A ready flag alone allows much larger uncertainty in ordinary
                 # patrol. Escape specifically reserves at most 4cm (3 sigma).
-                if max(state['cov'][:2])>(.04/3.)**2:
+                if max(state['cov'][:2])>MAX_POSITION_SIGMA**2:
                     raise RuntimeError('boundary escape localization uncertainty exceeds budget')
                 if recovery.recovered(pose):
                     self.settle();final=self.state()
@@ -465,7 +465,7 @@ class Runner:
                         raise RuntimeError('turn drift reserve outside mask')
                     if not self.mask_rotation_allowed(pose):
                         if not uncertainty_allowed(s):raise Transient('entry geometry localization uncertainty')
-                        if math.hypot(s['odom'][0]-initial['odom'][0],s['odom'][1]-initial['odom'][1])>.01:
+                        if math.hypot(s['odom'][0]-initial['odom'][0],s['odom'][1]-initial['odom'][1])>MAX_TURN_TRANSLATION_M:
                             raise RuntimeError('physical turn translation reserve exceeded')
                     if abs(wrap(s['odom'][2]-initial['odom'][2]))>math.radians(20):raise RuntimeError('pulse angular limit')
                 self.sock.sendall((json.dumps({'action':'velocity','vx':vx,'wz':wz})+'\n').encode('ascii'))
@@ -487,7 +487,7 @@ class Runner:
             if not stopped:self.stop()
         final=self.settle();self.report['trace'].append(final);checkpoint(self.report)
         if not vx and not self.mask_rotation_allowed(initial['pose']):
-            if (math.hypot(final['odom'][0]-initial['odom'][0],final['odom'][1]-initial['odom'][1])>.01
+            if (math.hypot(final['odom'][0]-initial['odom'][0],final['odom'][1]-initial['odom'][1])>MAX_TURN_TRANSLATION_M
                     or not self.rotation_allowed(final['pose'])):
                 raise RuntimeError('physical turn stopped outside reserve')
         if vx<0:

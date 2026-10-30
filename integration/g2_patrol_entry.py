@@ -9,9 +9,15 @@ except (ImportError, ValueError):  # Python 2: relative import outside a package
 
 BODY_RADIUS = max(math.hypot(x, y) for x1, y1, x2, y2 in BODY_RECTANGLES
                   for x, y in ((x1, y1), (x1, y2), (x2, y1), (x2, y2)))
-# 2cm (3 sigma) localization plus 1cm translation during an isolated turn.
+# Kept from the approved scene; the map's compact_patrol record checks it.
 TURN_MARGIN = .03
-MAX_POSITION_SIGMA = .02 / 3
+# 2026-10-29, the user: wider than ncu's 3-sigma budget (.02/3 m, 1/3 deg, 1 cm).
+# The robot measured sigma 0.55-0.91 cm moving and 3-5 cm just after a seed; turns
+# near the box had 5-11 cm to spare. These limits now hold one sigma, not three:
+# AMCL's worst case can exceed TURN_MARGIN, and the box is below the laser plane.
+MAX_POSITION_SIGMA = .02
+MAX_DIRECTIONAL_SIGMA_RAD = math.radians(1)
+MAX_TURN_TRANSLATION_M = .02
 
 
 class EntryGeometry:
@@ -95,4 +101,4 @@ class EntryGeometry:
 
 def uncertainty_allowed(state, directional=False):
     return (all(0 <= v <= MAX_POSITION_SIGMA**2 for v in state['cov'][:2])
-            and (not directional or 0<=state['cov'][2]<=(math.radians(1)/3)**2))
+            and (not directional or 0<=state['cov'][2]<=MAX_DIRECTIONAL_SIGMA_RAD**2))

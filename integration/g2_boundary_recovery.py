@@ -27,7 +27,7 @@ class RecoveryPolicy:
         self.compact=getattr(policy,'compact',False)
         self.radius = float(config['body_radius_m']) + float(config['error_budget_m'])
         if self.compact:
-            if config['body_radius_m']!=BODY_RADIUS or config['error_budget_m']!=TURN_MARGIN:
+            if abs(float(config['body_radius_m'])-BODY_RADIUS)>1e-9 or config['error_budget_m']!=TURN_MARGIN:  # hypot: last bit differs on Python 2
                 raise ValueError('unapproved compact recovery geometry')
         elif not (.25 <= self.radius <= .35 and config['body_radius_m'] == .25
                 and config['error_budget_m'] >= .10):

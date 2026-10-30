@@ -139,7 +139,7 @@ def test_turn_drift_and_midpulse_sensor_loss_stop_output():
             s = original()
             if any(c['action']=='velocity' for c in plant['commands']):
                 if failure=='stale':raise patrol.Transient('stale scan')
-                s['odom'][0] += .011
+                s['odom'][0] += .021
             return s
         r.state = state
         with patch.object(patrol.time, 'time', side_effect=lambda: clock[0]), patch.object(patrol.time, 'sleep', side_effect=sleep):

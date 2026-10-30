@@ -164,6 +164,16 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 最多 330°；轉前要行駛姿態、底盤無人用，以及 LiDAR 在車身外 0.36 m 內無持續回波（2 張以上同格才算；
 `LOOK_SELF_RETURNS` 是 10-29 在兩處量到、隨車不動的車身點）。地上的盒子低於掃描面，看不到。
 
+**2026-10-29 整合 ncu `70ca5eb` 的巡航（待實車驗證）**：`deploy/ros/g2_map_patrol.py`、
+`integration/g2_{body_geometry,boundary_recovery,patrol_entry,patrol_policy,task_recovery}.py` 與
+精簡版地圖（牆邊 34 cm、盒子緩衝 0.283 m 不變）進本分支。起步改朝路線入口，靠近盒子用車身實際
+外框判斷轉身，起步可倒退 ≤10 cm、≤0.08 m/s。離開 ncu 版本的地方：Python 2 下相對匯入 fallback 與
+`hypot` 最後一位的兩個啟動 bug；定位與轉身平移限制只用在 `mask_rotation_allowed` 為假（靠近牆／盒子）
+時；第一個 pulse 之前不要求補看。使用者 10-29 要求放寬上述限制（`g2_patrol_entry.py`）：xy σ 2 cm、
+朝向 σ 1°、轉身平移 2 cm，是 1σ 不是 ncu 的 3σ，極端時定位誤差可超過 `TURN_MARGIN` 3 cm，而盒子低於
+雷射面。不走 ncu 的 `v23_mission_entry`；`patrol_vision_permit_jetson.py` 從巡航報告讀暫停次數，3 張
+暫停後拍的無候選畫面才 ack，`{"watch": PID}` 時歸零（`/tmp/mission_permit_ack.json` 有逐筆紀錄）。
+
 **投放後退出條件（2026-10-21，離線回歸，尚未實車驗證）**：總控 `mask_exit` 同時檢查
 中心及與車上巡航一致的 16 點／6 cm 轉彎外圈，另留原有沿退路 5 cm 餘量。後退後用新
 定位確認；不足時重新計算短距離，最多補退兩次，總距離以里程實際行進量計入 0.60 m

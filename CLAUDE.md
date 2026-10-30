@@ -158,8 +158,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 帶的中位數，會落在最靠近相機的角，偏約半個面寬（7–8 cm）。車上舊檔在
 `backups/box_move_20261029/`。⚠ patrol-cycle 實際走的是 `preferred_patrol.route_file`
 （`outer_patrol_goals.json`，離牆 55 cm、在盒子角切角），`--inset` 只是啟動時的圈檢查；舊檔的切角落在新
-緩衝裡而報 `invalid patrol point`，已用 `move_placement_box.py --route-only` 重產（盒子旁離右牆 0.90、
-離上牆 0.93 m，角點 0.82 m；餘量 2 cm 後為 0.86／0.89／0.78 m），以車上 `g2_navigation_goals` 驗證整圈可規劃。
+緩衝裡而報 `invalid patrol point`，已用 `move_placement_box.py --route-only` 重產：盒子角三點離盒子包絡 45 cm（轉身下限 33.8 cm + 到點誤差 6.5 cm），`tests/test_patrol_route_turns.py` 用真的巡航程式跑含定位雜訊的整圈（舊路線 60 圈全失敗，新路線 100 圈全完成），以車上 `g2_navigation_goals` 驗證整圈可規劃。
 重新定位（操作台與 `mission_loop --relocalize`）帶 `--look`：只看到同一面牆的標記時原地右轉 30° 再拍，
 最多 330°；轉前要行駛姿態、底盤無人用，以及 LiDAR 在車身外 0.36 m 內無持續回波（2 張以上同格才算；
 `LOOK_SELF_RETURNS` 是 10-29 在兩處量到、隨車不動的車身點）。地上的盒子低於掃描面，看不到。
@@ -173,6 +172,12 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 朝向 σ 1°、轉身平移 2 cm，是 1σ 不是 ncu 的 3σ，極端時定位誤差可超過 `TURN_MARGIN` 3 cm，而盒子低於
 雷射面。不走 ncu 的 `v23_mission_entry`；`patrol_vision_permit_jetson.py` 從巡航報告讀暫停次數，3 張
 暫停後拍的無候選畫面才 ack，`{"watch": PID}` 時歸零（`/tmp/mission_permit_ack.json` 有逐筆紀錄）。
+
+**2026-10-30 左下角看場中央（使用者要求，已更新車上，待實車驗證）**：後相機朝前，逆時針繞圈時每個角都往外側轉，
+場地中央從未入鏡，整圈約 16% 可放盒子的地板看不到（`docs/operations/vision_coverage_20261030/`，
+15 筆實車首見點全落在算出的視野內）。路線檔 `outer_ccw_0` 帶 `look_left_deg: 60`：到離放置盒最遠的角，
+`Runner.look_from` 先左轉到比下一段方向再左 60°，停穩後多停 1 s 給相機，再走下一段，死角估 6%，每圈多約 28 s。
+`move_placement_box.py --route-only` 會保留這個標記。看到候選照常停車確認。
 
 **投放後退出條件（2026-10-21，離線回歸，尚未實車驗證）**：總控 `mask_exit` 同時檢查
 中心及與車上巡航一致的 16 點／6 cm 轉彎外圈，另留原有沿退路 5 cm 餘量。後退後用新

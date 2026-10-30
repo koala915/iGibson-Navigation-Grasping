@@ -145,5 +145,8 @@ jobs:
       - name: G2 navigation TCP safety client
         run: python tests/test_g2_nav_client.py
 
+      - name: Patrol route, entry and vision permit
+        run: python -m pytest tests/test_patrol_route_turns.py tests/test_g2_patrol_entry.py tests/test_g2_navigation_goals.py tests/test_patrol_vision_permit.py -q
+
       - name: Vision grasp pipeline selftest
         run: python integration/vision_grasp_pipeline.py --selftest

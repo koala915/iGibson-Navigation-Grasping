@@ -142,18 +142,25 @@ def build(source, destination, right_m, top_m, long_edge, inset, slack=SLACK_M, 
 
 
 ROUTE_INSET_M = 0.55             # ncu's outer route: 55 cm inside the fitted walls
-ROUTE_MARGIN_M = 0.03            # beyond the keepout, so rounding never lands a point on it
+# How far the route's box corner stays from the box envelope. A turn needs 0.338 m
+# (body sweep 0.308 + 0.03), and the patrol accepts arrivals 6.5 cm off the point,
+# then turns where it stopped: 2026-10-30, with 4 cm spare at the corners and 1.1 cm
+# mid-leg, a heading fix there could be refused. The chord between points
+# comes 3 cm nearer the box than the points themselves.
+ROUTE_BOX_CLEAR_M = 0.45
+# The corner farthest from the box: left of the next leg, the camera sees the room's
+# centre, which no turn of this counterclockwise route shows it (2026-10-30). 60 and
+# 90 degrees leave the same 6% unseen; the camera's own width makes up the rest.
+ROUTE_LOOK_LEFT_DEG = 60
 
 
-def write_route(folder, inset=ROUTE_INSET_M, margin=ROUTE_MARGIN_M):
+def write_route(folder, inset=ROUTE_INSET_M, clear=ROUTE_BOX_CLEAR_M):
     """ncu's patrol-cycle route (preferred_patrol.route_file), clipped around the box.
 
-    patrol-cycle follows this file, not patrol_points(--inset): on 2026-10-29 the
-    old file's box corner (made for the corner box) sat on the moved box's keepout
-    and the patrol stopped with "invalid patrol point". The ring keeps `inset`
-    from the walls; at the u/v-max corner it steps around the box envelope plus
-    the keepout. Every point must be allowed and every leg plannable, as the
-    robot's g2_navigation_goals checks.
+    patrol-cycle follows this file, not patrol_points(--inset). The ring keeps
+    `inset` from the walls; at the u/v-max corner it rounds the box envelope at
+    `clear`, in three points. Every point must be allowed, every leg plannable and
+    turnable, as the robot's g2_navigation_goals and rotation_allowed check.
     """
     folder = Path(folder)
     layout = json.loads((folder/'scene_layout.json').read_text())
@@ -163,27 +170,22 @@ def write_route(folder, inset=ROUTE_INSET_M, margin=ROUTE_MARGIN_M):
     umin, umax = min(p[0] for p in polygon), max(p[0] for p in polygon)
     vmin, vmax = min(p[1] for p in polygon), max(p[1] for p in polygon)
     env = layout['navigation_mask_validation']['envelope_room_uv']
-    meta = yaml.safe_load((folder/'navigation_center_mask.yaml').read_text())
-    clear = float(layout['bin']['center_keepout_buffer_m']) + float(meta['resolution'])/math.sqrt(2) + margin
-    beside_right, beside_top = (umax - env[0]) + clear, (vmax - env[2]) + clear
-    corner = inset
-    while math.hypot(max(0., env[0] - (umax - corner)), max(0., env[2] - (vmax - corner))) < clear:
-        corner += 0.01
     to_map = lambda pu, pv: [pu*c - pv*s, pu*s + pv*c]
-    uv = [(umin+inset, vmin+inset), (umax-inset, vmin+inset), (umax-inset, vmax-beside_top),
-          (umax-corner, vmax-corner), (umax-beside_right, vmax-inset), (umin+inset, vmax-inset),
+    corner = clear / math.sqrt(2)
+    uv = [(umin+inset, vmin+inset), (umax-inset, vmin+inset), (umax-inset, env[2]-clear),
+          (env[0]-corner, env[2]-corner), (env[0]-clear, vmax-inset), (umin+inset, vmax-inset),
           (umin+inset, vmin+inset)]
     route = [{'name': 'outer_ccw_%d' % i, 'point': to_map(*p)} for i, p in enumerate(uv)]
+    route[0]['look_left_deg'] = ROUTE_LOOK_LEFT_DEG
     name = layout['preferred_patrol']['route_file']
-    (folder/name).write_text(json.dumps(route, indent=2) + '\n')
+    (folder/name).write_text(json.dumps(route, indent=2) + chr(10))
     policy = Policy(str(folder))
     for item in route:
         if not policy.allowed(*item['point']):
             raise ValueError('route point {} is outside the centre mask'.format(item['name']))
     for one, two in zip(route, route[1:]):
         policy.plan(one['point'], two['point'])
-    return dict(route_file=name, points=route, beside_box_m=[beside_right, beside_top],
-                corner_m=corner, sha256=digest(folder/name))
+    return dict(route_file=name, points=route, clear_m=clear, sha256=digest(folder/name))
 
 
 if __name__ == '__main__':

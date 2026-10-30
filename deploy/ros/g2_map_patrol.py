@@ -16,10 +16,17 @@ ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0,os.path.join(ROOT,'integration'))
 from g2_patrol_policy import Policy,wrap,finite,guided_heading,stop_reserve
 from g2_geometry import LIDAR_FORWARD_M
-from g2_navigation_goals import resolve_destination,nearest_route_entry,patrol_goals
+from g2_navigation_goals import resolve_destination,nearest_route_entry,patrol_goals,patrol_looks
 from g2_boundary_recovery import RecoveryPolicy
 from g2_patrol_entry import EntryGeometry,MAX_POSITION_SIGMA,MAX_TURN_TRANSLATION_M,uncertainty_allowed
 import g2_task_recovery as task_recovery
+
+
+# A look (route file look_left_deg) stops with the camera on the room's centre this
+# long, past the settle. A real turn pulse moves about 3 degrees, so a look of up to
+# 180 degrees takes more pulses than a final parking turn is allowed.
+LOOK_HOLD_S=1.
+LOOK_TURN_PULSES=120
 
 
 class Transient(RuntimeError):
@@ -450,7 +457,11 @@ class Runner:
                         if not circle_safe:
                             if not uncertainty_allowed(s,directional=True):raise Transient('entry geometry localization uncertainty')
                             problem=geometry.translation_problem(pose,distance)
-                            if problem:raise RuntimeError(problem)
+                            if problem:
+                                # Mid-route this is one noisy pose near the box: stop
+                                # and go on from the next fix, as for a predicted stop.
+                                if getattr(self,'_entry_active',False):raise RuntimeError(problem)
+                                raise Transient(problem)
                     if getattr(self,'boundary_recovery',False):
                         geometry=RecoveryPolicy(self.policy)
                         end=(pose[0]+distance*math.cos(pose[2]),pose[1]+distance*math.sin(pose[2]))
@@ -597,8 +608,23 @@ class Runner:
                 if len(self.report['recoveries'])>12:raise RuntimeError('recovery budget exhausted')
         raise RuntimeError('final orientation limit')
 
-    def face_yaw(self,yaw):
-        for _ in range(50):
+    def look_from(self,goals,index,looks):
+        """The camera faces forward, and a left turn at a corner of this
+        counterclockwise route sweeps the outside, so the room's centre was never
+        in view (2026-10-30). Turn left past the next leg, hold, go on: the next
+        navigate turns back. Nothing to do at the end of the route."""
+        name=goals[index][0]
+        if name not in looks or index+1>=len(goals):return
+        pose=self.ready()['pose'];goal=goals[index+1][1]
+        heading=math.atan2(goal[1]-pose[1],goal[0]-pose[0])
+        self.face_yaw(wrap(heading+math.radians(looks[name])),LOOK_TURN_PULSES)
+        final=self.settle();end=time.time()+LOOK_HOLD_S
+        self.report.setdefault('looks',[]).append({'label':name,'pose':final['pose']});checkpoint(self.report)
+        while time.time()<end:
+            self.ready();time.sleep(.1)
+
+    def face_yaw(self,yaw,attempts=50):
+        for _ in range(attempts):
             error=wrap(yaw-self.ready()['pose'][2])
             if abs(error)<=math.radians(6):
                 self.report.update(park_facing='requested_yaw',park_face_yaw=yaw,
@@ -653,7 +679,7 @@ def main():
     points=([point for _,point in patrol_goals(policy)] if args.destination or args.point or args.goals
             else policy.patrol_points(args.inset))
     report={'ok':False,'real':args.real,'output_path':args.output,'waypoints':points,'patrol_inset_m':args.inset,'primary_patrol_point':'opposite paper-box corner','arrivals':[],'recoveries':[],'trace':[],'pulses':0}
-    runner=None;lease=None;unlocked=False
+    runner=None;lease=None;unlocked=False;looks={}
     def interrupted(*_):raise KeyboardInterrupt()
     signal.signal(signal.SIGTERM,interrupted)
     try:
@@ -685,6 +711,7 @@ def main():
         if args.destination:
             goals=resolve_destination(policy,planning_start,args.destination)
             report['destination']=args.destination
+            if args.destination=='patrol-cycle':looks=patrol_looks(policy)
         elif args.point:
             policy.plan(planning_start,args.point)
             goals=[('requested_point',args.point)]
@@ -709,6 +736,7 @@ def main():
                     report['remaining_route']=[{'name':n,'point':g} for n,g in goals[leg_index:]]
                     report['leg_index']=leg_index
                     runner.goto(goal,name)
+                    runner.look_from(goals,leg_index,looks)
                     report['remaining_route']=[{'name':n,'point':g} for n,g in goals[leg_index+1:]]
                     report['completed_leg_index']=leg_index
                     checkpoint(report)

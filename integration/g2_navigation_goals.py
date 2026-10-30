@@ -20,6 +20,16 @@ def patrol_goals(policy):
     return [('patrol_%d'%i,list(p)) for i,p in enumerate(policy.patrol_points(.70))]
 
 
+def patrol_looks(policy):
+    """{goal name: degrees past the next leg's heading to turn left and look}."""
+    route=policy.layout.get('preferred_patrol',{}).get('route_file')
+    if not route:return {}
+    with open(os.path.join(policy.folder,route)) as f:items=json.load(f)
+    looks={str(item['name']):float(item['look_left_deg']) for item in items if 'look_left_deg' in item}
+    if not all(0<degrees<=120 for degrees in looks.values()):raise ValueError('invalid route look')
+    return looks
+
+
 def path_length(path):
     return sum(math.hypot(b[0]-a[0],b[1]-a[1]) for a,b in zip(path,path[1:]))
 

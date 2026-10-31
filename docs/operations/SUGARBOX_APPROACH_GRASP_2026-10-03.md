@@ -10,7 +10,8 @@ Windows 跑 `integration/sugarbox_rl_approach_final2.py`；Jetson 的 grasp-serv
 缺校正時不會略過範圍檢查。Jetson 10/03 已依使用者要求關機；10/04 已重新連線，
 本次只讀 preflight 通過（資產、模型雜湊、Python imports 與服務 status）。
 手臂回報 `other`、目標過期，odom 尚未連 rosbridge；輪速為零。
-10/04 已完成下列只讀現場測試；有效物體追蹤與實際接近／E1 全鏈路夾取仍待驗收。
+10/04 已完成下列只讀現場測試。接近／E1 全鏈路夾取之後已在實車完成：10/16 走完接近＋微調＋夾取，
+10/18、10/20 完成夾取到放置（`docs/operations/sugarbox_20261016/`、`placement_20261018/`、`patrol_20261020/`）。
 
 ## 行為
 
@@ -133,7 +134,7 @@ Windows 在上列 preflight 指令加 `--dry-run`，檢查實際辨識、方向�
 - 正式 `graspctl stow` 經原中繼點，3.42秒；回讀 `[90,139,0,0,90,30]`、
   pose=travel、holding=false、arm_busy=false，輪速與odom twist保持零。
 - 這是本次監督操作的單次到位結果，不更改任何 hardware_validated 旗標。
-  有效物體追蹤與實車避障接近仍未驗收。
+  有效物體追蹤與實車接近當時尚未驗收，10/16 起已有實車紀錄（見文件開頭）。
 
 ### 收臂後第二輪辨識（同日）
 

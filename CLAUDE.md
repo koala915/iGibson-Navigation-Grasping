@@ -120,7 +120,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 |------|------|
 | `mission_pipeline.py` | ★**完整任務**：巡航→辨識→接近→夾取→送垃圾桶→續巡。單一 Py3.8 程序擁有 `/dev/myserial`，ROS 只跑感測/定位。見 `MISSION.md` |
 | `sugarbox_approach_grasp.py` / `sugarbox_rl_approach_final2.py` | Windows 的 doorway PPO 避障接近→停車→E1 新鮮辨識→v23夾取交接；預設只讀，實機需 `--real --i-am-beside-the-robot`。後相機校正已補，載入驗證使用 `sugarbox_ground_calibration.py`；未完成現場 dry-run／實機驗收，見 `docs/operations/SUGARBOX_APPROACH_GRASP_2026-10-03.md` |
-| `mission_loop.py` | 決賽總控（Windows）：ncu 的地圖巡航（Jetson）→ 後相機確認糖果盒就停（校正範圍外也算）→ 接近＋E1 夾取 → 依常駐 AMCL 位置轉向放置盒 → 放置盒接近＋放開 → 後退 0.20 m → 續巡航，連續 2 圈沒看到才結束。巡航帶 ncu 的 `--vision-permit`：任一張畫面出現候選就撤回許可、車子自停，停穩後再用 3 張新畫面確認（`patrol_vision_permit_jetson.py` 是 Jetson 端）；糖果盒信心 0.70 以下、地圖上離牆 15 cm 內的都不算。連續 5 張沒有候選、且有定位，才開巡航；畫面用拍攝當下的位姿放上地圖並帶誤差上限，所有排除範圍先扣誤差、誤差超過 0.10 m 不排除（轉彎中拍的 1 m 外候選最多等 0.6 s）；停車確認不到、靠牆 0.25 m 內的視為牆夾略過。失敗 2 次略過的糖果盒在前方 0.90 m 或旋轉範圍內、或到盒子前夾空的盒子在夾爪盲區（0.70 m）內，整個任務停下（10-19 巡航撞過）。接近時巡航的估計位置只用來原地轉正，停著讓相機看過才前進（10-19 四次都在量到前就放棄）。引擎提早啟動、模型暖機，收臂和轉向時同步載入，送「開始」前不連馬達。見決策文件 10-20 節。失敗後（使用者 10-20 選 C）：夾爪空、手臂正常就收臂退 0.20 m 續巡航；到了盒子前夾空（exit 6）退 0.45 m 讓相機重新看到盒子再試；同一點失敗 2 次就略過。環視每段重新確認新鮮定位與 turn_clear。其他失敗分類、後退規則照決策文件（`docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md`）；ArUco 起點定位尚未實作（**巡航串接尚未實機測試**）。`--no-patrol` 只跑一個物體：夾前方糖果盒 → 帶到放置盒放開（放置盒須在夾完後的後相機視野內），10/18 實機成功 2 次；`--resume-at grasp-e1|place` 從中途接著做，各段輸出存在 `logs/`。預設只做檢查，實機需 `--real --i-am-beside-the-robot` |
+| `mission_loop.py` | 決賽總控（Windows）：ncu 的地圖巡航（Jetson）→ 後相機確認糖果盒就停（校正範圍外也算）→ 接近＋E1 夾取 → 依常駐 AMCL 位置轉向放置盒 → 放置盒接近＋放開 → 後退 0.20 m → 續巡航，連續 2 圈沒看到才結束。巡航帶 ncu 的 `--vision-permit`：任一張畫面出現候選就撤回許可、車子自停，停穩後再用 3 張新畫面確認（`patrol_vision_permit_jetson.py` 是 Jetson 端）；糖果盒信心 0.70 以下、地圖上離牆 15 cm 內的都不算。連續 5 張沒有候選、且有定位，才開巡航；畫面用拍攝當下的位姿放上地圖並帶誤差上限，所有排除範圍先扣誤差、誤差超過 0.10 m 不排除（轉彎中拍的 1 m 外候選最多等 0.6 s）；停車確認不到、靠牆 0.25 m 內的視為牆夾略過。失敗 2 次略過的糖果盒在前方 0.90 m 或旋轉範圍內、或到盒子前夾空的盒子在夾爪盲區（0.70 m）內，整個任務停下（10-19 巡航撞過）。接近時巡航的估計位置只用來原地轉正，停著讓相機看過才前進（10-19 四次都在量到前就放棄）。引擎提早啟動、模型暖機，收臂和轉向時同步載入，送「開始」前不連馬達。見決策文件 10-20 節。失敗後（使用者 10-20 選 C）：夾爪空、手臂正常就收臂退 0.20 m 續巡航；到了盒子前夾空（exit 6）退 0.45 m 讓相機重新看到盒子再試；同一點失敗 2 次就略過。環視每段重新確認新鮮定位與 turn_clear。其他失敗分類、後退規則照決策文件（`docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md`）；ArUco 起點定位入口是 `integration/relocalize.py`，只在使用者要求時執行（**巡航串接 2026-10-20 實車成功，一次任務送達 2 顆**）。`--no-patrol` 只跑一個物體：夾前方糖果盒 → 帶到放置盒放開（放置盒須在夾完後的後相機視野內），10/18 實機成功 2 次；`--resume-at grasp-e1|place` 從中途接著做，各段輸出存在 `logs/`。預設只做檢查，實機需 `--real --i-am-beside-the-robot` |
 | `placement_dock.py` | 放置模式（`sugarbox_approach_grasp.py --target placement`）的幾何與檢查：盒子地圖位置**只讀 ncu 車上的 `scene_layout.json`**（`bin.pose_map` 在他標成有效前用移動後候選點，視為未驗證：只轉向、不憑地圖開過去）、抵達報告檢查、LiDAR 牆距校正；`--where`、`--measure-wall` 兩個現場量測工具 |
 | `mission_fsm.py` | 21 狀態任務機（純邏輯，`--selftest`/`--diagram`）。強制「輪子與手臂不同時動」「換目標來源必重置 nav」 |
 | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`。含 `--validate` 與弧長重取樣（Route C 原檔最小間距只有 0.049 m） |
@@ -139,7 +139,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 
 總控各階段（含投放重試、`--resume-at place`）共用同一份 `--homography`／`--gstreamer`，動作前走原有 maintenance 解鎖，服務拒絕時仍停止。巡航候選以影像可能拍攝的 0.30 s 內位姿歷史放上地圖（`VisionLink.frame_pose`），排除牆邊／已投放物前先扣掉移動與轉向造成的誤差；這是串流延遲上限 0.30 s 的假設，尚非來源時間同步。常駐 ssh 指令通道只在無回覆／回覆不符時關閉，服務拒絕或夾取未確認仍可續讀狀態。總控與接近端預檢要求車上 ncu G2 v23 的獨立 health、service PID、holding、chassis TCP readiness 與 maintenance 欄位；本 repo 舊的 arm-only service 不可整份覆蓋車上服務。`graspctl health` 使用 `/tmp/grasp_health.sock`，`release-preview` 由相容服務執行。離線修正與驗證見 `docs/operations/flow_fixes_2026-10-20/CHANGELOG.md`。
 
-**2026-10-21 巡航禁航區調整（使用者要求，已更新車上，待實車續巡驗證）**：
+**2026-10-21 巡航禁航區調整（使用者要求，已更新車上；使用者 2026-10-31 確認實車巡航成功）**：
 `maps/demo_box_20261018_patrol/` 的牆面／原始地圖障礙預留從 0.40 改成 **0.35 m**；
 新增可用格採整個格子保守檢查，unknown 仍禁止，放置盒量測包絡與 0.283238 m 緩衝維持。
 `integration/g2_patrol_policy.py` 從車上現行版納入 repo，低於舊 0.40 m 時要求縮減紀錄、
@@ -148,7 +148,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 產生候選，不連車。第 19 趟停車位置重播通過；備份、測試與回復方式見
 `docs/operations/patrol_mask_20261021/CHANGELOG.md`。AMCL 仍使用原始 `demo_box.pgm`。
 
-**2026-10-29 放置盒往內移、巡航圈改 0.80 m（使用者要求，已更新車上，待實車續巡）**：
+**2026-10-29 放置盒往內移、巡航圈改 0.80 m（使用者要求，已更新車上；使用者 2026-10-31 確認實車巡航成功）**：
 盒子中心離右牆、上牆各 45 cm（操作台畫面的方向；右牆＝ncu 的 `photo_back_wall`），長邊平行右牆。
 `integration/move_placement_box.py` 從頭重建禁航區（不沿用舊可走格；35 cm、0.283 m 緩衝不變，
 盒子尺寸外加 6 cm，相機驗證後改 2 cm），並用車上同一支 `Policy` 檢查巡航圈：盒子在 45 cm 時 0.70 m 的圈穿過緩衝、
@@ -163,7 +163,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 最多 330°；轉前要行駛姿態、底盤無人用，以及 LiDAR 在車身外 0.36 m 內無持續回波（2 張以上同格才算；
 `LOOK_SELF_RETURNS` 是 10-29 在兩處量到、隨車不動的車身點）。地上的盒子低於掃描面，看不到。
 
-**2026-10-29 整合 ncu `70ca5eb` 的巡航（待實車驗證）**：`deploy/ros/g2_map_patrol.py`、
+**2026-10-29 整合 ncu `70ca5eb` 的巡航（使用者 2026-10-31 確認實車巡航成功）**：`deploy/ros/g2_map_patrol.py`、
 `integration/g2_{body_geometry,boundary_recovery,patrol_entry,patrol_policy,task_recovery}.py` 與
 精簡版地圖（牆邊 34 cm、盒子緩衝 0.283 m 不變）進本分支。起步改朝路線入口，靠近盒子用車身實際
 外框判斷轉身，起步可倒退 ≤10 cm、≤0.08 m/s。離開 ncu 版本的地方：Python 2 下相對匯入 fallback 與
@@ -173,7 +173,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
 雷射面。不走 ncu 的 `v23_mission_entry`；`patrol_vision_permit_jetson.py` 從巡航報告讀暫停次數，3 張
 暫停後拍的無候選畫面才 ack，`{"watch": PID}` 時歸零（`/tmp/mission_permit_ack.json` 有逐筆紀錄）。
 
-**2026-10-30 左下角看場中央（使用者要求，已更新車上，待實車驗證）**：後相機朝前，逆時針繞圈時每個角都往外側轉，
+**2026-10-30 左下角看場中央（使用者要求，已更新車上；使用者 2026-10-31 確認實車巡航成功）**：後相機朝前，逆時針繞圈時每個角都往外側轉，
 場地中央從未入鏡，整圈約 16% 可放盒子的地板看不到（`docs/operations/vision_coverage_20261030/`，
 15 筆實車首見點全落在算出的視野內）。路線檔 `outer_ccw_0` 帶 `look_left_deg: 60`：到離放置盒最遠的角，
 `Runner.look_from` 先左轉到比下一段方向再左 60°，停穩後多停 1 s 給相機，再走下一段，死角估 6%，每圈多約 28 s。

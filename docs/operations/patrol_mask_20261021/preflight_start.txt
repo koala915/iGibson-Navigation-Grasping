@@ -1,0 +1,3 @@
+[WARN] the placement box position in ncu's scene layout is not verified: the robot turns toward it but never drives at it unseen, and the delivered-sugarbox check uses the unverified position
+[MISSION] PC 10.53.253.160 | patrol maps/demo_box_20261018_patrol | until two laps find nothing
+[check] robot, cameras and files passed, localization, box position; no motion.

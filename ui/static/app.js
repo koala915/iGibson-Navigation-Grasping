@@ -177,6 +177,10 @@ const yn = v => v === undefined ? "—" : (v ? "是" : "否");
 
 /* ── 即時狀態 ───────────────────────────────────────── */
 let source = null, lastSeq = null, latched = false, allowReal = false, simulate = false;
+/* 任務在不在跑，用伺服器送來的布林值記著。之前是去讀 procTok 這個元素上的
+ * 中文字有沒有「執行中」—— 改一句文案，按鈕就會在任務執行中悄悄變成可按。 */
+let missionRunning = false;
+let armRunning = false;   // 定點夾取是否正在執行，同樣只信伺服器送來的值
 const changes = [];       // 狀態變化紀錄
 const trail = [];         // 地圖軌跡
 
@@ -196,6 +200,7 @@ function connect() {
   source.addEventListener("process", e => applyProcess(JSON.parse(e.data)));
   source.addEventListener("estop", e => applyEstop(JSON.parse(e.data).latched));
   source.addEventListener("system", e => applyMemory(JSON.parse(e.data).memory));
+  source.addEventListener("arm", e => applyArm(JSON.parse(e.data)));
   source.onopen = () => { banner(null); el("connDot").style.background = "var(--ok)"; };
   source.onerror = () => {
     // EventSource 會自己重連，所以這是「暫時斷線」而不是「壞掉了」。
@@ -208,7 +213,7 @@ function applySnapshot(s) {
   allowReal = !!s.allow_real;
   simulate = !!s.simulate;
   el("allowRealNote").innerHTML = allowReal
-    ? `<span>✓</span><div>這台伺服器以 <code class="mono">--allow-real</code> 啟動，勾選上面的確認後即可驅動硬體。</div>`
+    ? `<span>🔒</span><div><code class="mono">--allow-real</code> 只開啟第一道閘；目前 A/B/C 都缺少操作台可提交的模式專用校正證據，因此實機請求仍會被拒絕。</div>`
     : `<span>🔒</span><div>這台伺服器<b>不允許驅動硬體</b>。要實際動作，需在機器人上以 <code class="mono">--allow-real</code> 重新啟動操作台。</div>`;
   const foot = simulate
     ? "<b>模擬模式</b> — 狀態由伺服器的模擬器產生，沒有連接實體機器人。"
@@ -218,6 +223,7 @@ function applySnapshot(s) {
   if (simulate) banner("模擬模式：畫面上的狀態是伺服器產生的腳本，不是實體機器人。", "warn");
   if (s.status && s.status.state) applyStatus(s.status);
   applyProcess(s.process || {});
+  applyArm(s.arm || {});
   applyMemory(s.memory);
   if (!routeData) loadRoute("");
   buildCmd();
@@ -364,6 +370,9 @@ async function loadRoute(path) {
   el("miniRoute").setAttribute("points", el("routeLine").getAttribute("points"));
   el("miniMapTok").textContent = `${r.waypoints.length} 點`;
   tok.textContent = `${r.waypoints.length} 個航點`;
+  // 首頁那格也用同一個數字。route.yaml 原始有 117 點，但那個間距根本載不起來
+  // （會撞上到達半徑的檢查），實際跑的是重取樣後的數量 —— 兩個畫面必須一致。
+  el("wpCount").textContent = r.waypoints.length;
   el("scaleTok").textContent = `格線 ${step} m`;
   el("mapNote").textContent = `路線來源：${r.source}`;
 }
@@ -421,23 +430,88 @@ function renderChanges() {
 renderChanges();
 
 function applyProcess(p) {
-  const running = !!p.running;
+  const running = missionRunning = !!p.running;
   el("stopBtn").hidden = !running;
   el("procTok").textContent = running
     ? `任務執行中 · pid ${p.pid} · ${Math.round(p.uptime || 0)} 秒`
     : (p.exit_code == null ? "任務未啟動" : `任務已結束（代碼 ${p.exit_code}）`);
   applyEstop(!!p.estop_latched);
-  el("startBtn").disabled = running || latched;
+  el("startBtn").disabled = running || latched || armRunning;
   if (running) el("startBtn").textContent = "任務執行中";
   else buildCmd();
+  paintArmButtons();
 }
+
+/* ── 定點夾取 ───────────────────────────────────────────
+ * 指令送給車上的常駐夾取服務；這個網頁和伺服器都不直接碰手臂。
+ * 每一步是一個不能中途打斷的動作，停止鍵在步驟之間才生效。 */
+const ARM_STEP = { "home": "手臂回到 E1", "grasp": "夾取", "release": "放開", "stow": "收臂",
+                   "maintenance-unlock": "解除維護鎖", "maintenance-lock": "恢復維護鎖" };
+const ARM_ACTION = { grasp: "夾取前方物體", release: "放開物體", stow: "收臂", home: "手臂回原位" };
+// home opens the jaw at E1, so whatever is held is let go there.
+const ARM_WARN = { home: "\n\n手臂會回到 E1 並張開夾爪：夾著的東西會在 E1 鬆開。" };
+
+function armBlocked() {
+  if (!allowReal && !simulate) return "這台伺服器不允許驅動硬體，需在機器人上以 --allow-real 啟動操作台。";
+  if (missionRunning) return "任務執行中，不能另外操作手臂。";
+  if (latched) return "停止鍵仍在鎖定狀態，請先解除。";
+  return null;
+}
+
+function paintArmButtons() {
+  const blocked = armBlocked();
+  document.querySelectorAll("[data-arm]").forEach(b => {
+    b.disabled = armRunning || !!blocked || !el("armConfirm").checked;
+  });
+  const box = el("armBlock");
+  box.hidden = !blocked || armRunning;
+  if (blocked) box.innerHTML = `<span>🔒</span><div>${esc(blocked)}</div>`;
+}
+
+function applyArm(a) {
+  armRunning = !!a.running;
+  const tok = el("armTok"), note = el("armNote");
+  if (armRunning) {
+    tok.textContent = `${ARM_ACTION[a.action] || a.action}・${ARM_STEP[a.step] || "準備中"}`;
+  } else if (a.action) {
+    tok.textContent = a.error ? "失敗" : "完成";
+  } else {
+    tok.textContent = "待命";
+  }
+  note.hidden = armRunning || !a.action;
+  if (!armRunning && a.action) {
+    const held = a.holding === true ? "夾爪持物" : (a.holding === false ? "夾爪是空的" : "持物狀態未知");
+    note.className = a.error ? "note crit" : "note";
+    note.innerHTML = a.error
+      ? `<span>✕</span><div>${esc(a.error)}（${held}）</div>`
+      : `<span>✓</span><div>${esc(ARM_ACTION[a.action] || a.action)}完成（${held}）</div>`;
+  }
+  const t = a.started_at ? new Date(a.started_at * 1000).toLocaleTimeString("zh-TW", { hour12: false }) : "—";
+  el("armSteps").innerHTML = (a.steps || []).map(s =>
+    `<div class="row"><span class="ts">${t}</span><span class="st">${esc(ARM_STEP[s.command] || s.command)}</span>` +
+    `<span class="rs">${s.ok ? "完成" : "失敗"}${s.outcome ? `<span style="color:var(--ink-3)"> ${esc(s.outcome)}</span>` : ""}</span></div>`
+  ).join("");
+  el("startBtn").disabled = missionRunning || latched || armRunning;
+  paintArmButtons();
+}
+
+el("armConfirm").addEventListener("change", paintArmButtons);
+document.querySelectorAll("[data-arm]").forEach(b => b.addEventListener("click", async () => {
+  const action = b.dataset.arm;
+  if (action !== "stow" &&
+      !confirm(`即將驅動實體手臂：${ARM_ACTION[action]}。${ARM_WARN[action] || ""}\n\n確認手臂周圍淨空、有人在場、手放在電源開關上？`)) return;
+  const r = await api("/api/arm", { action, confirm: el("armConfirm").checked })
+    .catch(() => ({ ok: false, error: "伺服器沒有回應。" }));
+  if (!r.ok) banner(r.error, "crit"); else banner(null);
+}));
 
 function applyEstop(on) {
   latched = on;
   const b = el("estopBtn");
   b.dataset.latched = on ? "1" : "0";
   b.textContent = on ? "已停止 · 點此解除" : "■ 停止";
-  el("startBtn").disabled = on || el("procTok").textContent.includes("執行中");
+  el("startBtn").disabled = on || missionRunning || armRunning;
+  paintArmButtons();
 }
 
 /* ── 控制 ───────────────────────────────────────────── */
@@ -499,7 +573,7 @@ function buildCmd() {
     note.innerHTML = real
       ? `<span>⚠</span><div>將驅動實體手臂。請確認<b>有人在場、手放在電源開關上</b>。</div>`
       : `<span>✓</span><div>不驅動硬體，可以直接執行。</div>`;
-    start.disabled = latched || el("procTok").textContent.includes("執行中");
+    start.disabled = latched || missionRunning || armRunning;
     start.textContent = real ? "開始任務（驅動實體硬體）" : "開始任務（不驅動硬體）";
   }, 150);
 }

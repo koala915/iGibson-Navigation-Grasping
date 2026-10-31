@@ -140,13 +140,21 @@ def _robot_samples(points, nav_cfg):
 
 def scan_metrics(points: Sequence[Tuple[float, float]], nav_cfg,
                  cfg: SafetyConfig) -> Tuple[SectorMetrics, SectorMetrics, SectorMetrics]:
+    """Front uses robot-centre forward x; sides retain radial clearance.
+
+    The measured front plane excludes returns from the robot itself, just as
+    the deployed corridor brake does. Apply it after the canonical mounting
+    transform so a sensor offset cannot change that physical boundary.
+    """
     front_values = []
     right_values = []
     left_values = []
     for angle_deg, distance in _robot_samples(points, nav_cfg):
         absolute = abs(angle_deg)
         if absolute <= cfg.front_half_angle_deg:
-            front_values.append(distance)
+            forward_x = distance * math.cos(math.radians(angle_deg))
+            if forward_x > nav_cfg.robot_front_extent_m:
+                front_values.append(forward_x)
         elif cfg.side_front_exclude_deg < absolute <= cfg.side_max_angle_deg:
             (left_values if angle_deg > 0.0 else right_values).append(distance)
 
@@ -237,7 +245,11 @@ class NavigationSafety:
                 from . import nav_rl
             except ImportError:  # direct script execution
                 import nav_rl
-            legacy_front = nav_rl.front_min_raw(points, nav_cfg)
+            # Preserve the deployed corridor brake, including its normal-zone
+            # cluster filter, self-return rejection and one-point emergency
+            # stop. Enhanced safety is opt-in; disabling it must not replace
+            # those semantics with the unfiltered diagnostic minimum.
+            legacy_front = nav_rl.front_min_brake(points, nav_cfg)
             braked = desired_vx > 0.0 and legacy_front < nav_cfg.safety_brake_dist
             front = SectorMetrics(front.robust, legacy_front, front.count)
             return SafetyDecision(0.0 if braked else float(desired_vx),

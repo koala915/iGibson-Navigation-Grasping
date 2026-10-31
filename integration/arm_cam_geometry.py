@@ -297,12 +297,92 @@ V21_C3_GRASP_HOME = ArmCamPose(
            "NOT measured at this pose",
 )
 
+# v23 E1 grasp home — the pose the v23 policy starts from (grasp/v23/).
+#
+# Derived exactly the same way as C3 above, from the same deployment FK and the
+# same two hardware-anchored differences. Running that derivation on C3
+# reproduces its stored numbers to four decimals, which is why the E1 row is
+# trusted to the same degree as the C3 one — and no further.
+#
+#     mono_link, policy frame, E1 : (+0.272307, -0.005559, +0.234046)
+#     optical axis at E1          : (+0.024432, 0, -0.999701) -> 88.600 deg
+#     theta : 88.600 - 3.600 (nav-home mounting error) = 85.000 deg
+#     H     : 0.332 - 0.1014 (FK drop from nav home)   = 0.2306 m
+#
+# The one thing that is genuinely different in kind, not just in value: the
+# optical axis CROSSES VERTICAL between C3 and E1. At C3 the axis leans back
+# over the robot (x component -0.0583, theta > 90); at E1 it leans forward
+# (+0.0244, theta < 90). The trigonometric ground-distance model in this module
+# divides by the tangent of the angle between the ray and the ground, so as the
+# camera approaches vertical the recovered lateral offset collapses toward zero
+# and the depth becomes arbitrarily sensitive to a theta error. C3 was already
+# in that regime (the module's own docstring says the offsets "collapse to ~0");
+# E1, at 1.4 deg off vertical against C3's 3.3, is further into it.
+#
+# So these numbers exist to STAMP a detection with the pose it was taken at, and
+# to let ground_hit()'s callers reason about the frame. They are not a licence to
+# map pixels trigonometrically at E1. vision_grasp_bridge refuses to, and
+# require_measured() below refuses a real run off them regardless.
+#
+# STILL A PREDICTION, and less of the workspace was ever checked here than at C3:
+# nothing in this row has been on the hardware.
+# sign_y is the ONE component here that has been measured, 2026-08-29, from the
+# E1 calibration pass:
+#
+#     base y +0.0165 (2 cm left)  -> u ~ 105     y -0.0035 (centre) -> u ~ 223
+#     base y -0.0235 (2 cm right) -> u ~ 342     y -0.0535 (5 cm right) -> u ~ 510
+#
+# Base +y lands on image-LEFT, so image-right is base -y, so sign_y = -1. The
+# same pass confirms the consequence independently: a box 3 cm to the LEFT runs
+# off the left edge while one 5 cm to the RIGHT is still comfortably inside,
+# which is what CX=212.23 in a 640-wide frame predicts (the ground reaches 2.0x
+# further to image-right than image-left) -- but only with this sign.
+#
+# ⚠ V21_C3_GRASP_HOME above still carries sign_y=+1.0 and has never been checked
+# on hardware either. It is the same camera on the same link, so it is probably
+# also -1; it is left alone here because changing it would change v21's live
+# behaviour on the strength of a measurement taken at a different pose. Measure
+# it at C3 before touching it.
+#
+# This does not affect the runtime grasp path. At a grasp home the bridge maps
+# through the measured homography and uses this row only for the pose stamp
+# (stamp_payload reads name and arm_deg). sign_y feeds the trigonometric model
+# and usable_placement_window, and with the wrong sign the latter reports the
+# reachable window MIRRORED -- which is how this was caught.
+V23_E1_GRASP_HOME = ArmCamPose(
+    name="v23_e1_grasp_home",
+    arm_deg=(90.0, 74.2, 8.6, 8.6, 90.0, 30.0),
+    theta_deg=85.000,
+    h_m=0.2306,
+    cam_x_m=0.2723,
+    cam_y_m=-0.0056,
+    sign_y=-1.0,
+    distance_model_measured=False,
+    base_offset_measured=False,
+    source="deployment FK (policy frame) + nav-home mounting error "
+           "(theta -3.600 deg, camera 0.1014 m lower than at nav home); "
+           "theta/H/cam_x/cam_y NOT measured at this pose. sign_y=-1 IS "
+           "measured (E1 calibration pass 2026-08-29). Nearly vertical "
+           "(1.4 deg): use the measured homography, not this distance model.",
+)
+
 POSES: Dict[str, ArmCamPose] = {
     V17_NAV_HOME.name: V17_NAV_HOME,
     V21_C3_GRASP_HOME.name: V21_C3_GRASP_HOME,
+    V23_E1_GRASP_HOME.name: V23_E1_GRASP_HOME,
 }
 
-# What the v21 stack detects from unless told otherwise.
+# Poses that count as "grasp-home" — an arm pose the policy starts its episode
+# from, where the camera looks almost straight down and pixel->base must go
+# through a measured homography. One entry per deployed policy generation.
+GRASP_HOME_POSES: Tuple[ArmCamPose, ...] = (V21_C3_GRASP_HOME, V23_E1_GRASP_HOME)
+GRASP_HOME_POSE_NAMES = frozenset(pose.name for pose in GRASP_HOME_POSES)
+
+# What the v21 stack detects from unless told otherwise. v23 callers pass
+# --pose v23_e1_grasp_home explicitly; the default is NOT switched, because
+# every existing mode A/B/C path still runs the C3 policy and a silently
+# changed default would stamp their detections with the wrong pose. The grasp
+# side compares that stamp against its encoders and would refuse every frame.
 DEFAULT_POSE = V21_C3_GRASP_HOME
 
 
@@ -348,9 +428,26 @@ def frame_size_mismatch(width: int, height: int) -> Optional[str]:
             f"rear one -- they swap /dev/video indices between boots.")
 
 
-# A bbox that runs into the frame edge is CLIPPED, and its bottom-centre pixel is
-# then the edge of the image rather than where the object meets the floor.
+# A bbox that runs into the frame edge is CLIPPED. Left/right/bottom clipping
+# invalidates the bottom-centre or width directly. Top-only clipping is different:
+# the bottom and side edges can remain observable, so a measured grasp-home
+# homography may opt in to using it while every other geometry path stays strict.
 BORDER_MARGIN_PX = 2.0
+
+
+def bbox_border_hits(x1: float, y1: float, x2: float, y2: float,
+                     margin_px: float = BORDER_MARGIN_PX) -> Tuple[str, ...]:
+    """Return frame edges touched by a bbox, in deterministic order."""
+    hits = []
+    if x1 <= margin_px:
+        hits.append("left")
+    if y1 <= margin_px:
+        hits.append("top")
+    if x2 >= IMG_W - 1 - margin_px:
+        hits.append("right")
+    if y2 >= IMG_H - 1 - margin_px:
+        hits.append("bottom")
+    return tuple(hits)
 
 
 def bbox_touches_border(x1: float, y1: float, x2: float, y2: float,
@@ -367,17 +464,14 @@ def bbox_touches_border(x1: float, y1: float, x2: float, y2: float,
     either. The only honest response is to refuse the detection and let the
     operator move the object into frame.
     """
-    hits = []
-    if x1 <= margin_px:
-        hits.append("left")
-    if y1 <= margin_px:
-        hits.append("top")
-    if x2 >= IMG_W - 1 - margin_px:
-        hits.append("right")
-    if y2 >= IMG_H - 1 - margin_px:
-        hits.append("bottom")
+    hits = bbox_border_hits(x1, y1, x2, y2, margin_px)
     if not hits:
         return None
+    if hits == ("top",):
+        return ("bbox touches only the top frame edge. The full silhouette is "
+                "clipped, but the bottom and both side edges remain visible. "
+                "Default is fail-closed; a measured grasp-home homography may "
+                "explicitly allow this case")
     return (f"bbox touches the {'/'.join(hits)} frame edge, so it is clipped and "
             f"its bottom-centre is the image border rather than where the object "
             f"meets the floor — move the object further into view")

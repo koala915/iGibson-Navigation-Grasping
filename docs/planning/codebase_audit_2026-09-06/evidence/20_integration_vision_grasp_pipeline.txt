@@ -1,0 +1,65 @@
+== action_to_vxyz ==
+      forward spd= 30 -> (0.21, 0.0, 0.0)
+    turn_left spd= 30 -> (0.0, 0.0, 0.715)
+   turn_right spd= 40 -> (0.0, 0.0, -0.954)
+   curve_left spd= 35 -> (0.245, 0.0, 0.417)
+  curve_right spd= 35 -> (0.245, 0.0, -0.417)
+      handoff spd=  0 -> (0.0, 0.0, 0.0)
+         stop spd=  0 -> (0.0, 0.0, 0.0)
+
+== rear decision (offset=0.0) ==
+  dist_front=2.00 -> ('forward', 31, 'CENTER: FORWARD', 'VERY_FAR')
+  dist_front=1.30 -> ('forward', 31, 'CENTER: FORWARD', 'FAR')
+  dist_front=0.95 -> ('forward', 28, 'CENTER: FORWARD', 'MID')
+  dist_front=0.85 -> ('stop', 0, 'ENTER REAR BLIND', 'BLIND_READY')
+== rear decision (offset=±) at MID ==
+  off=-0.30 -> ('turn_left', 28, 'LARGE LEFT OFFSET: TURN LEFT', 'MID')
+  off=-0.15 -> ('curve_left', 28, 'LEFT OFFSET: CURVE LEFT', 'MID')
+  off=+0.00 -> ('forward', 28, 'CENTER: FORWARD', 'MID')
+  off=+0.15 -> ('curve_right', 28, 'RIGHT OFFSET: CURVE RIGHT', 'MID')
+  off=+0.30 -> ('turn_right', 28, 'LARGE RIGHT OFFSET: TURN RIGHT', 'MID')
+
+== arm decision ==
+  dist=0.60 off=+0.00 -> ('forward', 24, 'ARM CENTER: FORWARD', 'ARM_FAR', 0.0)
+  dist=0.40 off=+0.10 -> ('turn_right', 24, 'ARM OFFSET RIGHT: TURN RIGHT', 'ARM_MID', 0.12248933156343207)
+  dist=0.30 off=-0.05 -> ('turn_left', 24, 'ARM OFFSET LEFT: TURN LEFT', 'ARM_NEAR', -0.08257433870731343)
+  dist=0.22 off=+0.02 -> ('handoff', 0, 'IN REACH -> HANDOFF TO ARM', 'ARM_BLIND_READY', 0.0)
+  dist=0.22 off=+0.20 -> ('turn_right', 24, 'ARM OFFSET RIGHT: TURN RIGHT', 'ARM_BLIND_READY', 0.35)
+
+== latch mapping: a real pixel through the active pose ==
+  pixel(u=272, v=320) -> d=-0.0349m lateral=+0.0142m depth=0.2146m
+  pos=(0.241,0.009,0.02) width=2.10cm
+  the same bbox scaled by ground distance instead of depth would read 0.34cm
+
+== class-height plumbing (sugarbox: 6.5cm tall, centroid 3.25cm) ==
+[nav] latched grasp target class=sugarbox pos=[0.2413, 0.0086, 0.0325] width=0.021m height=0.065m
+  class=sugarbox           z=0.0325 height=0.0650 (declared)
+[nav] latched grasp target class=undeclared-class pos=[0.2413, 0.0086, 0.02] width=0.021m height=None (grasp side estimates)
+  class=undeclared-class   z=0.0200 height=None -> grasp side estimates 0.0400
+  NOTE: with --class-z 0.0325 the estimate happens to equal the declared
+        0.065, because the box is symmetric and floor-resting. That
+        coincidence is not a substitute for declaring the height: it
+        breaks silently for any object that is not both.
+
+== width gate ==
+  MAX_GRASP_WIDTH_M = 0.060m (6.0cm) — measure the object across the jaw's
+  closing axis; anything wider aborts the run instead of retrying.
+
+== rear blind plan ==
+  dist_front=0.90 -> (blind_dist, blind_time)=(0.2, 1.538)
+  dist_front=1.20 -> (blind_dist, blind_time)=(0.38, 2.923)
+
+== arm-cam undistort round-trip + ground model ==
+  D=0.25 raw(286,428) -> undist( 288.4, 437.7) est=0.2527m (err 0.27cm, rt 0.0000px) depth=0.4004m
+  D=0.30 raw(280,352) -> undist( 281.1, 355.4) est=0.3000m (err 0.00cm, rt 0.0000px) depth=0.4385m
+  D=0.40 raw(249,220) -> undist( 249.0, 220.1) est=0.4011m (err 0.11cm, rt 0.0000px) depth=0.5198m
+  D=0.50 raw(238,126) -> undist( 238.0, 126.0) est=0.4967m (err 0.33cm, rt 0.0000px) depth=0.5968m
+  at the nav home, ground/depth = 0.805 -> the old lateral and width were 20% low
+
+== active arm-cam pose ==
+  v21_c3_grasp_home: arm=[90.0, 67.08, 9.79, 9.79, 90.0, 30.0] theta=89.740deg H=0.2148m cam_x=+0.2762 cam_y=-0.0056 sign_y=+1  [theta/H PREDICTED, cam_x/cam_y PREDICTED]
+  visible ground band along base X: 0.205 .. 0.317 m
+  ground distance at the image centre: +0.0010 m
+  NOTE: these extrinsics are a URDF prediction, not a measurement.
+
+[selftest] OK

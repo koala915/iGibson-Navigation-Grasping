@@ -1,0 +1,1125 @@
+#!/usr/bin/env python3
+"""Windows orchestration: supervised avoidance approach -> stopped E1 grasp,
+or (--target placement) -> stopped release over the placement box.
+
+Default is a read-only preflight. The Jetson resident service remains the only
+serial owner; this runner never starts a second motor server. It releases only in
+placement mode, only after the approach reports a checked stop at the box.
+"""
+import argparse
+import hashlib
+import importlib.util
+import ipaddress
+import json
+import math
+import os
+from pathlib import Path
+import shlex
+import socket
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from integration.sugarbox_ground_calibration import load_ground_calibration, resolve_asset_paths
+from integration import placement_dock as dock
+
+APPROACH = ROOT / 'integration/sugarbox_rl_approach_final2.py'
+REMOTE_CTL = '/home/jetson/Documents/deploy_jetson2/grasp/v23/graspctl.py'
+SERVICE_SOCKET = '/tmp/grasp_service.sock'
+SUGARBOX_MODEL = ROOT / 'detection/models/best.pt'
+# Retrained on 70 rear-camera frames on 2026-10-18 (yolo_train
+# placement_box_yolo11_robotcam_20261018): the phone-photo model found nothing in
+# the rear camera. imgsz 640, the camera's own size.
+PLACEMENT_MODEL = ROOT / 'detection/models/placement_box.pt'
+PLACEMENT_MODEL_SHA256 = '8e256e80b770a6ff7a5a3187ab7cbeb7e30fb84a5d6a1fc1515f84a3025406a0'
+# graspctl command -> reply timeout (s). release/release-preview come from E1.
+# Where the steer-in stops the sugarbox, ahead of the chassis centre. The last
+# ~35 cm are driven on odometry behind the gripper. 0.28 until 2026-10-21, when
+# the user saw the robot stop about 3 cm too close on every run, before E1's
+# creep; E1 then saw only a corner of the box and crept closer still. At 0.31
+# still too close (E1 saw nothing), so 0.34 (the user, the same day).
+SUGARBOX_FINAL_X_M = 0.34
+ARM_COMMANDS = {'status': 75, 'health': 30, 'stow': 75, 'home': 75, 'grasp': 200,
+                'release': 150, 'release-preview': 150}
+# In place the chassis needs >= 1.0 rad/s (wheel speed 20 does not turn it).
+TURN_WZ = 1.0
+# Stop this much early for odometry latency and coast; to be measured on the robot.
+TURN_LEAD_RAD = 0.08
+# Written every frame by the E1 bridge (--frame-report in its systemd drop-in).
+FRAME_REPORT = '/dev/shm/grasp_vision_frame.json'
+FRAME_MAX_AGE_S = 1.5
+# E1 grasp band in raw homography x: the measured hull's near edge, and the policy
+# limit 0.280 m less the bridge's +5 mm landing offset and 2 mm for frame-to-frame
+# jitter (2026-10-16: a box at raw 0.275 flickered between 0.280 and 0.281 and was
+# never accepted). The chassis aims mid-band.
+E1_NEAR_X, E1_FAR_X = 0.249, 0.273
+E1_AIM_X = (E1_NEAR_X + E1_FAR_X) / 2
+ADJUST_TRIES = 3
+ADJUST_MAX_M = 0.06
+ADJUST_BACK_M = 0.02
+ADJUST_LEAD_M = 0.012
+# E1 working but seeing no box at all: creep forward and look again. 2026-10-18 on
+# the white ribbed mats, wheel odometry read 0.105-0.123 m/s at 0.08 commanded
+# over the blind last 41 cm and parked 3-6 cm short, the box beyond the top of
+# the E1 view. Odometry that over-reads only ever stops the robot short, and a
+# box it overshot would show at the bottom edge (that is a seen frame), so
+# forward is the only direction this takes.
+BLIND_CREEP_M = 0.03
+BLIND_CREEP_TRIES = 2
+BLIND_CREEP_LOOKS = 4       # fresh frames in a row that saw nothing (E1 runs at 1 Hz)
+# Two fresh E1 readings must agree within 8 mm, the second within this long of the first.
+AGREE_WITHIN_S = 4.0
+E1_FRAME_LAG_S = 1.5  # same bound as grasp/v23/grasp_service.py, never bypass it
+E1_POLL_S = 0.20
+# Straight back-offs (the user, 2026-10-19), at most BACK_STEP_M a step. Nothing
+# sees behind the robot (the LiDAR's rear half is blocked by the body), so before
+# every step the AMCL pose and the room's walls on the map must leave the whole
+# robot inside the room after it (placement_dock.back_path_problem); the field
+# has walls only. Not localized: no backing.
+BACK_STEP_M = 0.20
+# Less than this still to go after a step is not backed: odometry's own overshoot
+# (2-4 cm on 2026-10-21) is larger.
+BACK_MIN_REST_M = 0.03
+# No room to turn toward the placement box after a grasp: back along the way the
+# robot came in, a step at a time, before turning.
+FACE_BACKOFF_STEP_M = 0.10
+FACE_BACKOFF_MAX_M = 0.30
+FACE_BACKOFF_MIN_STEP_M = 0.03
+# With --came-from (where the patrol stopped before the approach) the backing may
+# go all the way back there, and only the placement box's own outline counts
+# against it, not the slack for its unverified map position: the robot has just
+# driven through that ground (the user, 2026-10-21; run 14 was refused a 10 cm
+# back-off with the box 0.65 m behind-right). At most FACE_RETRACE_MAX_M.
+FACE_RETRACE_MAX_M = 0.60
+# The camera measures the placement box from about 0.70 m ahead of the centre (its
+# calibrated strip), and the policy needs room before the 1.00 m handoff, so a box
+# nearer than PLACEMENT_VIEW_MIN_M after the turn is backed away from first.
+PLACEMENT_VIEW_MIN_M = 0.90
+PLACEMENT_VIEW_TARGET_M = 0.95
+PLACEMENT_BACKOFF_MAX_M = 0.40
+PLACEMENT_BACKOFF_MPS = 0.06
+# Room left behind that back-off, on the map: the user's 0.25 m (2026-10-19),
+# right after a grasp, when AMCL has not been checked to hold.
+PLACEMENT_BACKOFF_MARGIN_M = 0.25
+# The approach ended near the sugarbox without a grasp: E1 missed it, or the run
+# stopped (held, timed out) with the box remembered nearer than AT_BOX_NEAR_M, or
+# with no report of where it was. Backed out only the usual 0.20 m it could be
+# inside the gripper's blind zone, so mission_loop backs out far enough to see it
+# again and guards it meanwhile. Where it stood, chassis-centre frame, goes to
+# AT_BOX_REPORT when known (2026-10-20 review).
+AT_BOX_EXIT = 6
+AT_BOX_NEAR_M = 0.85
+AT_BOX_REPORT = Path(tempfile.gettempdir()) / 'sugarbox_at_box.json'
+# Same bounds as the approach engine's SUGARBOX_SEED_TARGET check.
+SEED_MIN_M, SEED_MAX_M, SEED_MAX_BEARING_DEG = 0.30, 3.50, 60.0
+MODEL_HASHES = {
+    'doorway_ft_final.zip': 'af5e9e1d5ce0115de8b4bbb321873c6a99686c82c0c69d060f881bbe97b64f35',
+    'doorway_ft_final_vecnormalize.pkl': '3cd4ef9ab5b0fa38058b5142b1cc5b5df1ba9c440f325ff81b88d5e6ca7a8cdf',
+}
+
+
+def ctl(host, command):
+    if command not in ARM_COMMANDS:
+        raise ValueError('unsupported arm command')
+    session = globals().get('_ROBOT_SESSION')
+    if session is not None:
+        started = time.monotonic()
+        try:
+            return session.request(host, command, ARM_COMMANDS[command])
+        finally:
+            runtime = globals().get('_MISSION_RUNTIME')
+            if runtime is not None:
+                runtime.metric('service', started, command=command)
+    result = subprocess.run(
+        ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
+         'jetson@' + host, 'python3 ' + REMOTE_CTL + ' ' + command],
+        capture_output=True, text=True, timeout=ARM_COMMANDS[command])
+    if result.returncode:
+        raise RuntimeError('graspctl {} failed: {}'.format(command, result.stdout + result.stderr))
+    value = json.loads(result.stdout)
+    if value.get('ok') is not True:
+        raise RuntimeError('graspctl refused: ' + str(value))
+    return value
+
+
+def service_command(host, command):
+    """ncu's maintenance lock, which graspctl does not forward (PR #5 service).
+
+    His navigation tools lock the wheels and arm when they finish; the next
+    approach needs them unlocked. The service grants either only when idle.
+    """
+    if command not in ('maintenance-lock', 'maintenance-unlock'):
+        raise ValueError('unsupported service command')
+    session = globals().get('_ROBOT_SESSION')
+    if session is not None:
+        return session.request(host, command, 15)
+    script = ("import socket;s=socket.socket(socket.AF_UNIX);s.settimeout(10);"
+              "s.connect({!r});s.sendall({!r});print(s.makefile().readline())").format(
+                  SERVICE_SOCKET, (command + '\n').encode())
+    result = subprocess.run(
+        ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'jetson@' + host,
+         'python3 -c ' + shlex.quote(script)],
+        capture_output=True, text=True, timeout=30)
+    try:
+        value = json.loads(result.stdout)
+    except ValueError:
+        raise RuntimeError('{} failed: {}'.format(command, result.stdout + result.stderr))
+    if value.get('ok') is not True:
+        raise RuntimeError('{} refused: {}'.format(command, value))
+    return value
+
+
+def stop(host):
+    with socket.create_connection((host, 7000), timeout=3) as sock:
+        for _ in range(3):
+            sock.sendall(b'{"action":"stop"}\n')
+            time.sleep(0.05)
+
+
+def stationary(status):
+    chassis, odom = status.get('chassis', {}), status.get('odom', {})
+    age = chassis.get('board_rx_age_s')
+    held = chassis.get('stopped_for_s')
+    twist = odom.get('twist')
+    return (chassis.get('moving') is False and chassis.get('arm_busy') is False
+            and chassis.get('motors') == [0, 0, 0, 0]
+            and isinstance(age, (int, float)) and 0 <= age < 0.5
+            and isinstance(held, (int, float)) and held >= 0.5
+            and odom.get('valid') is True and odom.get('failures') == 0
+            and isinstance(twist, list) and len(twist) == 3
+            and all(isinstance(v, (int, float)) and math.isfinite(v)
+                    and abs(v) <= 0.01 for v in twist))
+
+
+def service_protocol_problem(status, health):
+    """Read-only contract with ncu's resident stack; never invent missing fields.
+
+    The checkout's older arm-only service is not the deployed G2 service. A
+    working health endpoint, holding state and explicit maintenance state are
+    required before this pipeline may claim it can hand motion between stages.
+    """
+    if not isinstance(status, dict) or not isinstance(health, dict):
+        return 'resident service protocol: status/health response missing'
+    chassis = status.get('chassis')
+    health_chassis = health.get('chassis')
+    pid = health.get('service_pid')
+    if (health.get('ok') is not True or health.get('stack_version') != 'v23'
+            or health.get('chassis_tcp_ready') is not True
+            or not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0
+            or not isinstance(health.get('holding'), bool)
+            or not isinstance(chassis, dict) or not isinstance(health_chassis, dict)
+            or not isinstance(chassis.get('maintenance'), bool)
+            or not isinstance(health_chassis.get('maintenance'), bool)):
+        return ('resident service protocol incompatible: need v23 health, owner PID, '
+                'holding, chassis TCP readiness and maintenance state; preserve/deploy '
+                'the compatible G2 resident service, not the older arm-only checkout')
+    return None
+
+
+def target_position(status):
+    detection = status.get('detection', {})
+    pos = detection.get('pos')
+    if (detection.get('fresh') is not True or not isinstance(pos, list) or len(pos) != 3
+            or not all(isinstance(v, (int, float)) and math.isfinite(v) for v in pos)):
+        return None
+    if not (0.205 <= pos[0] <= 0.280 and -0.070 <= pos[1] <= 0.065 and pos[2] > 0):
+        return None
+    return pos
+
+
+def adjust_distance(record):
+    """Metres to drive (+ forward) so a box E1 sees but cannot use lands mid grasp band.
+
+    `record` is the bridge's --frame-report for one frame plus its age on the robot's
+    clock. None means driving would not help: nothing fresh, already accepted, cut at
+    a side (no sideways motion), or in the band but refused for another reason.
+    """
+    if (not isinstance(record, dict) or not 0 <= record.get('age', -1) <= FRAME_MAX_AGE_S
+            or record.get('seen') is not True or record.get('accepted') is not False):
+        return None
+    border = set(record.get('border') or ())
+    if border & {'left', 'right'}:
+        return None
+    if 'bottom' in border:
+        # Its floor contact is below the frame: nearer by an unknown amount.
+        return -ADJUST_BACK_M
+    estimate = record.get('estimate')
+    if not (isinstance(estimate, list) and len(estimate) == 2
+            and all(isinstance(v, (int, float)) and math.isfinite(v) for v in estimate)):
+        return None
+    x, y = estimate
+    if not -0.070 <= y <= 0.065 or E1_NEAR_X <= x <= E1_FAR_X:
+        return None
+    return max(-ADJUST_MAX_M, min(ADJUST_MAX_M, x - E1_AIM_X))
+
+
+def look(host):
+    """Latest E1 frame report, aged on the robot's clock; None if unreadable."""
+    result = subprocess.run(
+        ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', 'jetson@' + host,
+         'cat {} 2>/dev/null; echo; date +%s.%N'.format(FRAME_REPORT)],
+        capture_output=True, text=True, timeout=30)
+    lines = result.stdout.strip().splitlines()
+    try:
+        record = json.loads(lines[0]) if len(lines) == 2 else None
+        record['age'] = float(lines[1]) - float(record['t'])
+    except (TypeError, ValueError, KeyError):
+        return None
+    return record
+
+
+def yaw_of(q):
+    return math.atan2(2.0 * (q['w'] * q['z'] + q['x'] * q['y']),
+                      1.0 - 2.0 * (q['y'] * q['y'] + q['z'] * q['z']))
+
+
+class Odometry:
+    """Latest wheel-odometry pose (/odom_setmotor via rosbridge) for measured moves."""
+
+    def __init__(self, host):
+        import roslibpy
+        self.latest = {}
+        self.ros = roslibpy.Ros(host=host, port=9090)
+        self.ros.run()
+        self.topic = roslibpy.Topic(self.ros, '/odom_setmotor', 'nav_msgs/Odometry')
+        self.topic.subscribe(self._update)
+
+    def _update(self, message):
+        pose = message['pose']['pose']
+        self.latest = {'x': pose['position']['x'], 'y': pose['position']['y'],
+                       'yaw': yaw_of(pose['orientation']), 't': time.monotonic()}
+
+    def wait(self):
+        started = time.monotonic()
+        while not self.latest:
+            if time.monotonic() - started > 5:
+                raise RuntimeError('no odometry; wheels not moved')
+            time.sleep(0.05)
+        return dict(self.latest)
+
+    def check_fresh(self):
+        if time.monotonic() - self.latest['t'] > 0.3:
+            raise RuntimeError('odometry went stale while moving')
+
+    def close(self):
+        self.topic.unsubscribe()
+        self.ros.close()
+
+
+def drive(host, metres, limit=ADJUST_MAX_M, speed=0.08):
+    """Straight move measured by wheel odometry; the arm must already be in travel.
+
+    The stop goes out ADJUST_LEAD_M early: on 2026-10-16 a 3.6 cm creep at 0.08 m/s
+    sent its stop 0.5 cm late (odometry latency) and coasted another 0.8 cm.
+    Reverse is at most 0.08 m/s, the team's limit (2026-10-12).
+    """
+    if not (math.isfinite(metres) and 0 < abs(metres) <= limit <= 0.30):
+        raise ValueError('refusing a move of {!r} m'.format(metres))
+    if not (math.isfinite(speed) and 0.02 <= speed <= 0.08):
+        raise ValueError('refusing a speed of {!r} m/s'.format(speed))
+    goal = max(abs(metres) - ADJUST_LEAD_M, 0.003)
+    command = json.dumps({'action': 'velocity', 'vx': math.copysign(speed, metres),
+                          'wz': 0.0}).encode() + b'\n'
+    odom = Odometry(host)
+    try:
+        origin = odom.wait()
+
+        def moved():
+            return math.hypot(odom.latest['x'] - origin['x'], odom.latest['y'] - origin['y'])
+
+        with socket.create_connection((host, 7000), timeout=3) as sock:
+            try:
+                started = time.monotonic()
+                while moved() < goal:
+                    # 2 s for the 6 cm adjustments, as before; longer moves pro rata.
+                    if time.monotonic() - started > abs(metres) / speed + 1.25:
+                        raise RuntimeError('move did not finish in time')
+                    odom.check_fresh()
+                    sock.sendall(command)
+                    time.sleep(0.05)
+            finally:
+                for _ in range(3):
+                    sock.sendall(b'{"action":"stop"}\n')
+                    time.sleep(0.05)
+        time.sleep(1.0)
+        travelled = moved()
+        print('[ADJUST] odometry moved {:+.3f} m (asked {:+.3f})'.format(
+            math.copysign(travelled, metres), metres), flush=True)
+        return travelled
+    finally:
+        odom.close()
+
+
+def turn(host, radians):
+    """In-place turn measured by wheel odometry (+ = left); arm in travel."""
+    if not (math.isfinite(radians) and 0 < abs(radians) <= math.pi):
+        raise ValueError('refusing a turn of {!r} rad'.format(radians))
+    goal = max(abs(radians) - TURN_LEAD_RAD, 0.02)
+    command = json.dumps({'action': 'velocity', 'vx': 0.0,
+                          'wz': math.copysign(TURN_WZ, radians)}).encode() + b'\n'
+    odom = Odometry(host)
+    try:
+        last = odom.wait()['yaw']
+        turned = 0.0
+        with socket.create_connection((host, 7000), timeout=3) as sock:
+            try:
+                started = time.monotonic()
+                while abs(turned) < goal:
+                    if time.monotonic() - started > goal / TURN_WZ * 2.0 + 2.0:
+                        raise RuntimeError('turn did not finish in time')
+                    odom.check_fresh()
+                    sock.sendall(command)
+                    time.sleep(0.05)
+                    yaw = odom.latest['yaw']
+                    turned += dock.wrap(yaw - last)
+                    last = yaw
+                    if abs(turned) > 0.15 and turned * radians < 0:
+                        raise RuntimeError('odometry says it turns the other way; stopped')
+                    # 1 rad/s should give ~0.5 rad by now; a yaw that does not move
+                    # would otherwise keep the robot spinning until the timeout.
+                    if time.monotonic() - started > 1.0 and abs(turned) < 0.10:
+                        raise RuntimeError('odometry yaw is not changing; stopped')
+            finally:
+                for _ in range(3):
+                    sock.sendall(b'{"action":"stop"}\n')
+                    time.sleep(0.05)
+        time.sleep(1.0)
+        turned += dock.wrap(odom.latest['yaw'] - last)
+        print('[TURN] odometry turned {:+.1f} deg (asked {:+.1f})'.format(
+            math.degrees(turned), math.degrees(radians)), flush=True)
+        return turned
+    finally:
+        odom.close()
+
+
+def turn_if_clear(host, radians, localize=None, rotate=None, record=None):
+    """Admit a bounded turn only with fresh, positive map clearance evidence.
+
+    Shared by normal placement alignment and the failure look-around. The
+    low-level turn retains odometry, direction, timeout and stop protections.
+    """
+    if record is None:
+        record = (localize or dock.read_localization)(host)
+    dock.localization_pose(record)
+    if (record.get('state') or {}).get('turn_clear') is not True:
+        raise RuntimeError('localization reports no room to turn; remaining stopped')
+    return (rotate or turn)(host, radians)
+
+
+def back_straight(host, metres, walls, speed=0.08, localize=dock.read_localization,
+                  drive=drive, margin=dock.BACK_WALL_MARGIN_M, obstacles=()):
+    """Reverse `metres` in steps of at most BACK_STEP_M; arm in travel.
+
+    Before every step the rest of the way back is checked on the map against the
+    room's `walls` from the AMCL pose, leaving `margin` to them; no pose, no walls
+    or no room: no backing.
+    """
+    if not (math.isfinite(metres) and 0 < metres <= 0.60):
+        raise ValueError('refusing to back {!r} m'.format(metres))
+    if not walls:
+        raise RuntimeError('no room walls to check the way back against; not backing')
+    left, first, last = metres, True, None
+    # The rest counts down by what odometry says each step travelled, and a rest
+    # under BACK_MIN_REST_M is left: 2026-10-21 run 16, a 0.20 m step went 0.24 m,
+    # and the 1 cm "still to go" was refused at a wall and ended the mission.
+    while left > 1e-6 and (first or left >= BACK_MIN_REST_M):
+        first = False
+        try:
+            last = dock.wait_localization(host, localize, before=last)
+            pose = dock.localization_pose(last)
+        except ValueError as exc:
+            raise RuntimeError('cannot check the way back ({}); not backing'.format(exc))
+        problem = dock.back_path_problem(pose, left, walls, margin, obstacles)
+        if problem:
+            raise RuntimeError(problem + '; not backing')
+        step = min(left, BACK_STEP_M)
+        travelled = drive(host, -step, limit=BACK_STEP_M, speed=speed)
+        if not dock.finite(travelled) or travelled <= 0:
+            raise RuntimeError('reverse distance is unconfirmed; remaining stopped')
+        left -= travelled
+    return metres - left  # include measured coast/undershoot in the caller's travel budget
+
+
+def settle(host, read, send_stop, sleep, now):
+    send_stop(host)
+    deadline = now() + 8
+    while not stationary(read(host, 'status')):
+        if now() >= deadline:
+            raise RuntimeError('chassis stop not confirmed; no E1 motion')
+        sleep(0.5)
+
+
+def e1_receipt(status):
+    """Receipt ID only for a fresh detection acquired after motion plus frame lag."""
+    detection = status.get('detection') or {}
+    receipt = detection.get('receipt_monotonic')
+    since, sample = status.get('stationary_since_monotonic'), status.get('sample_monotonic')
+    if (not all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                and math.isfinite(v) for v in (receipt, since, sample))
+            or detection.get('fresh') is not True
+            or not 0 < since + E1_FRAME_LAG_S <= receipt <= sample):
+        return None
+    return receipt, since
+
+
+def handoff(host, read=ctl, send_stop=stop, sleep=time.sleep, now=time.monotonic,
+            look=None, drive=None):
+    """Stop, E1, and grasp on two agreeing fresh readings inside the grasp range.
+
+    With look/drive, a box E1 sees outside its grasp band (twice, same direction)
+    moves the chassis with the arm in travel, then E1 measures again, at most
+    ADJUST_TRIES times. A working E1 that sees nothing at all for
+    BLIND_CREEP_LOOKS frames creeps BLIND_CREEP_M forward instead, at most
+    BLIND_CREEP_TRIES times. Only an accepted reading is ever grasped.
+    """
+    adjustments = 0
+    creeps = 0
+    while True:
+        settle(host, read, send_stop, sleep, now)
+        home = read(host, 'home')
+        home_done = now()
+        fast = home.get('e1_frame_receipts') is True
+        # Discard travel-pose detections: the E1 camera runs at 1 Hz.
+        if not fast:
+            sleep(2.5)  # older deployed service has no atomic frame identity
+        previous, previous_at = None, 0.0
+        previous_receipt, stationary_since = None, None
+        last_report = None
+        move = None
+        creep = False
+        hints = []
+        blank, saw_box = 0, False
+        deadline = now() + 12
+        while now() < deadline:
+            status = read(host, 'status')
+            if not stationary(status) or status.get('chassis', {}).get('arm_pose') != 'e1':
+                raise RuntimeError('E1/stationary state lost; no grasp')
+            pos = target_position(status)
+            receipt = e1_receipt(status) if fast else None
+            if fast:
+                if receipt is None:
+                    pos = None
+                elif stationary_since is not None and receipt[1] != stationary_since:
+                    raise RuntimeError('motion epoch changed during E1 confirmation; no grasp')
+                else:
+                    stationary_since = receipt[1]
+                    if receipt[0] == previous_receipt:
+                        sleep(E1_POLL_S)
+                        continue  # the same detection is never another agreeing frame
+                    if previous_receipt is not None and receipt[0] < previous_receipt:
+                        raise RuntimeError('E1 receipt clock moved backwards; no grasp')
+                    previous_receipt = receipt[0]
+            if (pos is not None and previous is not None
+                    and now() - previous_at <= AGREE_WITHIN_S
+                    and math.hypot(pos[0] - previous[0], pos[1] - previous[1]) <= 0.008):
+                runtime = globals().get('_MISSION_RUNTIME')
+                if runtime is not None:
+                    runtime.metric('e1_confirmed', home_done, receipt_mode=fast)
+                result = read(host, 'grasp')
+                if result.get('confirmed') is not True:
+                    raise RuntimeError('grasp was not confirmed')
+                return result
+            # A poll that lands between two E1 frames reads "not fresh"; it must not
+            # wipe the last fresh reading (2026-10-18: E1 sent every 1.4 s, fresh
+            # lasts 1 s, and the 1.1 s polls never saw two fresh readings in a row).
+            if pos is not None:
+                previous, previous_at = pos, now()
+            saw_box = saw_box or pos is not None
+            if pos is None and look is not None and adjustments < ADJUST_TRIES:
+                if fast and now() - home_done < 2.5:
+                    sleep(E1_POLL_S)
+                    continue  # no old frame-report may initiate an adjustment
+                record = look(host)
+                if fast:
+                    stamp = record.get('t') if isinstance(record, dict) else None
+                    if (not isinstance(stamp, (int, float)) or not math.isfinite(stamp)
+                            or last_report == stamp):
+                        sleep(E1_POLL_S)
+                        continue
+                    last_report = stamp
+                step = adjust_distance(record)
+                print('[E1] {} -> {}'.format(
+                    'no report' if record is None else
+                    'seen={} border={} estimate={} age={:.1f}s'.format(
+                        record.get('seen'), record.get('border'), record.get('estimate'),
+                        record.get('age', float('nan'))),
+                    'no move' if step is None else '{:+.3f} m'.format(step)), flush=True)
+                # A box near a frame edge flickers in and out of detection; a frame
+                # that saw nothing neither confirms nor cancels the last hint.
+                if step is not None:
+                    hints = hints[-1:] + [step]
+                if (len(hints) == 2 and hints[0] * hints[1] > 0
+                        and abs(hints[0] - hints[1]) <= 0.015):
+                    move = hints[1]
+                    break
+                if isinstance(record, dict) and record.get('seen') is True:
+                    saw_box = True
+                elif (isinstance(record, dict) and record.get('seen') is False
+                        and 0 <= record.get('age', -1) <= FRAME_MAX_AGE_S):
+                    blank += 1
+                if not saw_box and blank >= BLIND_CREEP_LOOKS and creeps < BLIND_CREEP_TRIES:
+                    move, creep = BLIND_CREEP_M, True
+                    break
+            else:
+                hints = []
+            sleep(E1_POLL_S if fast else 1.1)
+        if move is None:
+            raise RuntimeError('no stable fresh E1 target; stopped without grasp')
+        if creep:
+            creeps += 1
+            print('[CREEP] {}/{}: E1 saw nothing in {} fresh frames; the box is beyond its '
+                  'view (odometry parked short); forward {:.3f} m'.format(
+                      creeps, BLIND_CREEP_TRIES, blank, move), flush=True)
+        else:
+            adjustments += 1
+            print('[ADJUST] {}/{}: E1 sees the box outside its grasp band; {} {:.3f} m'.format(
+                adjustments, ADJUST_TRIES, 'forward' if move > 0 else 'back', abs(move)),
+                flush=True)
+        read(host, 'stow')
+        status = read(host, 'status')
+        if status.get('chassis', {}).get('arm_pose') != 'travel' or not stationary(status):
+            raise RuntimeError('travel pose not confirmed; wheels not moved')
+        drive(host, move)
+
+
+def face_box(host, box, localize=dock.read_localization, rotate=turn, back=None, tries=3,
+             back_max=FACE_BACKOFF_MAX_M):
+    """Turn in place until the placement box's map position is straight ahead.
+
+    The resident AMCL pose (ncu's localization service) and the box's map position
+    say where it is when the rear camera cannot see it, e.g. right after a grasp.
+    Where the localization reports no room to turn, `back` (if given) reverses
+    FACE_BACKOFF_STEP_M at a time, up to `back_max`: the way the robot came in to
+    the grasp is clear. Returns the final map pose.
+    """
+    turns, backed, last = 0, 0.0, None
+    while True:
+        # Stopped here, so an outage is waited out (run 21, after a turn).
+        record = dock.wait_localization(host, localize, before=last)
+        pose = dock.localization_pose(record)
+        last = record
+        bearing, distance = dock.box_bearing(pose, box)
+        print('[FACE] placement box {:.2f} m away, bearing {:+.1f} deg'.format(
+            distance, math.degrees(bearing)), flush=True)
+        if abs(bearing) <= dock.TURN_TOLERANCE_RAD:
+            return pose
+        if turns == tries:
+            raise RuntimeError('placement box still not ahead after {} turns'.format(tries))
+        if (record.get('state') or {}).get('turn_clear') is not True:
+            step = round(min(FACE_BACKOFF_STEP_M, back_max - backed), 3)
+            if back is None or step < FACE_BACKOFF_MIN_STEP_M:
+                raise RuntimeError('localization reports no room to turn here{}; not '
+                                   'turning'.format('' if back is None else
+                                                    ' after backing {:.2f} m'.format(backed)))
+            print('[FACE] no room to turn: back {:.2f} m the way the robot came'.format(
+                step), flush=True)
+            travelled = back(host, step)
+            if not dock.finite(travelled) or travelled <= 0:
+                raise RuntimeError('placement back-off distance is unconfirmed; remaining stopped')
+            backed += travelled
+            if backed > back_max + 1e-9:
+                raise RuntimeError('placement back-off exceeded its travel limit; remaining stopped')
+            continue
+        turn_if_clear(host, bearing, rotate=rotate, record=record)
+        turns += 1
+
+
+def keep_box_in_view(host, box, pose, back):
+    """Back straight off a placement box too near for the camera; True if it did.
+
+    The camera measures from about 0.70 m ahead of the centre, and the steer-in
+    takes over at 1.00 m, so a box edge nearer than PLACEMENT_VIEW_MIN_M (from the
+    map) could neither be measured nor approached.
+    """
+    _, distance = dock.box_bearing(pose, box)
+    near = distance - dock.BOX_DEPTH_M / 2
+    if near >= PLACEMENT_VIEW_MIN_M:
+        return False
+    step = min(PLACEMENT_VIEW_TARGET_M - near, PLACEMENT_BACKOFF_MAX_M)
+    print('[FACE] placement box edge {:.2f} m away, nearer than the camera measures: '
+          'back {:.2f} m'.format(near, step), flush=True)
+    back(host, step)
+    return True
+
+
+def placement_layout(host, path=None):
+    """ncu's scene layout from a local copy, else the robot's own: (box, walls)."""
+    if path is not None:
+        with open(path, encoding='utf-8') as f:
+            layout, source = json.load(f), str(path)
+    else:
+        layout, source = dock.fetch_layout(host), 'robot:{}/scene_layout.json'.format(dock.SCENE)
+    walls = dock.walls_from_layout(layout)
+    if walls is None:
+        raise ValueError('scene layout has no room_polygon: ' + source)
+    return dock.box_from_layout(layout, source), walls
+
+
+def place(host, report, final_x, aim_y, empty_test, wall_m=None, read=ctl, send_stop=stop,
+          sleep=time.sleep, now=time.monotonic, wall=dock.wall_ahead, drive=drive):
+    """Release over the placement box once the approach stopped where it should.
+
+    No camera sees the box at the end (the gripper hides it), so the approach's
+    own report is the check. With a taught --wall-m the LiDAR distance to the wall
+    behind the box corrects the stop first: odometry carried the last ~40 cm.
+    """
+    problem = dock.arrival_problem(report, final_x, aim_y)
+    if problem:
+        raise RuntimeError(problem + '; nothing released')
+    settle(host, read, send_stop, sleep, now)
+    if wall_m is not None:
+        for attempt in range(3):
+            measured = wall(host)
+            try:
+                step = dock.wall_correction(measured, wall_m)
+            except ValueError as exc:
+                raise RuntimeError(str(exc) + '; nothing released')
+            print('[WALL] {:.3f} m ahead, taught {:.3f} m -> {}'.format(
+                measured, wall_m, 'ok' if not step else '{:+.3f} m'.format(step)), flush=True)
+            if not step:
+                break
+            if attempt == 2:
+                raise RuntimeError('wall distance not reached after 2 corrections; nothing released')
+            status = read(host, 'status')
+            if status.get('chassis', {}).get('arm_pose') != 'travel':
+                raise RuntimeError('travel pose not confirmed; wheels not moved')
+            drive(host, step)
+            settle(host, read, send_stop, sleep, now)
+    result = read(host, 'release-preview' if empty_test else 'release')
+    if not empty_test:
+        read(host, 'stow')          # release ends at E1; preview stows by itself
+    status = read(host, 'status')
+    if status.get('chassis', {}).get('arm_pose') != 'travel':
+        raise RuntimeError('released, but the travel pose is not confirmed')
+    if read(host, 'health').get('holding') is not False:
+        raise RuntimeError('released, but the service still reports holding')
+    return result
+
+
+def preflight(args):
+    issues = []
+    paths = {
+        'SUGARBOX_YOLO_MODEL': PLACEMENT_MODEL if args.target == 'placement' else SUGARBOX_MODEL,
+        'SUGARBOX_SAM_MODEL': args.sam,
+        'SUGARBOX_HOMOGRAPHY': args.homography,
+        'SUGARBOX_RL_MODEL': ROOT / 'integration/nav_best_model/doorway_ft_final.zip',
+        'SUGARBOX_VECNORMALIZE': ROOT / 'integration/nav_best_model/doorway_ft_final_vecnormalize.pkl',
+        'GSTREAMER_LAUNCH_EXE': args.gstreamer,
+    }
+    for name, path in paths.items():
+        if path is None or not Path(path).is_file():
+            issues.append('missing {}: {}'.format(name, path))
+    if args.homography is not None and Path(args.homography).is_file():
+        try:
+            load_ground_calibration(args.homography)
+        except (OSError, RuntimeError, ValueError) as exc:
+            issues.append('invalid rear-camera calibration: ' + str(exc))
+    for name, expected in MODEL_HASHES.items():
+        path = ROOT / 'integration/nav_best_model' / name
+        if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            issues.append('avoidance model checksum mismatch: ' + name)
+    # Both models have one class; the wrong file would chase the wrong box quietly.
+    if (args.target == 'placement' and PLACEMENT_MODEL.is_file()
+            and hashlib.sha256(PLACEMENT_MODEL.read_bytes()).hexdigest() != PLACEMENT_MODEL_SHA256):
+        issues.append('placement model checksum mismatch: ' + str(PLACEMENT_MODEL))
+    if getattr(args, 'turn_to_box', False):
+        try:
+            placement_layout(args.host, args.box_map)
+        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            issues.append('placement box map: ' + str(exc))
+    for module in ('cv2', 'numpy', 'torch', 'gymnasium', 'roslibpy', 'stable_baselines3', 'ultralytics'):
+        if importlib.util.find_spec(module) is None:
+            issues.append('missing Python dependency: ' + module)
+    if not issues and getattr(args, 'host', None):
+        try:
+            problem = service_protocol_problem(ctl(args.host, 'status'), ctl(args.host, 'health'))
+            if problem:
+                issues.append(problem)
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+            issues.append('resident service protocol unavailable: ' + str(exc))
+    return paths, issues
+
+
+def start_engine(env):
+    """The approach engine, loading its models and filling its camera while this
+    runner readies the robot (stow, turn toward the box); it connects to no motor
+    before go() (SUGARBOX_WAIT_GO). 2026-10-19: each stage took ~25 s to its first
+    usable frame, with everything done one after the other."""
+    runtime = globals().get('_MISSION_RUNTIME')
+    if runtime is not None:
+        return runtime.start_engine(env)
+    return subprocess.Popen([sys.executable, '-u', str(APPROACH)],
+                            env=dict(env, SUGARBOX_WAIT_GO='1'), stdin=subprocess.PIPE,
+                            text=True)
+
+
+def go(engine, seed=None):
+    """Start the run, with the map estimate of the box when there is one."""
+    line = json.dumps({'go': True,
+                       'seed': None if seed is None else [round(v, 4) for v in seed]})
+    try:
+        engine.stdin.write(line + '\n')
+        engine.stdin.close()
+    except (OSError, ValueError) as exc:
+        raise RuntimeError('the approach engine ended before the start ({})'.format(exc))
+
+
+def near_box(report_path):
+    """(near, (x, y) or None) from the engine's arrival report: near when the box
+    was remembered within AT_BOX_NEAR_M, and when there is no report to say."""
+    try:
+        report = json.loads(Path(report_path).read_text(encoding='utf-8'))
+        x, y = float(report['x']), float(report['y'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return True, None
+    if not (math.isfinite(x) and math.isfinite(y)):
+        return True, None
+    return math.hypot(x, y) <= AT_BOX_NEAR_M, (round(x, 4), round(y, 4))
+
+
+def kill_tree(proc):
+    """The engine and its camera receiver: one left behind holds the camera port."""
+    if hasattr(proc, 'abort'):
+        proc.abort()
+        return
+    if os.name == 'nt':
+        subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)],
+                       capture_output=True)
+    else:
+        proc.kill()
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+
+
+def find_gstreamer():
+    supplied = os.environ.get('GSTREAMER_LAUNCH_EXE') or shutil.which('gst-launch-1.0')
+    if supplied:
+        return Path(supplied)
+    # The wheel's own binary, not its Scripts launcher: on 2026-10-12 not one UDP
+    # byte reached a pipeline started through the launcher, while the binary
+    # received and decoded the rear stream (plugins found) on the same port.
+    for candidate in (Path(sys.prefix) / 'Lib/site-packages/gstreamer_cli/bin/gst-launch-1.0.exe',
+                      Path(sys.prefix) / 'Scripts/gst-launch-1.0.exe'):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--host', default='10.16.224.252')
+    assets = resolve_asset_paths(str(ROOT))
+    parser.add_argument('--sam', type=Path, default=assets['sam'])
+    parser.add_argument('--homography', type=Path, default=assets['homography'])
+    parser.add_argument('--gstreamer', type=Path, default=find_gstreamer())
+    parser.add_argument('--final-travel-m', type=float, default=0.15)
+    parser.add_argument('--real', action='store_true')
+    parser.add_argument('--dry-run', action='store_true', help='live vision/ROS/PPO, no arm or motor commands')
+    parser.add_argument('--i-am-beside-the-robot', action='store_true')
+    parser.add_argument('--approach-timeout', type=float, default=120)
+    parser.add_argument('--blind-stop-x', type=float, default=None,
+                        help='finish blind to this remembered forward x (m) when the gripper '
+                             'hides the box; unset keeps the original search')
+    parser.add_argument('--yolo-imgsz', type=int, default=None,
+                        help='rear-camera YOLO input size (default 1280 with --approach enoch, '
+                             '640 with legacy)')
+    parser.add_argument('--handoff-m', type=float, default=1.00,
+                        help='enoch: box distance from the chassis centre where the policy '
+                             'hands over to the slow steer-in (m, 0.60..1.20)')
+    parser.add_argument('--final-x-m', type=float, default=None,
+                        help='enoch: stop when the box is this far ahead of the chassis '
+                             'centre (m; sugarbox 0.25..0.45, default {:.2f}; placement box '
+                             'near edge 0.18..0.45, default {:.3f})'.format(
+                                 SUGARBOX_FINAL_X_M, dock.PLACEMENT_FINAL_X_M))
+    parser.add_argument('--obs-log', type=Path, default=None,
+                        help='append every policy observation/action as JSON lines '
+                             '(for replaying a run offline)')
+    parser.add_argument('--approach', choices=('enoch', 'legacy'), default='enoch',
+                        help="enoch: training-matched PPO drives to the box on its own and "
+                             "may reverse slowly (2026-10-12 primary); legacy: centring, "
+                             "fixed final 15 cm and optional blind finish")
+    parser.add_argument('--target', choices=('sugarbox', 'placement'), default='sugarbox',
+                        help='sugarbox: approach and grasp (E1). placement: carry the held '
+                             'object to the placement box and release it over the box')
+    parser.add_argument('--empty-test', action='store_true',
+                        help='placement: rehearse with an empty jaw (graspctl release-preview)')
+    parser.add_argument('--turn-to-box', action='store_true',
+                        help='placement: first turn toward the box using the resident AMCL '
+                             'pose and its map position (backing off first where there is no '
+                             'room to turn, and from a box too near to measure), and drive at '
+                             'that position until the camera finds it (only once ncu marks '
+                             'it verified)')
+    parser.add_argument('--box-map', type=Path, default=None,
+                        help='placement: a local copy of ncu\'s scene_layout.json (default: '
+                             'read it from the robot)')
+    parser.add_argument('--came-from', type=float, nargs=2, metavar=('X', 'Y'), default=None,
+                        help='placement with --turn-to-box: map spot where the patrol stopped '
+                             'before the grasp; with no room to turn, the robot may back all '
+                             'the way there (it just drove through)')
+    parser.add_argument('--seed', type=float, nargs=2, metavar=('X', 'Y'), default=None,
+                        help='sugarbox: where the patrol saw the box, chassis-centre frame (m, '
+                             'x forward, y left); the approach drives at it until the camera '
+                             'measures the box')
+    parser.add_argument('--handoff-only', action='store_true',
+                        help='sugarbox: skip the approach and only run E1 (look, fine-adjust, '
+                             'grasp) from where the robot stands, e.g. after an arm-camera '
+                             'dropout stopped a run at the box')
+    parser.add_argument('--wall-m', type=float, default=None,
+                        help='placement: taught LiDAR distance to the wall behind the box at '
+                             'the right release spot (placement_dock.py --measure-wall); the '
+                             'stop is corrected to it before releasing')
+    args = parser.parse_args(argv)
+    placement = args.target == 'placement'
+    if args.final_x_m is None:
+        args.final_x_m = dock.PLACEMENT_FINAL_X_M if placement else SUGARBOX_FINAL_X_M
+    final_min = 0.18 if placement else 0.25
+    if args.real and args.dry_run:
+        parser.error('--real and --dry-run are mutually exclusive')
+    if args.approach == 'enoch' and args.blind_stop_x is not None:
+        parser.error('--blind-stop-x only applies to --approach legacy')
+    if args.blind_stop_x is not None and not (
+            math.isfinite(args.blind_stop_x) and 0.05 <= args.blind_stop_x <= 0.60):
+        parser.error('--blind-stop-x must be 0.05..0.60 m')
+    if not (math.isfinite(args.handoff_m) and math.isfinite(args.final_x_m)
+            and 0.60 <= args.handoff_m <= 1.20 and final_min <= args.final_x_m <= 0.45
+            and args.handoff_m >= args.final_x_m + 0.15):
+        parser.error('--handoff-m 0.60..1.20 and --final-x-m {:.2f}..0.45, at least 0.15 m '
+                     'apart'.format(final_min))
+    if args.yolo_imgsz is not None and (args.yolo_imgsz % 32 or not 320 <= args.yolo_imgsz <= 1920):
+        parser.error('--yolo-imgsz must be a multiple of 32 in 320..1920')
+    if not placement and (args.empty_test or args.turn_to_box or args.wall_m is not None):
+        parser.error('--empty-test, --turn-to-box and --wall-m are for --target placement')
+    if args.handoff_only and (placement or args.approach != 'enoch'):
+        parser.error('--handoff-only is for --target sugarbox with --approach enoch')
+    if args.came_from is not None and not (args.turn_to_box and all(
+            math.isfinite(v) for v in args.came_from)):
+        parser.error('--came-from goes with --target placement --turn-to-box')
+    if placement and args.approach != 'enoch':
+        parser.error('--target placement needs --approach enoch (steer-in and arrival report)')
+    if args.wall_m is not None and not (math.isfinite(args.wall_m) and 0.20 <= args.wall_m <= 1.50):
+        parser.error('--wall-m must be 0.20..1.50 m')
+    if args.seed is not None:
+        if placement or args.approach != 'enoch' or args.handoff_only:
+            parser.error('--seed is for the sugarbox approach with --approach enoch')
+        x, y = args.seed
+        if not (math.isfinite(x) and math.isfinite(y)
+                and SEED_MIN_M <= math.hypot(x, y) <= SEED_MAX_M
+                and abs(math.degrees(math.atan2(y, x))) <= SEED_MAX_BEARING_DEG):
+            parser.error('--seed must be {:.2f}..{:.2f} m away within {:.0f} deg'.format(
+                SEED_MIN_M, SEED_MAX_M, SEED_MAX_BEARING_DEG))
+    ipaddress.IPv4Address(args.host)  # fixed-format SSH target, no shell interpolation
+    if (not math.isfinite(args.final_travel_m) or not 0 < args.final_travel_m <= 0.15
+            or not math.isfinite(args.approach_timeout) or not 0 < args.approach_timeout <= 300):
+        parser.error('invalid distance/timeout')
+    paths, issues = preflight(args)
+    try:
+        status = ctl(args.host, 'status')
+        angles = status.get('servo_deg')
+        if not angles or len(angles) != 6 or not all(math.isfinite(v) for v in angles):
+            issues.append('servo readings unavailable')
+        elif not placement and angles[5] > 50 and args.real:
+            issues.append('jaw may hold an object; release and confirm empty before approach')
+        elif placement and args.empty_test and angles[5] > 50:
+            issues.append('--empty-test needs an empty, open jaw')
+        chassis = status.get('chassis', {})
+        if chassis.get('moving') is not False or chassis.get('arm_busy') is not False:
+            issues.append('robot is busy')
+        if chassis.get('maintenance') is True:
+            issues.append('maintenance lock is on (ncu\'s navigation sets it when it ends); '
+                          'mission_loop.py unlocks it, or send maintenance-unlock')
+        if status.get('odom', {}).get('valid') is not True:
+            issues.append('odometry unavailable')
+        if placement and not args.empty_test and args.real:
+            if ctl(args.host, 'health').get('holding') is not True:
+                issues.append('placement needs a held object (or --empty-test)')
+    except Exception as exc:
+        issues.append('robot preflight: ' + str(exc))
+    for issue in issues:
+        print('[BLOCKED] ' + issue)
+    if issues:
+        return 2
+    env = os.environ.copy()
+    env.update({key: str(value.resolve()) for key, value in paths.items()})
+    env.update(ROUTE_B_IP=args.host, SUGARBOX_FINAL_TRAVEL_M=str(args.final_travel_m))
+    # Explicit flags replace anything inherited from the shell, so a run's settings
+    # are the ones on its own command line.
+    for key in ('SUGARBOX_BLIND_STOP_X', 'SUGARBOX_YOLO_IMGSZ', 'SUGARBOX_TRAINING_CONTRACT',
+                'SUGARBOX_CONTRACT_ALLOW_DRIVE', 'SUGARBOX_TARGET_INITIAL_ONLY',
+                'SUGARBOX_OBS_LOG', 'SUGARBOX_CONTRACT_HANDOFF_M',
+                'SUGARBOX_CONTRACT_FINAL_X_M', 'SUGARBOX_TARGET', 'SUGARBOX_CONTRACT_AIM_Y_M',
+                'SUGARBOX_SEED_TARGET', 'SUGARBOX_ARRIVAL_REPORT', 'SUGARBOX_FAR_SEED'):
+        env.pop(key, None)
+    if args.blind_stop_x is not None:
+        env['SUGARBOX_BLIND_STOP_X'] = str(args.blind_stop_x)
+    if args.obs_log is not None:
+        env['SUGARBOX_OBS_LOG'] = str(args.obs_log.resolve())
+    # The 2026-10-12 rear calibration reaches 1.40 m; 640 misses the sugarbox beyond
+    # ~1 m. The placement box is three times wider and its model was trained at 640.
+    yolo_imgsz = args.yolo_imgsz or (1280 if args.approach == 'enoch' and not placement else 640)
+    env['SUGARBOX_YOLO_IMGSZ'] = str(yolo_imgsz)
+    aim_y = dock.PLACEMENT_AIM_Y_M if placement else None
+    arrival_report = Path(tempfile.gettempdir()) / 'sugarbox_arrival_{}.json'.format(os.getpid())
+    env['SUGARBOX_ARRIVAL_REPORT'] = str(arrival_report)
+    if placement:
+        env.update(SUGARBOX_TARGET='placement', SUGARBOX_CONTRACT_AIM_Y_M=str(aim_y))
+    if args.approach == 'enoch':
+        # A box beyond the calibrated strip is driven at where the camera roughly
+        # sees it, never stopped on: the placement box often is after a grasp, and
+        # the sugarbox may be anywhere (the user, 2026-10-19).
+        env['SUGARBOX_FAR_SEED'] = '1'
+        if args.seed is not None:
+            env['SUGARBOX_SEED_TARGET'] = '{:.4f},{:.4f}'.format(*args.seed)
+        # enoch's training-matched inputs and shaping. His "first sighting locks the
+        # target" switch is deliberately left off: it was a one-off diagnostic that did
+        # not cure the oscillation, and it leaves odometry slip uncorrected (11 cm of
+        # sideways error on 2026-10-12). The box is re-measured while visible.
+        env['SUGARBOX_TRAINING_CONTRACT'] = '1'
+        env['SUGARBOX_CONTRACT_HANDOFF_M'] = str(args.handoff_m)
+        env['SUGARBOX_CONTRACT_FINAL_X_M'] = str(args.final_x_m)
+        if args.real:
+            env['SUGARBOX_CONTRACT_ALLOW_DRIVE'] = '1'
+    print('[config] target={} approach={} blind_stop_x={} yolo_imgsz={} final_travel_m={} '
+          'handoff_m={} final_x_m={}{}'.format(
+              args.target, args.approach, args.blind_stop_x, yolo_imgsz, args.final_travel_m,
+              args.handoff_m, args.final_x_m,
+              '' if aim_y is None else ' aim_y_m={} wall_m={} empty_test={}'.format(
+                  aim_y, args.wall_m, args.empty_test))
+          + ('' if args.seed is None else ' seed=({:.3f}, {:+.3f})'.format(*args.seed)))
+    if args.dry_run:
+        env.update(SUGARBOX_RUN_MODE='DRY_RUN', SUGARBOX_EXIT_ON_ARRIVAL='0')
+        if args.turn_to_box:
+            # No turning in a dry run: show where the map says the box is from here.
+            try:
+                box, _ = placement_layout(args.host, args.box_map)
+                pose = dock.localization_pose(dock.read_localization(args.host))
+                bearing, distance = dock.box_bearing(pose, box)
+                print('[FACE] dry run: placement box {:.2f} m away, bearing {:+.1f} deg '
+                      '(the real run turns first)'.format(distance, math.degrees(bearing)))
+                if box['verified'] and abs(bearing) <= math.radians(60):
+                    env['SUGARBOX_SEED_TARGET'] = '{:.4f},{:.4f}'.format(*dock.seed_point(pose, box))
+            except (OSError, ValueError, RuntimeError) as exc:
+                print('[FACE] dry run without a map estimate: ' + str(exc))
+        return subprocess.run([sys.executable, '-u', str(APPROACH)], env=env).returncode
+    if not args.real:
+        print('[check] files, model hashes, Python imports and status passed; no motion. '
+              'Camera/ROS live dry-run is still required before the first real run.')
+        return 0
+    if not args.i_am_beside_the_robot:
+        print('[REFUSED] --real requires --i-am-beside-the-robot')
+        return 3
+    env.update(SUGARBOX_RUN_MODE='DRIVE',
+               SUGARBOX_EXIT_ON_ARRIVAL='1', SUGARBOX_FINAL_TRAVEL_M=str(args.final_travel_m))
+    outcome = 'nothing released' if placement else 'no E1/grasp'
+    engine, at_box, started = None, False, False
+    if AT_BOX_REPORT.exists():
+        AT_BOX_REPORT.unlink()
+    try:
+        if not args.handoff_only:
+            engine = start_engine(env)
+        stop(args.host)
+        time.sleep(0.6)
+        if args.handoff_only:
+            # handoff() settles, raises the arm to E1 and may fine-adjust from there.
+            print(json.dumps(handoff(args.host, look=look, drive=drive), ensure_ascii=False))
+            return 0
+        ctl(args.host, 'stow')       # after a grasp the held object comes home to travel
+        st = ctl(args.host, 'status')
+        if st.get('chassis', {}).get('arm_pose') != 'travel':
+            raise RuntimeError('travel pose not confirmed')
+        seed = None
+        if engine.poll() is not None:
+            raise RuntimeError('the approach engine ended while loading (exit {}); '.format(
+                engine.returncode) + outcome)
+        if args.turn_to_box:
+            box, walls = placement_layout(args.host, args.box_map)
+
+            obstacle = dock.bin_obstacle(box)
+
+            def back(host, metres, speed=0.08, margin=dock.BACK_WALL_MARGIN_M):
+                return back_straight(host, metres, walls, speed=speed, margin=margin,
+                                     obstacles=[obstacle] if obstacle else [])
+            face_back, face_max = back, FACE_BACKOFF_MAX_M
+            if args.came_from is not None:
+                try:
+                    start = dock.localization_pose(dock.wait_localization(args.host))
+                except ValueError:
+                    start = None
+                retrace = dock.retrace_room(start, args.came_from)
+                if retrace is not None:
+                    core = dock.bin_obstacle(dict(box, verified=True))
+
+                    def retraced_back(host, metres):
+                        return back_straight(host, metres, walls, obstacles=[core] if core else [])
+                    face_back, face_max = retraced_back, min(retrace, FACE_RETRACE_MAX_M)
+                    print('[FACE] where the patrol stopped is {:.2f} m straight back: the way '
+                          'back there is clear'.format(retrace), flush=True)
+            pose = face_box(args.host, box, back=face_back, back_max=face_max)
+            if keep_box_in_view(args.host, box, pose, lambda host, metres: back(
+                    host, metres, speed=PLACEMENT_BACKOFF_MPS,
+                    margin=PLACEMENT_BACKOFF_MARGIN_M)):
+                pose = face_box(args.host, box, back=back)
+            if box['verified']:
+                seed = dock.seed_point(pose, box)
+            else:
+                print('[FACE] the scene layout box position is not verified: turned toward it '
+                      'only; the camera has to find the box from here')
+        if arrival_report.exists():
+            arrival_report.unlink()
+        go(engine, seed)
+        started = True
+        try:
+            returncode = engine.wait(timeout=args.approach_timeout)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError('approach still running after {:.0f} s; {}'.format(
+                args.approach_timeout, outcome))
+        if returncode == 4:
+            raise RuntimeError('approach stopped: no progress toward the box (the [STOPPED] '
+                               'line above says what held it); ' + outcome)
+        if returncode:
+            raise RuntimeError('approach did not report stopped arrival; ' + outcome)
+        if placement:
+            try:
+                report = json.loads(arrival_report.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                report = None
+            print('[ARRIVAL] ' + json.dumps(report))
+            print(json.dumps(place(args.host, report, args.final_x_m, aim_y, args.empty_test,
+                                   wall_m=args.wall_m), ensure_ascii=False))
+            return 0
+        # Only enoch's approach may reverse, so only it gets the E1 fine adjustment.
+        tools = dict(look=look, drive=drive) if args.approach == 'enoch' else {}
+        at_box = True
+        print(json.dumps(handoff(args.host, **tools), ensure_ascii=False))
+        return 0
+    except (Exception, KeyboardInterrupt) as exc:
+        print('[STOP] ' + str(exc))
+        if not placement and started:
+            near, where = near_box(arrival_report)
+            if near:
+                at_box = True
+                if where is not None:
+                    AT_BOX_REPORT.write_text(json.dumps({'x': where[0], 'y': where[1]}),
+                                             encoding='utf-8')
+                print('[STOP] the run ended near the box ({}): reported as a miss at '
+                      'the box'.format('unknown spot' if where is None else
+                                       'x={:.2f} y={:+.2f}'.format(*where)))
+        return AT_BOX_EXIT if at_box else 2
+    finally:
+        # Not started (nothing was connected to the motors yet) or overrunning.
+        if engine is not None and engine.poll() is None:
+            kill_tree(engine)
+        try:
+            stop(args.host)
+        except OSError as exc:
+            print('[STOP] could not deliver final stop: {}; resident watchdog remains active'.format(exc))
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

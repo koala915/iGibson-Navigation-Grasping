@@ -131,6 +131,52 @@ class VisionGraspBridgePoseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "outside calibration hull"):
                 bridge.apply_grasp_home_mapping(args, 50.0, 50.0)
 
+    def _homography_args(self, directory, **over):
+        pixels = [(u, v) for v in (100.0, 300.0, 450.0)
+                  for u in (100.0, 300.0, 500.0)]
+        bases = [(0.30 - 0.0002 * v, 0.00025 * (u - 300.0))
+                 for u, v in pixels]
+        path = Path(directory) / "grasp_home.json"
+        save_calibration(path, make_calibration(pixels, bases))
+        args = geometry_args(homography=str(path), **over)
+        bridge.resolve_camera_geometry(args)
+        return args
+
+    def _payload(self, args, transform):
+        return bridge.build_homography_payload(
+            args, (280.0, 240.0, 320.0, 300.0), "sugarbox",
+            bridge.acg.V23_E1_GRASP_HOME,
+            {"_fallback": 0.015, "sugarbox": 0.015},
+            {"sugarbox": 0.03}, base_xy_transform=transform)
+
+    def test_a_rigid_base_transform_is_accepted(self):
+        import math as _m
+
+        def rotate(xy, angle=_m.radians(20.0), pivot=(0.118146, -0.003359)):
+            dx, dy = xy[0] - pivot[0], xy[1] - pivot[1]
+            return (pivot[0] + _m.cos(angle) * dx - _m.sin(angle) * dy,
+                    pivot[1] + _m.sin(angle) * dx + _m.cos(angle) * dy)
+
+        with tempfile.TemporaryDirectory() as directory:
+            args = self._homography_args(
+                directory, policy_x_range=[0.10, 0.40],
+                policy_y_range=[-0.20, 0.20])
+            payload, note = self._payload(args, rotate)
+            self.assertIsNotNone(payload, note)
+
+    def test_a_scaling_base_transform_is_refused(self):
+        # The transform is documented rigid and the width is measured after it.
+        # A scale would rescale the width and the bracketing test together, and
+        # both would still look entirely reasonable.
+        with tempfile.TemporaryDirectory() as directory:
+            args = self._homography_args(
+                directory, policy_x_range=[0.05, 0.60],
+                policy_y_range=[-0.30, 0.30])
+            payload, note = self._payload(args, lambda xy: (xy[0] * 1.5,
+                                                            xy[1] * 1.5))
+            self.assertIsNone(payload)
+            self.assertIn("not rigid", note)
+
     def test_calibration_batch_uses_medians(self):
         rows = []
         for u in (100.0, 102.0, 500.0):
@@ -170,6 +216,165 @@ class VisionGraspBridgePoseTests(unittest.TestCase):
                          bridge.acg.V21_C3_GRASP_HOME.name)
         self.assertEqual(payload["cam_pose"],
                          list(bridge.acg.V21_C3_GRASP_HOME.arm_deg))
+
+    def test_rigid_base_transform_moves_target_and_preserves_width(self):
+        pixels = [(u, v) for v in (100.0, 300.0, 450.0)
+                  for u in (100.0, 300.0, 500.0)]
+        bases = [(0.30 - 0.0002 * v, 0.00025 * (u - 300.0))
+                 for u, v in pixels]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "grasp_home.json"
+            save_calibration(path, make_calibration(pixels, bases))
+            args = geometry_args(homography=str(path))
+            bridge.resolve_camera_geometry(args)
+            with patch.object(bridge.acg, "undistort_pixel",
+                              side_effect=lambda u, v: (u, v)):
+                plain, _ = bridge.build_homography_payload(
+                    args, (280.0, 250.0, 320.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02}, {},
+                )
+                moved, note = bridge.build_homography_payload(
+                    args, (280.0, 250.0, 320.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02}, {},
+                    base_xy_transform=lambda xy: (xy[0], xy[1] + 0.02),
+                )
+                rejected, rejected_note = bridge.build_homography_payload(
+                    args, (280.0, 250.0, 320.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02}, {},
+                    base_xy_transform=lambda xy: (xy[0], xy[1] + 0.20),
+                )
+        self.assertAlmostEqual(moved["x"], plain["x"])
+        self.assertAlmostEqual(moved["y"], plain["y"] + 0.02)
+        self.assertAlmostEqual(moved["w"], plain["w"])
+        self.assertIn("rigid base-XY transform", note)
+        self.assertIsNone(rejected)
+        self.assertIn("outside the policy", rejected_note)
+
+    def test_forward_offset_moves_only_base_x_and_is_bounded(self):
+        self.assertEqual(
+            bridge.apply_grasp_forward_offset((0.2687, -0.0035), 5.0),
+            (0.2737, -0.0035),
+        )
+        for invalid in (-0.1, 15.1, float("inf"), float("nan")):
+            with self.assertRaisesRegex(ValueError, "forward offset"):
+                bridge.apply_grasp_forward_offset((0.25, 0.0), invalid)
+
+    def test_forward_offset_is_checked_by_policy_after_translation(self):
+        pixels = [(u, v) for v in (100.0, 300.0, 450.0)
+                  for u in (100.0, 300.0, 500.0)]
+        bases = [(0.30 - 0.0002 * v, 0.00025 * (u - 300.0))
+                 for u, v in pixels]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "grasp_home.json"
+            save_calibration(path, make_calibration(pixels, bases))
+            args = geometry_args(
+                homography=str(path), policy_x_range=[0.205, 0.243],
+                policy_y_range=[-0.070, 0.065])
+            bridge.resolve_camera_geometry(args)
+            with patch.object(bridge.acg, "undistort_pixel",
+                              side_effect=lambda u, v: (u, v)):
+                payload, note = bridge.build_homography_payload(
+                    args, (280.0, 250.0, 320.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02}, {},
+                    base_xy_transform=lambda xy:
+                        bridge.apply_grasp_forward_offset(xy, 5.0),
+                )
+        self.assertIsNone(payload)
+        self.assertIn("outside the policy", note)
+
+    def test_bbox_sides_may_leave_center_hull_for_bounded_width_only(self):
+        pixels = [(u, v) for v in (100.0, 300.0, 450.0)
+                  for u in (100.0, 300.0, 500.0)]
+        bases = [(0.30 - 0.0002 * v, 0.00025 * (u - 300.0))
+                 for u, v in pixels]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "grasp_home.json"
+            save_calibration(path, make_calibration(pixels, bases))
+            args = geometry_args(homography=str(path))
+            bridge.resolve_camera_geometry(args)
+            with patch.object(bridge.acg, "undistort_pixel",
+                              side_effect=lambda u, v: (u, v)):
+                # Centre u=480 is calibrated; only the right silhouette point
+                # u=520 lies outside the centre-point hull.  It is used for a
+                # bounded 2 cm width estimate, never as the grasp target.
+                payload, note = bridge.build_homography_payload(
+                    args, (440.0, 250.0, 520.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02, "sugarbox": 0.0325},
+                    {"sugarbox": 0.065},
+                )
+                self.assertIsNotNone(payload, note)
+                self.assertIn("bounded bbox-side width extrapolation", note)
+                self.assertAlmostEqual(payload["w"], 0.02)
+
+                # The exception is width-only: an uncalibrated target centre
+                # remains fail-closed.
+                payload, note = bridge.build_homography_payload(
+                    args, (500.0, 250.0, 540.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02, "sugarbox": 0.0325},
+                    {"sugarbox": 0.065},
+                )
+                self.assertIsNone(payload)
+                self.assertIn("outside calibration hull", note)
+
+                # Width extrapolation cannot be used to wave through an object
+                # wider than the physical jaw opening.
+                payload, note = bridge.build_homography_payload(
+                    args, (280.0, 250.0, 550.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02, "sugarbox": 0.0325},
+                    {"sugarbox": 0.065},
+                )
+                self.assertIsNone(payload)
+                self.assertIn("past the 6.0 cm", note)
+
+    def test_top_only_clip_requires_opt_in_and_keeps_other_edges_strict(self):
+        pixels = [(u, v) for v in (100.0, 300.0, 450.0)
+                  for u in (100.0, 300.0, 500.0)]
+        bases = [(0.30 - 0.0002 * v, 0.00025 * (u - 300.0))
+                 for u, v in pixels]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "grasp_home.json"
+            save_calibration(path, make_calibration(pixels, bases))
+            args = geometry_args(homography=str(path))
+            bridge.resolve_camera_geometry(args)
+            with patch.object(bridge.acg, "undistort_pixel",
+                              side_effect=lambda u, v: (u, v)):
+                payload, note = bridge.build_homography_payload(
+                    args, (280.0, 0.0, 320.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02, "sugarbox": 0.0325},
+                    {"sugarbox": 0.065},
+                )
+                self.assertIsNone(payload)
+                self.assertIn("top", note)
+
+                args.allow_top_clipped_grasp_home = True
+                payload, note = bridge.build_homography_payload(
+                    args, (280.0, 0.0, 320.0, 300.0), "sugarbox",
+                    bridge.acg.V21_C3_GRASP_HOME,
+                    {"_fallback": 0.02, "sugarbox": 0.0325},
+                    {"sugarbox": 0.065},
+                )
+                self.assertIsNotNone(payload, note)
+                self.assertIn("accepted top-only clip", note)
+
+                for bbox, edge in (((0.0, 0.0, 320.0, 300.0), "left"),
+                                   ((280.0, 0.0, 639.0, 300.0), "right"),
+                                   ((280.0, 0.0, 320.0, 479.0), "bottom")):
+                    payload, note = bridge.build_homography_payload(
+                        args, bbox, "sugarbox",
+                        bridge.acg.V21_C3_GRASP_HOME,
+                        {"_fallback": 0.02, "sugarbox": 0.0325},
+                        {"sugarbox": 0.065},
+                    )
+                    self.assertIsNone(payload)
+                    self.assertIn(edge, note)
 
     def test_calibration_only_leaves_every_homography_field_defined(self):
         """--calibration-only returns before a homography exists.

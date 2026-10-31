@@ -115,7 +115,34 @@ class NavRLConfig:
     # ── safety overlay (NOT in training — geometric last-resort brake) ──
     # Uses RAW point distances (the 48-ray obs is floored at 0.33 m and cannot
     # see closer). Blocks forward motion only; turning/reverse stay available.
-    safety_brake_dist: float = 0.25
+    # Real X3Plus measurements (2026-09-27), expressed in the robot-centre
+    # frame after ``lidar_forward_offset_m`` is applied:
+    #   front extent (arm in navigation/carry pose) 0.17 m
+    #   half width 0.12 m
+    #   requested obstacle clearance 0.10 m
+    #   measured post-stop travel at motor 30 up to 0.066 m (2026-09-28)
+    #   scan age about 0.12 s at the Jetson, plus one 6 Hz control period
+    #   measurement margin about 0.02 m
+    # A 0.38 m plane left only ~0.12 m between the travel-pose gripper and a
+    # cardboard obstacle.  A 0.42 m test triggered on LiDAR (not the odom hard
+    # limit) and left 0.14–0.15 m by ruler.  The rectangular
+    # corridor prevents nearby side walls from tripping the forward brake.
+    robot_front_extent_m: float = 0.17
+    safety_brake_dist: float = 0.42
+    safety_corridor_half_width_m: float = 0.22
+    # Normal-zone braking rejects one/two isolated returns.  A real obstacle
+    # must form at least this many neighbouring scan samples.  The TG30 on the
+    # robot publishes at about 0.177 deg/sample, so a 0.10 m obstacle spans
+    # many samples at the 0.42 m brake plane (and about 8 at 4 m).
+    safety_cluster_min_points: int = 3
+    safety_cluster_max_angle_gap_deg: float = 1.0
+    safety_cluster_max_point_gap_m: float = 0.04
+    # Inside this robot-centre x plane, retain a one-point last-resort stop.
+    # 0.25 m leaves about 0.08 m ahead of the measured 0.17 m front extent.
+    # This brake only suppresses forward velocity for the current control tick;
+    # it does not abort the mission, and clears when the return disappears.
+    safety_emergency_dist: float = 0.25
+    # Retained for config/CLI compatibility; the brake no longer uses a cone.
     safety_brake_halfangle_deg: float = 50.0
     lidar_stale_timeout_s: float = 0.7
 
@@ -133,7 +160,12 @@ def validate_config(cfg: NavRLConfig) -> None:
         "max_angular_vel": cfg.max_angular_vel,
         "lidar_fov_deg": cfg.lidar_fov_deg,
         "lidar_max_dist": cfg.lidar_max_dist,
+        "robot_front_extent_m": cfg.robot_front_extent_m,
         "safety_brake_dist": cfg.safety_brake_dist,
+        "safety_corridor_half_width_m": cfg.safety_corridor_half_width_m,
+        "safety_cluster_max_angle_gap_deg": cfg.safety_cluster_max_angle_gap_deg,
+        "safety_cluster_max_point_gap_m": cfg.safety_cluster_max_point_gap_m,
+        "safety_emergency_dist": cfg.safety_emergency_dist,
         "safety_brake_halfangle_deg": cfg.safety_brake_halfangle_deg,
         "lidar_stale_timeout_s": cfg.lidar_stale_timeout_s,
     }
@@ -142,6 +174,11 @@ def validate_config(cfg: NavRLConfig) -> None:
             raise ValueError(f"{name} must be finite and > 0, got {value}")
     if cfg.motor_delay_steps < 0:
         raise ValueError(f"motor_delay_steps must be >= 0, got {cfg.motor_delay_steps}")
+    if cfg.safety_cluster_min_points < 2:
+        raise ValueError(
+            "safety_cluster_min_points must be >= 2, got "
+            f"{cfg.safety_cluster_min_points}"
+        )
     if cfg.lidar_num_rays < 2:
         raise ValueError(f"lidar_num_rays must be >= 2, got {cfg.lidar_num_rays}")
     if not 0.0 < cfg.lidar_min_dist < cfg.lidar_max_dist:
@@ -155,6 +192,13 @@ def validate_config(cfg: NavRLConfig) -> None:
         raise ValueError(
             "safety_brake_halfangle_deg must be <= 180, got "
             f"{cfg.safety_brake_halfangle_deg}"
+        )
+    if not cfg.robot_front_extent_m < cfg.safety_emergency_dist < cfg.safety_brake_dist:
+        raise ValueError(
+            "safety distances must satisfy robot_front_extent_m < "
+            "safety_emergency_dist < safety_brake_dist, got "
+            f"{cfg.robot_front_extent_m}, {cfg.safety_emergency_dist}, "
+            f"{cfg.safety_brake_dist}"
         )
     if cfg.lidar_angle_dir not in (-1.0, 1.0):
         raise ValueError(f"lidar_angle_dir must be -1 or +1, got {cfg.lidar_angle_dir}")
@@ -229,16 +273,85 @@ def scan_to_rays(points: Sequence[Tuple[float, float]], cfg: NavRLConfig) -> np.
 
 
 def front_min_raw(points: Sequence[Tuple[float, float]], cfg: NavRLConfig) -> float:
-    """Minimum RAW distance in the front safety cone (for the geometric brake)."""
-    half = math.radians(cfg.safety_brake_halfangle_deg)
+    """Nearest forward x in the footprint-aware swept corridor.
+
+    The old cone widened with distance and stopped beside harmless side walls.
+    A straight-moving rectangular footprint instead occupies a fixed lateral
+    band. Points behind the robot or outside that band cannot collide during
+    straight forward braking and are ignored here.
+    """
     best = float("inf")
     for ang_deg, dist in points:
         sample = _transform_scan_sample(ang_deg, dist, cfg)
         if sample is None:
             continue
         a, dist = sample
-        if abs(a) <= half and dist < best:
-            best = dist
+        x = dist * math.cos(a)
+        y = dist * math.sin(a)
+        # TG30 sees parts of the robot itself. Anything at or behind the
+        # measured front plane cannot be a new obstacle in the forward swept
+        # path and must not latch the brake forever.
+        if (x > cfg.robot_front_extent_m
+                and abs(y) <= cfg.safety_corridor_half_width_m
+                and x < best):
+            best = x
+    return best
+
+
+def front_min_brake(points: Sequence[Tuple[float, float]],
+                    cfg: NavRLConfig) -> float:
+    """Nearest obstacle that should stop forward motion.
+
+    One or two isolated TG30 samples in the normal warning zone are treated as
+    speckle.  Three or more angularly and spatially adjacent samples are a real
+    obstacle cluster.  A return inside ``safety_emergency_dist`` remains a
+    last-resort stop even when isolated; this prevents a thin object or person
+    entering immediately in front of the chassis from being ignored.
+
+    The returned value is robot-centre forward x, matching
+    ``safety_brake_dist``.  ``inf`` means the swept corridor is clear.
+    """
+    corridor = []
+    emergency_best = float("inf")
+    for ang_deg, dist in points:
+        sample = _transform_scan_sample(ang_deg, dist, cfg)
+        if sample is None:
+            continue
+        a, dist = sample
+        x = dist * math.cos(a)
+        y = dist * math.sin(a)
+        if (x > cfg.robot_front_extent_m
+                and abs(y) <= cfg.safety_corridor_half_width_m):
+            if x < cfg.safety_emergency_dist:
+                emergency_best = min(emergency_best, x)
+            corridor.append((a, x, y))
+
+    if emergency_best < float("inf"):
+        return emergency_best
+
+    if len(corridor) < cfg.safety_cluster_min_points:
+        return float("inf")
+    corridor.sort(key=lambda item: item[0])
+    max_angle_gap = math.radians(cfg.safety_cluster_max_angle_gap_deg)
+    best = float("inf")
+    cluster = [corridor[0]]
+
+    def finish(items) -> None:
+        nonlocal best
+        if len(items) >= cfg.safety_cluster_min_points:
+            best = min(best, min(item[1] for item in items))
+
+    for item in corridor[1:]:
+        prev = cluster[-1]
+        angular_gap = item[0] - prev[0]
+        point_gap = math.hypot(item[1] - prev[1], item[2] - prev[2])
+        if (0.0 < angular_gap <= max_angle_gap
+                and point_gap <= cfg.safety_cluster_max_point_gap_m):
+            cluster.append(item)
+        else:
+            finish(cluster)
+            cluster = [item]
+    finish(cluster)
     return best
 
 
@@ -447,16 +560,28 @@ def laser_scan_to_points(message: Mapping[str, Any]) -> List[Tuple[float, float]
             or not math.isfinite(range_max) or range_max <= range_min):
         raise ValueError("LaserScan range limits must satisfy 0 <= min < max")
 
+    if not ranges:
+        raise ValueError("LaserScan ranges must not be empty")
     points: List[Tuple[float, float]] = []
+    usable_samples = 0
     for i, raw_dist in enumerate(ranges):
         try:
             dist = float(raw_dist)
         except (TypeError, ValueError):
             continue
+        # Positive infinity is the ROS convention for a valid ray with no
+        # return. NaN, -inf and finite values outside the declared sensor range
+        # do not establish that the sensor produced a usable sample.
+        if math.isinf(dist) and dist > 0.0:
+            usable_samples += 1
+            continue
         if not math.isfinite(dist) or dist < range_min or dist > range_max:
             continue
+        usable_samples += 1
         angle_deg = math.degrees(angle_min + i * angle_increment)
         points.append((angle_deg, dist))
+    if usable_samples == 0:
+        raise ValueError("LaserScan contains no usable ranges")
     return points
 
 
@@ -502,7 +627,11 @@ def describe_scan(message: Mapping[str, Any], cfg: NavRLConfig) -> dict:
     # false partial overlap for a valid 360-degree scan with a 180-degree offset.
     half = cfg.lidar_fov_deg / 2.0
     raw_span = abs(angle_inc) * max(n - 1, 0)
-    if raw_span >= 360.0 - 1e-6:
+    # TG30 reports 2020 rays from -pi to +pi.  Its float32 increment makes
+    # the calculated span 359.9999964 deg, so a 1e-6 tolerance falsely says
+    # only half the forward 180 deg is covered after the 180 deg frame flip.
+    # A gap no larger than one sample still represents a complete revolution.
+    if raw_span >= 360.0 - max(1e-3, abs(angle_inc)):
         covered = min(360.0, cfg.lidar_fov_deg)
     else:
         # a = dir*raw + offset is affine, so the image of the raw window is
@@ -894,6 +1023,33 @@ def run_selftest():
     print("== front_min_raw sees below the 0.33 ray floor ==")
     _approx(front_min_raw([(0.0, 0.18), (120.0, 0.05)], cfg), 0.18)
 
+    print("== front_min_raw uses a fixed-width swept corridor ==")
+    corridor_cfg = dataclasses.replace(
+        cfg, lidar_forward_offset_m=0.10,
+        safety_corridor_half_width_m=0.22,
+    )
+    _approx(front_min_raw([(0.0, 0.25)], corridor_cfg), 0.35)
+    assert math.isinf(front_min_raw([(180.0, 0.10)], corridor_cfg))
+    wall_angle = math.degrees(math.atan2(0.23, 0.20 - 0.10))
+    wall_range = math.hypot(0.20 - 0.10, 0.23)
+    assert math.isinf(front_min_raw([(wall_angle, wall_range)], corridor_cfg))
+
+    print("== front_min_brake rejects speckles, accepts clusters and emergencies ==")
+    assert math.isinf(front_min_brake([(0.0, 0.25)], corridor_cfg))
+    assert math.isinf(front_min_brake(
+        [(-0.2, 0.25), (0.2, 0.25)], corridor_cfg))
+    _approx(front_min_brake(
+        [(-0.2, 0.25), (0.0, 0.25), (0.2, 0.25)], corridor_cfg),
+        0.35, 1e-3)
+    _approx(front_min_brake([(0.0, 0.14)], corridor_cfg), 0.24, 1e-3)
+
+    print("== 0.42 m default brake plane: cluster inside stops, outside passes ==")
+    _approx(cfg.safety_brake_dist, 0.42, 1e-9)
+    near_cluster = [(-0.2, 0.315), (0.0, 0.315), (0.2, 0.315)]
+    far_cluster = [(-0.2, 0.325), (0.0, 0.325), (0.2, 0.325)]
+    assert front_min_brake(near_cluster, corridor_cfg) < cfg.safety_brake_dist
+    assert front_min_brake(far_cluster, corridor_cfg) > cfg.safety_brake_dist
+
     print("== build_nav_obs ordering ==")
     obs = build_nav_obs(2.0, math.radians(30), 0.4, -0.5,
                         np.array([0.7, -0.2]), np.full(48, 4.0, dtype=np.float32))
@@ -980,6 +1136,16 @@ def _selftest_describe_scan():
     info = describe_scan(msg("laser", 95.0, 265.0), shifted)
     assert info["forward_fraction"] > 0.9, info
     assert not info["warnings"], info["warnings"]
+
+    # Actual TG30 metadata on the Jetson: the 3.6e-6 deg float32 rounding
+    # gap must not be mistaken for a half-covered front hemisphere.
+    tg30 = {"header": {"frame_id": "laser"},
+            "angle_min": -math.pi,
+            "angle_increment": math.radians(0.1783060903),
+            "ranges": [1.0] * 2020}
+    info = describe_scan(tg30, shifted)
+    _approx(info["forward_fraction"], 1.0, 1e-6)
+    assert not info["warnings"], info
 
     # A narrow window is reported as partial rather than silently padded.
     info = describe_scan(msg("laser_link", -40.0, 40.0), cfg)

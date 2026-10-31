@@ -1,0 +1,19 @@
+pybullet build time: Apr 24 2026 11:06:03
+Rosmaster Serial Opened! Baudrate=115200
+----------------create receive threading--------------
+[INFO] Rosmaster_Lib ready on /dev/myserial.
+S4 sample=1 responding_id=4 raw=3140 decoded=None
+S4 sample=2 responding_id=4 raw=3140 decoded=None
+S4 sample=3 responding_id=4 raw=3140 decoded=None
+S4 sample=4 responding_id=4 raw=3140 decoded=None
+S4 sample=5 responding_id=4 raw=3140 decoded=None
+Exception in thread task_serial_receive:
+Traceback (most recent call last):
+  File "/home/jetson/grasp_venv/lib/python3.8/site-packages/serial/serialposix.py", line 565, in read
+    ready, _, _ = select.select([self.fd, self.pipe_abort_read_r], [], [], timeout.time_left())
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.8/threading.py", line 932, in _bootstrap_inner

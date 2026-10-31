@@ -5,7 +5,7 @@ Run this on the Jetson.  Point a phone at http://<jetson>:8080 and the whole
 mission is operable without a terminal: configure it, start it, watch it, stop it.
 
     python3 ui/server.py                     # watch only; cannot drive
-    python3 ui/server.py --allow-real        # ...and may drive the hardware
+    python3 ui/server.py --allow-real        # enable the first real-mode gate
     python3 ui/server.py --simulate          # no robot needed; for development
 
 Three deliberate choices, each of which the obvious alternative gets wrong:
@@ -23,11 +23,15 @@ its telemetry, and signals it.  A web server that also opened the serial port
 would be a second owner, and the failure mode of two owners on a half-duplex
 servo bus is an arm that moves when nobody asked it to.
 
-*Two independent gates before anything drives.*  --allow-real must be passed
-here, on the robot, by someone standing next to it; and the start request must
-carry the operator's acknowledgement.  Neither alone is enough.  A phone left
-unlocked in a bag cannot start a real run on its own, and a server started with
---allow-real still will not move until a human ticks the box.
+*Real mode fails closed.*  --allow-real and the operator acknowledgement are
+necessary first gates.  The current console cannot supply the mode-specific
+serial, LiDAR and camera-calibration evidence, so A/B/C real requests are still
+refused.  Dry-run and simulation remain available.
+
+*Fixed-point grasp goes through the resident service.*  The grasp service
+(grasp/v23/grasp_service.py) already owns the servo bus and runs every gate of
+the one-click E1 grasp.  The console only sends it the same commands graspctl.py
+does, over its socket, so it still never opens the port itself.
 """
 
 from __future__ import annotations
@@ -93,6 +97,28 @@ MODES = {
 # starting with '-' would arrive at argparse as a flag rather than as the value
 # of the option it was meant to fill.
 SAFE_NAME = re.compile(r"\A[A-Za-z0-9_][A-Za-z0-9._-]{0,63}\Z")
+
+# The resident grasp service's sockets (graspctl.py uses the same two).
+SERVICE_SOCKET = "/tmp/grasp_service.sock"
+HEALTH_SOCKET = "/tmp/grasp_health.sock"
+# Reply timeouts per command, as the mission uses them: an episode is ~10 s, the
+# rest is room for a slow retry to report its own outcome.
+ARM_TIMEOUTS = {"home": 75.0, "grasp": 200.0, "release": 150.0, "stow": 75.0,
+                "health": 5.0, "maintenance-lock": 15.0, "maintenance-unlock": 15.0}
+# Each operator action is the checked one-click path, step by step. grasp needs
+# E1 first (the service refuses it anywhere else); release reaches from E1 on
+# its own and ends there; both finish back in the travel pose. The service's
+# stow only starts from E1, so stow from any other pose goes home first (see
+# arm_steps); home itself reaches E1 from any pose under the floor guard.
+ARM_ACTIONS = {
+    "grasp": ("home", "grasp", "stow"),
+    "release": ("release", "stow"),
+    "stow": ("stow",),
+    "home": ("home",),
+}
+ARM_LABELS = {"grasp": "夾取前方物體", "release": "放開物體", "stow": "收臂",
+              "home": "手臂回原位（E1）", "maintenance-unlock": "解除維護鎖",
+              "maintenance-lock": "恢復維護鎖"}
 SAFE_PATH = re.compile(r"\A[A-Za-z0-9_][A-Za-z0-9._/-]{0,119}\Z")
 
 
@@ -286,18 +312,30 @@ class MissionProcess:
         return {"ok": True, "pid": self.proc.pid}
 
     def _pump(self) -> None:
-        """Relay the child's output so the console can show what it printed."""
+        """Drain the child's stdout, keeping only a short tail.
+
+        Draining is not optional: a pipe nobody reads fills up and blocks the
+        mission mid-drive.  Broadcasting it is optional, and it is not done --
+        no screen shows it, so every line would be an SSE frame to every phone
+        for nothing.  The tail stays for diagnosing a mission that died, which
+        is readable at /api/state.
+        """
         proc = self.proc
         assert proc is not None and proc.stdout is not None
-        for line in proc.stdout:
-            line = line.rstrip("\n")
-            self.log.append(line)
-            del self.log[:-MAX_LOG_LINES]
-            self.hub.publish("log", {"line": line, "t": time.time()})
-        self.exit_code = proc.wait()
+        try:
+            for line in proc.stdout:
+                line = line.rstrip("\n")
+                self.log.append(line)
+                del self.log[:-MAX_LOG_LINES]
+            self.exit_code = proc.wait()
+        finally:
+            for stream in (proc.stdout, proc.stdin):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except OSError:
+                        pass
         self.hub.publish("process", self.snapshot())
-        self.hub.publish("log", {"line": f"[console] 任務程序結束，代碼 {self.exit_code}",
-                                 "t": time.time()})
 
     def confirm(self) -> Dict:
         """Answer the mission's input() -- start, or clear a pause."""
@@ -348,6 +386,222 @@ class MissionProcess:
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# Fixed-point grasp
+# ════════════════════════════════════════════════════════════════════════════
+
+def service_request(command: str, timeout: float) -> Dict:
+    """One command to the resident grasp service, its JSON reply back.
+
+    The same one-line protocol graspctl.py speaks. health has its own socket so
+    it answers even while an episode holds the command socket.
+    """
+    path = HEALTH_SOCKET if command == "health" else SERVICE_SOCKET
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)   # type: ignore[attr-defined]
+    s.settimeout(timeout)
+    try:
+        s.connect(path)
+        s.sendall((command + "\n").encode())
+        line = s.makefile("r").readline().strip()
+    finally:
+        s.close()
+    if not line:
+        raise OSError("夾取服務沒有回覆 %s" % command)
+    reply = json.loads(line)
+    if not isinstance(reply, dict):
+        raise ValueError("夾取服務的回覆不是物件")
+    return reply
+
+
+class SimulatedService:
+    """The service's replies for --simulate: the UI runs, nothing moves."""
+
+    DELAYS = {"home": 1.5, "grasp": 3.0, "release": 2.5, "stow": 1.5}
+
+    def __init__(self):
+        self.holding = False
+        self.pose = "travel"
+
+    def __call__(self, command: str, timeout: float) -> Dict:
+        time.sleep(self.DELAYS.get(command, 0.1))
+        if command == "health":
+            return {"ok": True, "holding": self.holding, "service_pid": 1,
+                    "chassis": {"moving": False, "motors": [0, 0, 0, 0], "client": None,
+                                "arm_busy": False, "arm_pose": self.pose,
+                                "maintenance": False}}
+        if command == "home":
+            self.holding, self.pose = False, "e1"     # home opens the jaw
+            return {"ok": True}
+        if command == "grasp":
+            self.holding = True
+            return {"ok": True, "confirmed": True, "outcome": "confirmed", "elapsed_s": 8.5}
+        if command == "release":
+            self.holding, self.pose = False, "e1"
+            return {"ok": True, "outcome": "released", "elapsed_s": 5.0}
+        if command == "stow":
+            self.pose = "travel"
+            return {"ok": True}
+        return {"ok": True}
+
+
+def arm_problem(action: str, health: Dict) -> Optional[str]:
+    """Why the robot is not in a state to start `action`, or None.
+
+    Read-only, and missing fields count against starting: an older service that
+    cannot say whether the wheels are still or the jaw holds something does not
+    get to move the arm on a guess.
+    """
+    if health.get("ok") is not True:
+        return "夾取服務回報異常：%s" % health.get("reason", health)
+    chassis = health.get("chassis")
+    if not isinstance(chassis, dict):
+        return "夾取服務沒有回報底盤狀態，無法確認安全。"
+    if chassis.get("moving") is not False or chassis.get("motors") != [0, 0, 0, 0]:
+        return "底盤還在動，請等車子停穩。"
+    if chassis.get("client") is not None:
+        return "還有其他程式連著底盤（例如巡航），請先結束它。"
+    if chassis.get("arm_busy") is not False:
+        return "手臂正在動作中。"
+    holding = health.get("holding")
+    if not isinstance(holding, bool):
+        return "夾取服務沒有回報夾爪是否持物，無法確認安全。"
+    if action == "grasp" and holding:
+        return "夾爪已經夾著東西，請先放開。"
+    if action == "release" and not holding:
+        return "夾爪是空的，沒有東西可以放開。"
+    pose = chassis.get("arm_pose")
+    if action in ("grasp", "release") and pose not in ("travel", "e1"):
+        return "手臂不在行駛或 E1 姿態（目前：%s），請先按「手臂回原位」或「收臂」。" % pose
+    if action == "stow" and pose not in ("travel", "e1") and holding:
+        # The way to travel from here passes through home, which opens the jaw.
+        return "夾爪持物、手臂姿態不明（目前：%s）：收臂要先回 E1，會鬆開物體。請先手動處理。" % pose
+    return None
+
+
+def arm_steps(action: str, health: Dict) -> tuple:
+    """The service commands for `action` from the pose the robot reports.
+
+    The service's stow is only E1 -> travel. From travel it answers "already";
+    from anything else (startup_failed after a boot with the jaw closed, or
+    unknown) home comes first. arm_problem has already refused that while holding.
+    """
+    pose = (health.get("chassis") or {}).get("arm_pose")
+    if action == "stow" and pose not in ("travel", "e1"):
+        return ("home", "stow")
+    return ARM_ACTIONS[action]
+
+
+class ArmJob:
+    """One fixed-point grasp, release or stow at a time, step by step.
+
+    Each step is one blocking service command; the episode itself cannot be
+    interrupted, so the stop button takes effect between steps and the power
+    switch stays the emergency stop. A failed grasp or release still stows, so
+    the arm is not left reaching out at E1.
+    """
+
+    def __init__(self, hub: Hub, request=service_request):
+        self.hub = hub
+        self.request = request
+        self.thread: Optional[threading.Thread] = None
+        self.state: Dict[str, Any] = {"running": False, "action": None, "step": None,
+                                      "steps": [], "started_at": 0.0, "result": None,
+                                      "error": None, "holding": None}
+        self._lock = threading.Lock()
+
+    @property
+    def running(self) -> bool:
+        return self.thread is not None and self.thread.is_alive()
+
+    def snapshot(self) -> Dict:
+        with self._lock:
+            return dict(self.state, steps=list(self.state["steps"]))
+
+    def _update(self, **fields) -> None:
+        with self._lock:
+            self.state.update(fields)
+        self.hub.publish("arm", self.snapshot())
+
+    def health(self) -> Dict:
+        return self.request("health", ARM_TIMEOUTS["health"])
+
+    def start(self, action: str, stopped) -> Dict:
+        """Check the robot, then run `action` in the background.
+
+        `stopped()` is read before every step: the console's stop latch.
+        """
+        if self.running:
+            return {"ok": False, "error": "手臂動作還在執行中。"}
+        try:
+            health = self.health()
+        except (OSError, ValueError) as exc:
+            return {"ok": False, "error": "連不到車上的夾取服務：%s" % exc}
+        problem = arm_problem(action, health)
+        if problem:
+            return {"ok": False, "error": problem}
+        locked = (health.get("chassis") or {}).get("maintenance") is True
+        steps = arm_steps(action, health)
+        self._update(running=True, action=action, step=None, steps=[],
+                     started_at=time.time(), result=None, error=None,
+                     holding=health.get("holding"))
+        self.thread = threading.Thread(target=self._run,
+                                       args=(action, locked, stopped, steps), daemon=True)
+        self.thread.start()
+        return {"ok": True}
+
+    def _step(self, command: str) -> Dict:
+        self._update(step=command)
+        reply = self.request(command, ARM_TIMEOUTS[command])
+        with self._lock:
+            self.state["steps"].append({"command": command, "ok": reply.get("ok") is True,
+                                        "outcome": reply.get("outcome") or reply.get("reason")})
+        self.hub.publish("arm", self.snapshot())
+        return reply
+
+    def _run(self, action: str, locked: bool, stopped, steps=None) -> None:
+        error, result = None, None
+        try:
+            if locked:
+                # ncu's navigation leaves the wheels and arm locked when it ends;
+                # the service unlocks only when idle, and it is locked again after.
+                if self._step("maintenance-unlock").get("ok") is not True:
+                    raise RuntimeError("夾取服務不允許解除維護鎖。")
+            steps = steps or ARM_ACTIONS[action]
+            for i, command in enumerate(steps):
+                if stopped():
+                    raise RuntimeError("已按停止，剩下的步驟沒有執行。")
+                reply = self._step(command)
+                if reply.get("ok") is not True:
+                    error = "%s失敗：%s" % (ARM_LABELS[command],
+                                           reply.get("outcome") or reply.get("reason") or reply)
+                    if command in ("grasp", "release") and "stow" in steps[i + 1:] \
+                            and not stopped():
+                        self._step("stow")       # do not leave the arm reaching out
+                    break
+                if command == "grasp" and reply.get("confirmed") is not True:
+                    error = "沒有夾到物體（%s）。" % reply.get("outcome", "未確認")
+                    if not stopped():
+                        self._step("stow")
+                    break
+                if command in ("grasp", "release"):
+                    result = reply.get("outcome")
+        except Exception as exc:              # the service, the socket, or a refusal
+            error = error or str(exc)
+        finally:
+            if locked:
+                try:
+                    self._step("maintenance-lock")
+                except Exception as exc:      # noqa: BLE001 - reported, not raised
+                    error = error or "動作完成，但維護鎖沒有恢復：%s" % exc
+            holding = None
+            try:
+                holding = self.health().get("holding")
+            except (OSError, ValueError):
+                pass
+            self._update(running=False, step=None, result=result, error=error,
+                         holding=holding)
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # Console state
 # ════════════════════════════════════════════════════════════════════════════
 
@@ -356,6 +610,7 @@ class Console:
         self.args = args
         self.hub = Hub()
         self.mission = MissionProcess(self.hub, ROOT, sys.executable)
+        self.arm = ArmJob(self.hub, SimulatedService() if args.simulate else service_request)
         self.status: Dict[str, Any] = {}
         self.status_at = 0.0
         self._lock = threading.Lock()
@@ -389,9 +644,10 @@ class Console:
             "status": status,
             "status_age": (time.time() - at) if at else None,
             "process": self.mission.snapshot(),
+            "arm": self.arm.snapshot(),
             "allow_real": bool(self.args.allow_real),
             "simulate": bool(self.args.simulate),
-            "log": self.mission.log[-60:],
+            "log": self.mission.log[-40:],
             "server_time": time.time(),
         }
 
@@ -447,6 +703,20 @@ class Console:
             return {"error": "驅動硬體前必須先在「任務設定」勾選安全確認。"}
         if real and self.args.simulate:
             return {"error": "模擬模式不能驅動硬體。"}
+        if real:
+            # The three children do not share a real-mode contract. Mode A
+            # requires serial-owner and measured LiDAR/camera evidence, mode B
+            # is only the vision sender and needs a separately managed receiver
+            # plus a homography, and mode C deliberately refuses integrated
+            # real grasp. A single web checkbox cannot truthfully provide any
+            # of those facts, so fail here instead of launching an argv that
+            # either argparse rejects or that weakens a child safety gate.
+            reasons = {
+                "A": "方式 A 的實機啟動需要 serial owner、LiDAR 方向與手臂相機校正證據；目前操作台尚未提供這些欄位。",
+                "B": "方式 B 只有視覺傳送端；實機模式還需要指定 homography 與獨立的夾取接收端。",
+                "C": "方式 C 的整合實機夾取目前由 runtime 安全閘停用。",
+            }
+            return {"error": reasons[mode]}
 
         script = ROOT / "integration" / MODES[mode]
         if not script.exists():
@@ -471,19 +741,44 @@ class Console:
 
         # All three modes report; they just have different amounts to say.
         argv += ["--status-udp", f"127.0.0.1:{self.args.status_port}"]
-        argv.append("--real" if real else "--dry-run")
-        if real:
-            argv.append("--unlock-candidate-real")
+        # A and B expose --dry-run. C is dry by omission and does not accept
+        # that flag. Real requests have already been refused above until their
+        # mode-specific evidence can be represented by this console.
+        if mode in ("A", "B"):
+            argv.append("--dry-run")
         return {"argv": argv}
 
     def start_mission(self, cfg: Dict) -> Dict:
         built = self.build_argv(cfg)
         if "error" in built:
             return {"ok": False, "error": built["error"]}
+        if self.arm.running:
+            return {"ok": False, "error": "定點夾取還在執行中，完成後才能開始任務。"}
         if self.args.simulate:
             return {"ok": False,
                     "error": "模擬模式不會真的啟動任務程序，狀態由模擬器產生。"}
         return self.mission.start(built["argv"])
+
+    def start_arm(self, body: Dict) -> Dict:
+        """Fixed-point grasp, release or stow, through the resident service.
+
+        The same two gates as a real mission (--allow-real on the robot and the
+        operator at the robot), plus one owner at a time: never while a mission
+        runs, never after the stop latch, never two arm jobs.
+        """
+        action = str(body.get("action", ""))
+        if action not in ARM_ACTIONS:
+            return {"ok": False, "error": "未知的手臂動作 %r。" % action}
+        if not self.args.allow_real and not self.args.simulate:
+            return {"ok": False, "error": "這台伺服器不允許驅動硬體。請在機器人上以 "
+                                          "--allow-real 重新啟動操作台。"}
+        if body.get("confirm") is not True:
+            return {"ok": False, "error": "請先勾選「我在車旁，手放在電源開關上」。"}
+        if self.mission.running:
+            return {"ok": False, "error": "任務執行中，不能另外操作手臂。"}
+        if self.mission.estop_latched:
+            return {"ok": False, "error": "停止鍵仍在鎖定狀態，請先解除。"}
+        return self.arm.start(action, lambda: self.mission.estop_latched)
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -544,6 +839,13 @@ def simulate(console: "Console") -> None:
 
     i = 0
     while True:
+        # A stopped mission stops reporting. On real hardware that happens
+        # because the process is gone; here it has to be honoured explicitly,
+        # or pressing stop during a demo leaves the console cheerfully
+        # narrating a robot that was just halted.
+        if console.mission.estop_latched:
+            time.sleep(SIM_PERIOD_S)
+            continue
         state, action, reason, extra = SIM_SCRIPT[i % len(SIM_SCRIPT)]
         prev = console.status.get("state")
         frame = {
@@ -663,6 +965,8 @@ class Handler(BaseHTTPRequestHandler):
                                "command": " ".join(shlex.quote(a) for a in built["argv"])})
         if path == "/api/mission/start":
             return self._json(c.start_mission(body))
+        if path == "/api/arm":
+            return self._json(c.start_arm(body))
         if path == "/api/mission/confirm":
             return self._json(c.mission.confirm())
         if path == "/api/mission/stop":
@@ -757,8 +1061,9 @@ def main(argv=None) -> int:
     ap.add_argument("--status-port", type=int, default=DEFAULT_STATUS_PORT,
                     help="UDP port the mission publishes telemetry to")
     ap.add_argument("--allow-real", action="store_true",
-                    help="permit starting a mission with --real. Pass this only "
-                         "on the robot, with someone standing next to it.")
+                    help="enable the console's first real-mode gate; current A/B/C "
+                         "real requests still fail closed until their evidence "
+                         "fields are implemented")
     ap.add_argument("--simulate", action="store_true",
                     help="scripted mission, no robot; for developing the UI")
     ap.add_argument("--verbose", action="store_true")
@@ -788,8 +1093,8 @@ def main(argv=None) -> int:
     print("  本機   http://127.0.0.1:%d" % args.port)
     print("  手機   http://%s:%d" % (ip, args.port))
     print("  遙測   UDP %d" % args.status_port)
-    print("  硬體   %s" % ("允許驅動（--allow-real）" if args.allow_real
-                           else "唯讀，不驅動硬體"))
+    print("  硬體   %s" % ("第一道閘已開；定點夾取可用，A/B/C 仍因缺少模式證據而鎖定"
+                           if args.allow_real else "唯讀，不驅動硬體"))
     if args.simulate:
         print("  模式   模擬（沒有連接機器人）")
     print("  QR     python3 ui/make_qr.py --port %d" % args.port)

@@ -1,0 +1,11 @@
+[odom] linear scale + integration OK
+[odom] angular scales (both directions) OK
+[odom] exact-arc integration OK (R=1.2974 m)
+[odom] failed read invalidates and never reports stationary OK
+[odom] freshness gating OK
+[odom] implausible/stalled/non-finite reads rejected OK
+[odom] stalled loop does not teleport OK
+[odom] reader stub/error/recovery OK
+[odom] covariance OK
+[odom] config validation OK
+[odom] SELFTEST PASSED

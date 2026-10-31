@@ -1,0 +1,11 @@
+{
+  "valid": false,
+  "reason": "old preparation-area seed superseded by final dock; read fresh localization and validate exit before map navigation",
+  "owner_pid": 7157,
+  "last_odom_pose": [
+    1.0338,
+    0.8202,
+    0.2652
+  ],
+  "last_map_pose_estimate": null
+}

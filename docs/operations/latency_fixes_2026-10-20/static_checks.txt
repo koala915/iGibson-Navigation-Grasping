@@ -1,0 +1,44 @@
+pyflakes clean:
+integration/mission_runtime.py
+integration/robot_rpc.py
+integration/mission_loop.py
+integration/sugarbox_approach_grasp.py
+integration/rear_stream.py
+grasp/v23/grasp_service.py
+tests/test_mission_runtime.py
+tests/test_mission_loop.py
+
+Large engine/controller: no new pyflakes warnings; baseline warnings retained:
+[
+  {
+    "file": "integration/sugarbox_rl_approach_final2.py",
+    "preexisting_messages": [
+      [
+        "UnusedVariable",
+        "local variable 'last_vision_frame' is assigned to but never used"
+      ],
+      [
+        "UnusedVariable",
+        "local variable 'target_age' is assigned to but never used"
+      ]
+    ],
+    "new_messages": []
+  },
+  {
+    "file": "grasp/v23/x3plus_real_grasp.py",
+    "preexisting_messages": [
+      [
+        "FStringMissingPlaceholders",
+        "f-string is missing placeholders"
+      ],
+      [
+        "UnusedImport",
+        "'dataclasses.field' imported but unused"
+      ]
+    ],
+    "new_messages": []
+  }
+]
+
+Remote RPC Python 3.6 syntax: PASS
+Jetson metadata extensions Python 3.8 syntax: PASS

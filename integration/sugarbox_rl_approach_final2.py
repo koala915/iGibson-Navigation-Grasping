@@ -1,3 +1,5 @@
+# Upstream: enoch20050427/iGibson-Navigation-Grasping PR #6, cf0b3ad0cb648c9fd1f1609e958ea2250e587e64.
+# Local changes: configurable assets; opt-in stopped arrival exit for E1 handoff.
 import cv2
 import json
 import math
@@ -20,15 +22,24 @@ from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
 from ultralytics import YOLO, SAM
 
 if __package__:
+    from .sugarbox_lidar_geometry import (
+        LidarGeometry, nearest_policy_ranges, robot_scan_samples,
+    )
     from .sugarbox_ground_calibration import (
         load_ground_calibration, pixel_to_ground, resolve_asset_paths,
         inside_calibration_hull as _inside_calibration_hull,
     )
+    from . import sugarbox_training_contract as training_contract
 else:
+    from sugarbox_lidar_geometry import (
+        LidarGeometry, nearest_policy_ranges, robot_scan_samples,
+    )
     from sugarbox_ground_calibration import (
         load_ground_calibration, pixel_to_ground, resolve_asset_paths,
         inside_calibration_hull as _inside_calibration_hull,
     )
+    import sugarbox_training_contract as training_contract
+
 
 
 # ============================================================
@@ -59,31 +70,20 @@ RUN_MODE = os.environ.get(
 
 
 # ============================================================
-# 1. Windows 路徑
+# 1. 資產路徑
 # ============================================================
 
-REPO_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ASSET_PATHS = resolve_asset_paths(REPO_DIR)
-BASE_DIR = ASSET_PATHS['base_dir']
-
-YOLO_MODEL_PATH = ASSET_PATHS['yolo']
-
-SAM2_MODEL_PATH = ASSET_PATHS['sam']
-
-HOMOGRAPHY_PATH = ASSET_PATHS['homography']
-
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ASSET_PATHS = resolve_asset_paths(REPO_ROOT)
+BASE_DIR = ASSET_PATHS["base_dir"]
+YOLO_MODEL_PATH = ASSET_PATHS["yolo"]
+SAM2_MODEL_PATH = ASSET_PATHS["sam"]
+HOMOGRAPHY_PATH = ASSET_PATHS["homography"]
 
 # 你原本 PPO
-RL_MODEL_PATH = os.environ.get(
-    "SUGARBOX_RL_MODEL", os.path.join(
-        REPO_DIR, "integration", "nav_best_model", "doorway_ft_final.zip")
-)
+RL_MODEL_PATH = os.environ.get("SUGARBOX_RL_MODEL", os.path.join(os.path.dirname(__file__), "nav_best_model", "doorway_ft_final.zip"))
 
-VECNORMALIZE_PATH = os.environ.get(
-    "SUGARBOX_VECNORMALIZE", os.path.join(
-        REPO_DIR, "integration", "nav_best_model",
-        "doorway_ft_final_vecnormalize.pkl")
-)
+VECNORMALIZE_PATH = os.environ.get("SUGARBOX_VECNORMALIZE", os.path.join(os.path.dirname(__file__), "nav_best_model", "doorway_ft_final_vecnormalize.pkl"))
 
 
 # ============================================================
@@ -142,8 +142,28 @@ CAMERA_PIPE_FPS = int(
 FRAME_W = 640
 FRAME_H = 480
 
-YOLO_CONF = 0.30
-YOLO_IMGSZ = 640
+# The arm camera sits in the bottom middle of the rear view in travel pose, and
+# at 1280 YOLO reads its dark housing as a sugarbox at 0.84-0.90 (2026-10-17,
+# bbox 308,409 - 391,479), often above the real box, which then went unused.
+# Detections mostly inside these pixel regions (x1, y1, x2, y2) are dropped; the
+# real box cannot be there, it would be behind the camera.
+REAR_IGNORE_REGIONS = ((295, 395, 405, 480),)
+REAR_IGNORE_MIN_OVERLAP = 0.5
+
+# The sugarbox model reads the black clips holding the wall panels as sugarboxes
+# at 0.53-0.73 on the 2026-10-19 field, real boxes at 0.9 and up; the user: drop
+# everything under 0.70. The placement box model keeps 0.30: its lowest
+# validation score was 0.73 and it read the box at 0.81 from 1.6 m.
+YOLO_CONF = 0.30 if os.environ.get("SUGARBOX_TARGET", "").strip().lower() == "placement" else 0.70
+
+# The box is ~25x50 px in the rear camera at 1 m. At 640 the model saw nothing
+# in a 2026-10-04 frame (best candidate 0.07); at 1280 it found the box at 0.94
+# with no other box, 56 ms per frame on the RTX 3050. 960 also found the box but
+# flagged the fixed black bracket at the bottom of the image at 0.97. Only the
+# input size changes; the confidence threshold and every later gate stay.
+YOLO_IMGSZ = int(os.environ.get("SUGARBOX_YOLO_IMGSZ", "640"))
+if YOLO_IMGSZ % 32 or not 320 <= YOLO_IMGSZ <= 1920:
+    raise SystemExit("SUGARBOX_YOLO_IMGSZ must be a multiple of 32 in 320..1920")
 
 # SAM mask 至少要有多少 pixel
 MIN_MASK_PIXELS = 100
@@ -268,26 +288,17 @@ POLICY_ANGLES_DEG = np.linspace(
 
 
 # ============================================================
-# 6. TG30 特殊方向
+# 6. TG30 measured ROS mounting
 # ============================================================
 
-# 你的實測：
-#
-# 原始 /scan
-#   前後相反
-#   左右正確
-#
-# 所以不能：
-#
-# raw_angle + pi
-#
-# 因為那會連左右一起交換。
-#
-# 正確是鏡射：
-#
-# body_angle = pi - raw_angle
-#
-LIDAR_REFLECT_FRONT_BACK = True
+# /scan uses ROS CCW angles in frame "laser". The measured TF is
+# base_link -> laser: yaw 180 deg, x +0.10 m, y 0. A rigid rotation
+# preserves handedness; a front/back reflection swaps robot left/right.
+# Explicit overrides describe a separately measured mounting, not a brake bypass.
+LIDAR_GEOMETRY = LidarGeometry(
+    yaw_offset_deg=float(os.environ.get("SUGARBOX_LIDAR_YAW_OFFSET_DEG", "180")),
+    forward_offset_m=float(os.environ.get("SUGARBOX_LIDAR_FORWARD_OFFSET_M", "0.10")),
+)
 
 
 # ============================================================
@@ -384,21 +395,21 @@ FRONT_HARD_STOP_EXIT_M = 0.22
 # Forward block hysteresis：
 # < 0.26 m 才禁止正向 vx；
 # 必須 > 0.32 m 才解除。wz 仍交給 PPO。
-FRONT_BLOCK_ENTER_M = 0.45
-FRONT_BLOCK_EXIT_M = 0.55
+FRONT_BLOCK_ENTER_M = 0.30
+FRONT_BLOCK_EXIT_M = 0.36
 
 # 只在 0.50 m 內才開始額外縮小正向速度；更遠完全不干預 PPO。
-FRONT_SLOW_START_M = 0.80
+FRONT_SLOW_START_M = 0.55
 
 # 近障礙物時只做「轉向方向防抖」，而且現在到 0.42 m 內才啟用。
 # PPO 的 |wz| 大小仍然直接使用；只有左右方向若每幀反覆翻轉，
 # 需要連續兩個 control tick 都要求新方向才允許切換。
 # 這避免在障礙物前 LEFT/RIGHT/LEFT/RIGHT 原地抖很久，
 # 又不會讓舊的 wz 大小殘留造成繞過後繼續轉。
-AVOID_TURN_HOLD_ENTER_M = 0.70
-AVOID_TURN_HOLD_EXIT_M = 0.85
+AVOID_TURN_HOLD_ENTER_M = 0.45
+AVOID_TURN_HOLD_EXIT_M = 0.55
 AVOID_TURN_MIN_ABS_WZ = 0.12
-AVOID_TURN_SWITCH_CONFIRM_TICKS = 3
+AVOID_TURN_SWITCH_CONFIRM_TICKS = 2
 
 # ============================================================
 # 12b. 250-degree side-clearance safety (outside PPO)
@@ -407,24 +418,20 @@ AVOID_TURN_SWITCH_CONFIRM_TICKS = 3
 # We only widen the *external safety layer* to -125..+125 deg so obstacles
 # that slide alongside the chassis remain visible after they leave the
 # narrow front sector.
-SIDE_SAFETY_MAX_ANGLE_DEG = 90.0
+SIDE_SAFETY_MAX_ANGLE_DEG = 125.0
 SIDE_SAFETY_FRONT_EXCLUDE_DEG = 25.0
 SIDE_ROBUST_PERCENTILE = 5.0
 SIDE_ROBUST_MIN_POINTS = 8
 
 # If an obstacle is this close on one side, do not allow PPO to keep
 # steering farther toward that side. Hysteresis avoids edge chatter.
-SIDE_TURN_GUARD_ENTER_M = 0.32
-SIDE_TURN_GUARD_EXIT_M = 0.40
-SIDE_STRICT_GUARD_ENTER_M = 0.20
-SIDE_STRICT_GUARD_EXIT_M = 0.24
+SIDE_TURN_GUARD_ENTER_M = 0.20
+SIDE_TURN_GUARD_EXIT_M = 0.24
 
 # If the side clearance becomes very small, also cap forward speed.
 # This is intentionally a soft cap rather than a full stop.
-SIDE_VX_SLOW_ENTER_M = 0.32
-SIDE_VX_CAP_MPS = 0.04
-SIDE_VX_STOP_ENTER_M = 0.22
-SIDE_VX_STOP_EXIT_M = 0.28
+SIDE_VX_SLOW_ENTER_M = 0.16
+SIDE_VX_CAP_MPS = 0.06
 
 # ============================================================
 # 12c. Hard-stop simple reverse recovery
@@ -446,6 +453,189 @@ HARD_RECOVERY_REVERSE_VX = -0.08
 HARD_RECOVERY_TARGET_M = 0.06
 HARD_RECOVERY_MAX_S = 1.50
 HARD_RECOVERY_SETTLE_S = 0.20
+
+# 2026-10-06: reversing is OFF. Nothing watches behind the car (the body blocks
+# the rear LiDAR), so the backup above never starts, the avoidance policy's
+# reverse output is clamped to zero, and MotorClient refuses a negative vx as
+# the last line. Turning it back on takes a code edit on purpose, not an
+# environment variable that could be left set in a shell.
+ALLOW_REVERSE = False
+
+# Without reverse a blocked approach can only turn or wait. A locked target that
+# has not come NO_PROGRESS_MIN_GAIN_M closer within NO_PROGRESS_WINDOW_S stops
+# the run for good and says why, instead of waiting out the orchestrator's
+# overall timeout. Centering in place counts against the window too: it should
+# finish in a few seconds, and when it loops it is not progress either.
+NO_PROGRESS_WINDOW_S = 10.0
+NO_PROGRESS_MIN_GAIN_M = 0.03
+
+# 2026-10-12: enoch's training-matched approach (sugarbox_training_contract.py)
+# is the primary approach. It feeds the PPO what it was trained on and lets it
+# drive to the box on its own: no centring, target search or blind finish.
+# Only the path enoch actually ran on the robot is merged; the orchestrator
+# (sugarbox_approach_grasp.py) turns it on, then hands over to the E1 grasp.
+TRAINING_CONTRACT = os.environ.get("SUGARBOX_TRAINING_CONTRACT", "0") == "1"
+CONTRACT_ALLOW_DRIVE = os.environ.get("SUGARBOX_CONTRACT_ALLOW_DRIVE", "0") == "1"
+# Lock onto the first valid detection and follow it on odometry only (his best
+# trial). The rear camera loses the box near the gripper anyway.
+TARGET_INITIAL_ONLY = os.environ.get("SUGARBOX_TARGET_INITIAL_ONLY", "0") == "1"
+CONTRACT_ACTION_DELAY_STEPS = 0       # training used 2; 0 removed the twitching
+# The policy sees obstacles 15% further away than they are (the legacy mode's
+# value). In the walled arena on 2026-10-12, at 1.0 walls 20-35 cm away kept it
+# driving straight past a box 11 cm to its left; replaying that run's logged
+# observations at 1.15 it turns toward the box. Training shaping and the raw
+# safety layer still use real metres.
+CONTRACT_DISTANCE_SCALE = 1.15
+# Forward braking counts only returns in the robot's own path, like the cruise's
+# measured footprint corridor (nav_rl): a side wall must not read as "ahead".
+# 12 cm chassis half width (measured 2026-09-27) plus 5 cm.
+CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M = 0.17
+# The last stretch is not the policy's. It brings the box to
+# CONTRACT_HANDOFF_CENTER_M and hands over: it was never trained to line up a few
+# cm (2026-10-12: it alternated left and right turns, net zero, and kept an 8 cm
+# offset all the way in). PursuitController then creeps at the box and steers it
+# onto the E1 line -- forward and turn only, the policy's own two actions, no
+# sideways motion. The rear camera corrects the box until about 0.64 m from the
+# centre (its calibration edge); odometry carries it after that, so the handoff
+# leaves 0.35 m of steering on live vision.
+CONTRACT_HANDOFF_CENTER_M = float(os.environ.get("SUGARBOX_CONTRACT_HANDOFF_M", "1.00"))
+# What the approach drives to (2026-10-18). "placement" is the box the object is
+# dropped into, with its own YOLO model (set by the runner): its near edge stops
+# just ahead of the chassis front so the jaw opens over its middle, and no E1
+# corrects the stop afterwards, so the runner checks the arrival report instead.
+TARGET_KIND = os.environ.get("SUGARBOX_TARGET", "sugarbox").strip().lower()
+if TARGET_KIND not in ("sugarbox", "placement"):
+    raise ValueError("SUGARBOX_TARGET must be sugarbox or placement")
+# Where the box should end, ahead of the chassis centre. The user, 2026-10-12: the
+# run that stopped with it remembered at 0.336 m needed about 3 cm more, and the
+# one at 0.307 m about 1 cm more. 2026-10-16: stopping at 0.30 m, E1 still asked
+# for 2.8 and 3.4 cm more (runs 9 and 11), so 2 cm closer; E1's fine adjustment
+# in the runner takes the rest either way.
+CONTRACT_FINAL_CENTER_X_M = float(os.environ.get("SUGARBOX_CONTRACT_FINAL_X_M", "0.28"))
+# The chassis front is 0.15 m ahead of the centre; a placement box edge may come
+# within 3 cm of it, a sugarbox must stay in E1's view.
+CONTRACT_FINAL_MIN_X_M = 0.18 if TARGET_KIND == "placement" else 0.25
+if not (math.isfinite(CONTRACT_HANDOFF_CENTER_M) and math.isfinite(CONTRACT_FINAL_CENTER_X_M)
+        and 0.60 <= CONTRACT_HANDOFF_CENTER_M <= 1.20
+        and CONTRACT_FINAL_MIN_X_M <= CONTRACT_FINAL_CENTER_X_M <= 0.45
+        and CONTRACT_HANDOFF_CENTER_M >= CONTRACT_FINAL_CENTER_X_M + 0.15):
+    raise ValueError("handoff must be 0.60-1.20 m, final x {:.2f}-0.45 m, at least 0.15 m "
+                     "apart".format(CONTRACT_FINAL_MIN_X_M))
+# An estimate of the box to drive at before the camera has found it, chassis-
+# centre frame "x,y": for the placement box the runner computes it from the
+# resident AMCL pose and the box's map position, for the sugarbox it is where the
+# patrol saw it (2026-10-19). It never stops the robot anywhere: the steer-in
+# starts only on a box the camera confirmed, and reaching the handoff distance on
+# the estimate alone stops the run.
+SEED_MIN_M, SEED_MAX_M, SEED_MAX_BEARING_DEG = 0.30, 3.50, 60.0
+_seed = os.environ.get("SUGARBOX_SEED_TARGET", "").strip()
+SEED_TARGET = tuple(float(v) for v in _seed.split(",")) if _seed else None
+if SEED_TARGET is not None and not (
+        len(SEED_TARGET) == 2 and all(math.isfinite(v) for v in SEED_TARGET)
+        and SEED_MIN_M <= math.hypot(*SEED_TARGET) <= SEED_MAX_M
+        and abs(math.degrees(math.atan2(SEED_TARGET[1], SEED_TARGET[0])))
+        <= SEED_MAX_BEARING_DEG):
+    raise ValueError("SUGARBOX_SEED_TARGET must be 'x,y', 0.30-3.50 m away within 60 deg")
+SEED_SOURCE = "map_seed" if TARGET_KIND == "placement" else "patrol_seed"
+# The runner may start this engine before the robot is ready for it (it stows the
+# arm, and turns toward the placement box, meanwhile) with SUGARBOX_WAIT_GO=1: the
+# models load and the camera fills, and nothing reaches the motors until the
+# runner writes one line on stdin, {"go": true, "seed": [x, y] or null}. End of
+# input, or any other line, ends the run without a motor connection (exit 5).
+WAIT_GO = os.environ.get("SUGARBOX_WAIT_GO", "0") == "1"
+# A box the camera sees beyond its calibrated area (0.55-1.40 m ahead of the front
+# wheels, +-0.20 m) is otherwise ignored. With SUGARBOX_FAR_SEED=1 its extrapolated
+# position becomes a seed like the map estimate: the policy drives at it and the
+# camera takes over once the box is inside the area. The placement box sits in a
+# corner and is often 1.5-2.5 m away after a grasp (2026-10-18).
+FAR_SEED = os.environ.get("SUGARBOX_FAR_SEED", "0") == "1"
+FAR_SEED_FRAMES = 3
+FAR_SEED_MAX_ERROR_M = 0.40
+# A seeded box that comes this close without the camera confirming it stops the
+# run. The camera sees the box until about 0.64 m from the centre, so the policy
+# gets 20 cm past the 1.00 m handoff to bring it into the measured area.
+SEED_GIVE_UP_CENTER_M = 0.80
+# A seed off to the side is faced first, turning in place, before the policy
+# drives at it. 2026-10-18: a far sighting 0.93 m away but 0.43 m left (25 deg);
+# the policy drove on without turning enough, the box never entered the
+# calibrated strip and the run gave up at 0.79 m. Turn rate: the in-place minimum
+# (TURN_MIN_WZ); the policy's 0.78 rad/s cap would stall a pure turn.
+SEED_FACE_ENTER_DEG = 12.0
+SEED_FACE_EXIT_DEG = 5.0
+# Nothing drives at a patrol or map estimate before the camera has looked at it
+# from standing still. 2026-10-19 run 3: four patrol-seeded approaches drove
+# 13-18 cm on the estimate while the first YOLO+SAM2 pass (2.1-2.4 s) was still
+# running, and gave up at 0.80 m having measured nothing; the 10-18 runs, with no
+# estimate, stood still ~3 s, locked and steered in. Only results from frames that
+# arrived SEED_LOOK_SETTLE_S after the robot came to rest count (the motors settle,
+# the stream runs up to ~0.3 s behind). A patrol estimate still unmeasured after
+# SEED_LOOK_RESULTS of them, or SEED_LOOK_TIMEOUT_S, ends the run; a map estimate
+# is then driven at (the user, 2026-10-19: verified box positions only).
+SEED_LOOK_RESULTS = 6
+SEED_LOOK_SETTLE_S = 0.60
+SEED_LOOK_TIMEOUT_S = 10.0
+# Written once when the run ends (how it ended, where the box was, the LiDAR
+# corridor ahead), so the runner can decide whether a release is safe.
+ARRIVAL_REPORT_PATH = os.environ.get("SUGARBOX_ARRIVAL_REPORT", "").strip()
+# The steer-in has no obstacle avoidance; only the policy does. 2026-10-17 run 17:
+# an obstacle stood 0.50 m ahead when the box locked, the policy drove 25 cm, the
+# box reached 1.0 m and the steer-in pressed on into the hard stop at 0.18 m. So
+# hand over only while the strip from the centre to the box is clear (chassis
+# half width 0.15 m plus 5 cm), and give it back to the policy when something
+# shows up in that strip for CONTRACT_HANDBACK_TICKS ticks in a row.
+CONTRACT_PATH_HALF_WIDTH_M = 0.20
+# The steer-in stops with the box 0.28 m ahead of the centre, 0.13 m past the
+# chassis front, so a wall right beside the box is never driven into.
+CONTRACT_PATH_BOX_CLEARANCE_M = 0.10
+CONTRACT_PATH_MIN_RETURNS = 3
+CONTRACT_HANDBACK_TICKS = 2
+# Aim for the middle of the E1 grasp area (y -0.049..+0.017 m at x 0.264 m),
+# moved into the rear camera's frame: the two cameras' centre lines differ. On
+# 2026-10-12 a box the rear camera put at y -0.011 m was measured by E1 at
+# +0.0175 m (and x 0.267 m for a remembered 0.307 m -- exactly right), missing
+# the grasp area by 1 mm. E1 y = rear y + 0.028 m, so -0.016 - 0.028. A placement
+# box is aimed at the arm's own centre line instead (the runner sets -0.028).
+CONTRACT_AIM_Y_M = float(os.environ.get("SUGARBOX_CONTRACT_AIM_Y_M", "-0.044"))
+if not (math.isfinite(CONTRACT_AIM_Y_M) and abs(CONTRACT_AIM_Y_M) <= 0.10):
+    raise ValueError("SUGARBOX_CONTRACT_AIM_Y_M must be within +-0.10 m")
+PURSUIT_VX = 0.08                # FINAL_APPROACH_VX: slow enough to stop on the mark
+# At this speed a small turn does nothing: on 2026-10-12 wz 0.12-0.17 became
+# motors 12/20 and the chassis turned ~0.015 rad/s, leaving the box 4-6 cm left.
+# Any correction is therefore at least PURSUIT_MIN_WZ, and none inside the
+# deadband, where the box is already within ~0.5 cm of the line at the stop.
+PURSUIT_K = 4.0                  # rad/s of turn per rad of bearing error
+PURSUIT_MIN_WZ = 0.30
+PURSUIT_MAX_WZ = 0.60
+PURSUIT_DEADBAND_DEG = 1.0
+# The user allowed this policy to reverse (2026-10-12): it reverses as part of
+# avoiding. Nothing watches behind the car, so it stays slow and bounded, and
+# only in this mode. Every other path keeps ALLOW_REVERSE = False.
+CONTRACT_REVERSE_MAX_MPS = 0.08
+# Opt-in: one JSON line per policy tick with the exact observation and action, so
+# a real run can be replayed offline. 2026-10-12 needed it: the policy drove
+# straight past a box 14 cm to its left, and offline probes could not say why.
+OBS_LOG_PATH = os.environ.get("SUGARBOX_OBS_LOG", "")
+
+
+class ObsLogger:
+    def __init__(self, path):
+        self.file = open(path, "a", encoding="utf-8") if path else None
+
+    def write(self, now, raw_obs, raw_action, target):
+        if self.file is None:
+            return
+        self.file.write(json.dumps({
+            "t": round(float(now), 3),
+            "target": [round(float(target.x), 4), round(float(target.y), 4)],
+            "obs": [round(float(v), 4) for v in np.asarray(raw_obs).reshape(-1)],
+            "action": [round(float(v), 4) for v in np.asarray(raw_action).reshape(-1)],
+        }) + "\n")
+        self.file.flush()
+
+    def close(self):
+        if self.file is not None:
+            self.file.close()
+            self.file = None
 
 
 # ============================================================
@@ -513,8 +703,34 @@ CENTER_CONTROL_PERIOD = 1.0 / CENTER_CONTROL_HZ
 # 這裡不再用 Homography 距離當作提前到站條件，避免明明還沒到畫面底部
 # 就因 dist <= 0.45 m 被提前鎖死。
 FINAL_APPROACH_VX = 0.08
-FINAL_APPROACH_TRAVEL_M = 0.15
+FINAL_APPROACH_TRAVEL_M = float(os.environ.get("SUGARBOX_FINAL_TRAVEL_M", "0.15"))
+if not math.isfinite(FINAL_APPROACH_TRAVEL_M) or not 0.0 < FINAL_APPROACH_TRAVEL_M <= 0.15:
+    raise ValueError("SUGARBOX_FINAL_TRAVEL_M must be in (0, 0.15]")
+EXIT_ON_ARRIVAL = os.environ.get("SUGARBOX_EXIT_ON_ARRIVAL", "0") == "1"
 FINAL_APPROACH_MAX_DURATION_S = 3.5
+
+# Blind finish. In the travel pose the arm's gripper sits in the middle of the
+# rear camera's view, right where a centred box ends up near the robot. On
+# 2026-10-04 the box vanished behind it at 0.44 m, as centring turned toward it,
+# and the search then spun for a box that was hidden, not gone. When the box is
+# lost close and nearly straight ahead, drive straight on the odometry-propagated
+# memory until its forward distance reaches SUGARBOX_BLIND_STOP_X, then report
+# arrival. Nothing is grasped on this alone: the E1 arm camera must still see the
+# box inside its window, or the handoff stops. Unset = off (the original search).
+_blind = os.environ.get("SUGARBOX_BLIND_STOP_X", "").strip()
+BLIND_STOP_X = float(_blind) if _blind else None
+if BLIND_STOP_X is not None and not (math.isfinite(BLIND_STOP_X) and 0.05 <= BLIND_STOP_X <= 0.60):
+    raise SystemExit("SUGARBOX_BLIND_STOP_X must be 0.05..0.60 m")
+BLIND_START_MAX_M = 0.60        # only near the robot, where the gripper hides the box
+BLIND_MAX_BEARING_DEG = 10.0    # and only nearly straight ahead, behind the gripper
+BLIND_VX = 0.08                 # same creep as the final approach
+BLIND_MAX_TRAVEL_M = 0.35       # never further than this without seeing the box
+BLIND_BUDGET_SLACK_M = 0.03     # odometry may run this far past the plan
+
+# In-place turns. The service maps |wz| <= 0.8 rad/s with vx = 0 to motor 20,
+# which stalled on the floor on 2026-10-04 (8 s of search, odometry wz ~0);
+# motor 25 (wz 1.0) turned 43-47 deg in 2 s on 2026-09-28.
+TURN_MIN_WZ = 1.0
 
 
 # ============================================================
@@ -763,12 +979,9 @@ class LatestFrameReader:
 
         self.running = False
 
-        try:
-            if self.process.stdout is not None:
-                self.process.stdout.close()
-        except Exception:
-            pass
-
+        # End the receiver before closing its pipe: with no stream arriving the
+        # reader thread sits in a read, and on Windows closing the pipe under it
+        # blocks for good (2026-10-20, an engine started early and never used).
         try:
             self.process.terminate()
         except Exception:
@@ -783,6 +996,12 @@ class LatestFrameReader:
                 self.process.kill()
             except Exception:
                 pass
+
+        try:
+            if self.process.stdout is not None:
+                self.process.stdout.close()
+        except Exception:
+            pass
 
         try:
             self.thread.join(
@@ -803,6 +1022,16 @@ def inside_calibration_hull(u, v, hull):
 # ============================================================
 # YOLO
 # ============================================================
+
+def overlap_fraction(bbox, region):
+    """Share of bbox's own area that falls inside region (both x1, y1, x2, y2)."""
+    x1, y1, x2, y2 = bbox
+    width = min(x2, region[2]) - max(x1, region[0])
+    height = min(y2, region[3]) - max(y1, region[1])
+    if width <= 0.0 or height <= 0.0:
+        return 0.0
+    return (width * height) / max(1.0, (x2 - x1) * (y2 - y1))
+
 
 def select_best_box(
     yolo_result,
@@ -903,6 +1132,10 @@ def select_best_box(
             )
         )
 
+        if any(overlap_fraction((x1, y1, x2, y2), region) >= REAR_IGNORE_MIN_OVERLAP
+               for region in REAR_IGNORE_REGIONS):
+            continue
+
         detections.append({
 
             "conf": conf,
@@ -920,6 +1153,9 @@ def select_best_box(
 
             "area": area
         })
+
+    if not detections:
+        return None
 
     detections.sort(
 
@@ -1128,6 +1364,55 @@ def mask_bottom_contact(
 # 完整 Vision Pipeline
 # ============================================================
 
+def coarse_ground(u, v, H, rear_cam_to_front_m):
+    """Chassis-centre floor point of a pixel outside the calibrated area, or None.
+
+    The homography is extrapolated here, so the point can be off by tens of cm
+    (2026-10-18: the placement box in its corner read 1.62 m ahead, 0.47 m left).
+    Good enough to drive toward, never to stop on.
+    """
+    ground = pixel_to_ground(u, v, H)
+    if ground is None:
+        return None
+    x, y = ground[0] - rear_cam_to_front_m, ground[1]
+    if TRAINING_CONTRACT:
+        x, y = training_contract.center_relative_goal(x, y)
+    if not (SEED_MIN_M <= math.hypot(x, y) <= SEED_MAX_M
+            and abs(math.atan2(y, x)) <= math.radians(SEED_MAX_BEARING_DEG)):
+        return None
+    return x, y
+
+
+class FarSighting:
+    """FAR_SEED_FRAMES consistent out-of-area sightings before they become a seed.
+
+    Looser than the real lock (FAR_SEED_MAX_ERROR_M) because extrapolation
+    magnifies pixel noise; still enough to ignore a single false detection.
+    """
+
+    def __init__(self):
+        self.points = []
+        self.stamp = 0.0
+
+    def update(self, point, now):
+        """-> mean (x, y) once confirmed, else None. None input forgets after a gap."""
+        if point is None:
+            if self.points and now - self.stamp > TARGET_CONFIRM_MAX_GAP_S:
+                self.points = []
+            return None
+        if self.points and (
+                now - self.stamp > TARGET_CONFIRM_MAX_GAP_S
+                or math.hypot(point[0] - self.points[-1][0],
+                              point[1] - self.points[-1][1]) > FAR_SEED_MAX_ERROR_M):
+            self.points = []
+        self.points = self.points[-(FAR_SEED_FRAMES - 1):] + [tuple(point)]
+        self.stamp = now
+        if len(self.points) < FAR_SEED_FRAMES:
+            return None
+        return (sum(p[0] for p in self.points) / len(self.points),
+                sum(p[1] for p in self.points) / len(self.points))
+
+
 def vision_to_target(
 
     frame,
@@ -1277,7 +1562,9 @@ def vision_to_target(
                 "mask": mask,
                 "u": u,
                 "v": v,
-                "bottom_count": bottom_count
+                "bottom_count": bottom_count,
+                # Extrapolated, never measured: only ever a FAR_SEED goal.
+                "coarse": coarse_ground(u, v, H, rear_cam_to_front_m)
             },
             "OUTSIDE_CALIBRATION"
         )
@@ -1350,6 +1637,11 @@ def vision_to_target(
         on_floor = True
         reason = "VALID"
 
+
+    # Training-matched mode keeps the target relative to the chassis centre from
+    # here on, so odometry turns it about the point the robot really turns about.
+    if TRAINING_CONTRACT:
+        x_forward, y_left = training_contract.center_relative_goal(x_forward, y_left)
 
     distance = math.hypot(
         x_forward,
@@ -1649,12 +1941,10 @@ class AsyncVisionWorker:
                 dict(self.latency_info),
             )
 
-    def release(self):
+    def release(self, timeout=1.0):
         self.running = False
-        try:
-            self.thread.join(timeout=1.0)
-        except Exception:
-            pass
+        self.thread.join(timeout=timeout)
+        return not self.thread.is_alive()
 
 
 # ============================================================
@@ -1691,6 +1981,9 @@ class OdomState:
     yaw: float = 0.0
 
     stamp: float = 0.0
+
+    # Sideways speed: training's speed input is planar speed, hypot(vx, vy).
+    vy: float = 0.0
 
 
 # ============================================================
@@ -1881,6 +2174,10 @@ class RosSensorBridge:
                 ]
             )
 
+            vy = float(twist["linear"].get("y", 0.0))
+            if not all(math.isfinite(v) for v in (vx, vy, wz)):
+                return
+
             q = msg[
                 "pose"
             ][
@@ -1914,7 +2211,9 @@ class RosSensorBridge:
 
                 yaw=yaw,
 
-                stamp=stamp
+                stamp=stamp,
+
+                vy=vy
             )
 
             self.odom_history.append(
@@ -2116,7 +2415,9 @@ class RosSensorBridge:
 
                 yaw=self.odom.yaw,
 
-                stamp=self.odom.stamp
+                stamp=self.odom.stamp,
+
+                vy=self.odom.vy
             )
 
         return (
@@ -2125,9 +2426,7 @@ class RosSensorBridge:
         )
 
 
-    def close(
-        self
-    ):
+    def close(self, terminate=True):
 
         try:
 
@@ -2149,7 +2448,13 @@ class RosSensorBridge:
 
         try:
 
-            self.client.terminate()
+            # A Twisted reactor cannot be restarted. Resident model jobs must
+            # disconnect this stage's subscriptions without killing the shared
+            # event loop needed by the next stage.
+            if terminate:
+                self.client.terminate()
+            else:
+                self.client.close()
 
         except Exception:
             pass
@@ -2268,277 +2573,128 @@ def sanitize_policy_range(
 # /scan -> 48 rays
 # ============================================================
 
-def scan_to_policy_rays(
-    scan
-):
-
-    if scan.ranges is None:
+def scan_to_policy_rays(scan):
+    if scan.ranges is None or len(scan.ranges) == 0:
         return None
-
-    if len(
-        scan.ranges
-    ) == 0:
-
-        return None
-
-    rays = np.full(
-
-        NUM_LIDAR_RAYS,
-
-        LIDAR_MAX_M,
-
-        dtype=np.float32
-    )
-
-    for i, body_deg in enumerate(
-        POLICY_ANGLES_DEG
-    ):
-
-        body_rad = math.radians(
-            float(
-                body_deg
-            )
-        )
-
-        # ----------------------------------------------------
-        # 你的 TG30：
-        #
-        # raw front/back opposite
-        # left/right correct
-        #
-        # body = pi - raw
-        #
-        # 所以反推：
-        #
-        # raw = pi - body
-        # ----------------------------------------------------
-
-        if LIDAR_REFLECT_FRONT_BACK:
-
-            raw_rad = wrap_pi(
-
-                math.pi
-                -
-                body_rad
-            )
-
-        else:
-
-            raw_rad = body_rad
-
-        index = angle_to_scan_index(
-
-            raw_rad,
-
-            scan
-        )
-
-        if index is None:
-
-            rays[i] = LIDAR_MAX_M
-
-            continue
-
-        raw_policy_range = sanitize_policy_range(
-
-            float(
-                scan.ranges[
-                    index
-                ]
-            )
-        )
-
-        # 只對 PPO observation 做距離縮放。
-        # 外部 raw_front_metrics() 仍使用真實 LiDAR 距離，
-        # 所以 hard stop / forward block 的安全距離不會被騙大。
-        rays[i] = float(
-            min(
-                raw_policy_range * PPO_LIDAR_DISTANCE_SCALE,
-                LIDAR_MAX_M
-            )
-        )
-
-    return rays
+    samples = robot_scan_samples(
+        scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY)
+    return np.asarray(nearest_policy_ranges(
+        samples, POLICY_ANGLES_DEG, max_range_m=LIDAR_MAX_M,
+        distance_scale=PPO_LIDAR_DISTANCE_SCALE), dtype=np.float32)
 
 
 # ============================================================
 # Dense raw /scan front metrics
 # ============================================================
 
-def raw_front_metrics(
-    scan
-):
-
-    """
-    回傳：
-        robust_distance : 給 slowdown / forward-block hysteresis 用
-        strict_min      : 給 emergency hard-stop 用
-        sample_count    : 前方 sector 有效 ray 數
-
-    robust_distance 不再直接用單一 minimum，
-    避免某一束 LiDAR noise 讓安全層在門檻附近一直切換。
-    """
-
-    if scan.ranges is None:
-        return (
-            float("inf"),
-            float("inf"),
-            0
-        )
-
-    if len(scan.ranges) == 0:
-        return (
-            float("inf"),
-            float("inf"),
-            0
-        )
-
-    half_angle = math.radians(
-        FRONT_SAFETY_HALF_ANGLE_DEG
-    )
-
-    values = []
-
-    for i, value in enumerate(scan.ranges):
-
-        value = float(value)
-
-        if not math.isfinite(value):
-            continue
-
-        if value <= 0.0:
-            continue
-
-        raw_angle = (
-            scan.angle_min
-            +
-            i
-            *
-            scan.angle_increment
-        )
-
-        if LIDAR_REFLECT_FRONT_BACK:
-
-            body_angle = wrap_pi(
-                math.pi
-                -
-                raw_angle
-            )
-
-        else:
-
-            body_angle = wrap_pi(
-                raw_angle
-            )
-
-        if abs(body_angle) <= half_angle:
-            values.append(value)
-
+def raw_front_metrics(scan):
+    """Yaw-corrected sensor-origin front sector and original measured ranges."""
+    if scan.ranges is None or len(scan.ranges) == 0:
+        return float("inf"), float("inf"), 0
+    half_angle = math.radians(FRONT_SAFETY_HALF_ANGLE_DEG)
+    values = [sample.sensor_range_m for sample in robot_scan_samples(
+        scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY)
+        if sample.sensor_range_m is not None and abs(sample.sensor_angle_rad) <= half_angle]
     if not values:
-        return (
-            float("inf"),
-            float("inf"),
-            0
-        )
+        return float("inf"), float("inf"), 0
+    arr = np.asarray(values, dtype=np.float32)
+    strict_min = float(np.min(arr))
+    robust_distance = (strict_min if arr.size < FRONT_ROBUST_MIN_POINTS
+                       else float(np.percentile(arr, FRONT_ROBUST_PERCENTILE)))
+    return robust_distance, strict_min, int(arr.size)
 
-    arr = np.asarray(
-        values,
-        dtype=np.float32
-    )
 
-    strict_min = float(
-        np.min(arr)
-    )
+def raw_front_corridor_metrics(scan, half_width_m):
+    """Forward distance from the sensor to returns in the robot's own path.
 
-    if arr.size < FRONT_ROBUST_MIN_POINTS:
-        robust_distance = strict_min
-    else:
-        robust_distance = float(
-            np.percentile(
-                arr,
-                FRONT_ROBUST_PERCENTILE
-            )
-        )
+    Anything dead ahead reads exactly as in raw_front_metrics, so the measured
+    thresholds keep their meaning. A return off to the side counts only within
+    half_width_m of the centre line, and then by its forward distance, which is
+    never more than its range. Side walls beyond that are the side guard's job.
+    """
+    if scan.ranges is None or len(scan.ranges) == 0:
+        return float("inf"), float("inf"), 0
+    values = []
+    for sample in robot_scan_samples(
+            scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY):
+        if sample.sensor_range_m is None:
+            continue
+        forward = sample.sensor_range_m * math.cos(sample.sensor_angle_rad)
+        lateral = sample.sensor_range_m * math.sin(sample.sensor_angle_rad)
+        if forward > 0.0 and abs(lateral) <= half_width_m:
+            values.append(forward)
+    if not values:
+        return float("inf"), float("inf"), 0
+    arr = np.asarray(values, dtype=np.float32)
+    strict_min = float(np.min(arr))
+    robust_distance = (strict_min if arr.size < FRONT_ROBUST_MIN_POINTS
+                       else float(np.percentile(arr, FRONT_ROBUST_PERCENTILE)))
+    return robust_distance, strict_min, int(arr.size)
 
-    return (
-        robust_distance,
-        strict_min,
-        int(arr.size)
-    )
+
+def path_obstacle_distance(scan, box_x, box_y, half_width_m,
+                           min_returns=CONTRACT_PATH_MIN_RETURNS):
+    """How far along the line to the box the first obstacle sits; inf when clear.
+
+    Centre frame, the box's frame in enoch mode. Counts returns within
+    half_width_m of the straight line from the chassis centre to the box and
+    more than CONTRACT_PATH_BOX_CLEARANCE_M short of it. The 6.5 cm box is below
+    the scan plane, so whatever shows
+    up there is in the way; walls behind the box are not. Chassis echoes are
+    dropped. The min_returns-th nearest is reported, so one stray point does not
+    hold the policy back.
+    """
+    length = math.hypot(box_x, box_y)
+    if (scan is None or scan.ranges is None or len(scan.ranges) == 0
+            or not math.isfinite(length) or length <= 1e-6):
+        return float("inf")
+    ux, uy = box_x / length, box_y / length
+    along_hits = []
+    for sample in robot_scan_samples(
+            scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY):
+        if sample.range_m is None:
+            continue
+        x = sample.range_m * math.cos(sample.angle_rad)
+        y = sample.range_m * math.sin(sample.angle_rad)
+        if (abs(x) <= training_contract.CHASSIS_HALF_LENGTH_M
+                and abs(y) <= training_contract.CHASSIS_HALF_WIDTH_M):
+            continue
+        along = x * ux + y * uy
+        if (0.0 < along < length - CONTRACT_PATH_BOX_CLEARANCE_M
+                and abs(y * ux - x * uy) <= half_width_m):
+            along_hits.append(along)
+    if len(along_hits) < max(1, int(min_returns)):
+        return float("inf")
+    return float(sorted(along_hits)[max(1, int(min_returns)) - 1])
 
 
 def raw_side_metrics(scan):
-
-    """
-    External 250-degree side-clearance metrics.
-
-    Body-angle convention used elsewhere in this file:
-      negative angle = robot right
-      positive angle = robot left
-
-    The front +/-25 deg is intentionally excluded because the existing
-    front safety already handles that region. This function covers:
-      right side: -125 .. -25 deg
-      left side :  +25 .. +125 deg
-
-    Returns:
-      right_robust, right_min, right_count,
-      left_robust,  left_min,  left_count
-    """
-
+    """Yaw-corrected sensor-origin side sectors and original measured ranges."""
     if scan.ranges is None or len(scan.ranges) == 0:
-        return (
-            float("inf"), float("inf"), 0,
-            float("inf"), float("inf"), 0
-        )
-
+        return (float("inf"), float("inf"), 0,
+                float("inf"), float("inf"), 0)
     side_max = math.radians(SIDE_SAFETY_MAX_ANGLE_DEG)
     front_exclude = math.radians(SIDE_SAFETY_FRONT_EXCLUDE_DEG)
-
-    right_values = []
-    left_values = []
-
-    for i, value in enumerate(scan.ranges):
-        value = float(value)
-
-        if not math.isfinite(value) or value <= 0.0:
+    right_values, left_values = [], []
+    for sample in robot_scan_samples(
+            scan.ranges, scan.angle_min, scan.angle_increment, LIDAR_GEOMETRY):
+        if sample.sensor_range_m is None:
             continue
-
-        raw_angle = scan.angle_min + i * scan.angle_increment
-
-        if LIDAR_REFLECT_FRONT_BACK:
-            body_angle = wrap_pi(math.pi - raw_angle)
-        else:
-            body_angle = wrap_pi(raw_angle)
-
-        if -side_max <= body_angle <= -front_exclude:
-            right_values.append(value)
-        elif front_exclude <= body_angle <= side_max:
-            left_values.append(value)
+        if -side_max <= sample.sensor_angle_rad <= -front_exclude:
+            right_values.append(sample.sensor_range_m)
+        elif front_exclude <= sample.sensor_angle_rad <= side_max:
+            left_values.append(sample.sensor_range_m)
 
     def summarize(values):
         if not values:
             return float("inf"), float("inf"), 0
-
         arr = np.asarray(values, dtype=np.float32)
         strict_min = float(np.min(arr))
-
-        if arr.size < SIDE_ROBUST_MIN_POINTS:
-            robust = strict_min
-        else:
-            robust = float(
-                np.percentile(arr, SIDE_ROBUST_PERCENTILE)
-            )
-
+        robust = (strict_min if arr.size < SIDE_ROBUST_MIN_POINTS
+                  else float(np.percentile(arr, SIDE_ROBUST_PERCENTILE)))
         return robust, strict_min, int(arr.size)
 
-    right_robust, right_min, right_count = summarize(right_values)
-    left_robust, left_min, left_count = summarize(left_values)
-
-    return (
-        right_robust, right_min, right_count,
-        left_robust, left_min, left_count
-    )
+    return (*summarize(right_values), *summarize(left_values))
 
 
 
@@ -2549,14 +2705,18 @@ def raw_side_metrics(scan):
 class AntiJitterSafetyFilter:
 
     """
-    名稱為了少改主程式而保留，但這版已經「沒有 anti-jitter smoothing」。
+    名稱為了少改主程式而保留；這個 class 本身不做 PPO temporal smoothing。
 
-    PPO 路徑只做 LiDAR safety：
+    PPO action 經 action_to_velocity() 後直接進入這個 safety class。
+
+    這個 safety class 只做：
       1) hard stop hysteresis
       2) forward-block hysteresis
-      3) 接近障礙物時只縮小正向 vx
+      3) 接近障礙物時縮小正向 vx
+      4) 近障礙物時的轉向方向確認
+      5) 側邊安全 guard / hard-stop reverse recovery
 
-    不會保存上一幀 vx/wz，也不會用 EMA / slew / deadzone 改變 PPO 轉向。
+    這裡不會用 EMA，也不會保存上一幀 vx/wz 做 command smoothing。
     """
 
     def __init__(self):
@@ -2566,7 +2726,6 @@ class AntiJitterSafetyFilter:
         # 250-degree side-clearance guard hysteresis.
         self.right_side_guard = False
         self.left_side_guard = False
-        self.side_forward_blocked = False
 
         # HARD_STOP simple reverse recovery state.
         self.hard_stop_since = None
@@ -2597,7 +2756,6 @@ class AntiJitterSafetyFilter:
         self.hard_stopped = False
         self.right_side_guard = False
         self.left_side_guard = False
-        self.side_forward_blocked = False
         self.hard_stop_since = None
         self.recovery_active = False
         self.recovery_started_at = 0.0
@@ -2611,62 +2769,39 @@ class AntiJitterSafetyFilter:
     def _update_side_latches(
         self,
         right_robust,
-        right_min,
-        left_robust,
-        left_min
+        left_robust
     ):
 
-        def update_guard(active, robust, strict_min):
-            if active:
-                robust_clear = (
-                    (not math.isfinite(robust))
-                    or
-                    robust >= SIDE_TURN_GUARD_EXIT_M
-                )
-                strict_clear = (
-                    (not math.isfinite(strict_min))
-                    or
-                    strict_min >= SIDE_STRICT_GUARD_EXIT_M
-                )
-                return not (robust_clear and strict_clear)
-
-            robust_close = (
-                math.isfinite(robust)
-                and
-                robust < SIDE_TURN_GUARD_ENTER_M
-            )
-            strict_close = (
-                math.isfinite(strict_min)
-                and
-                strict_min < SIDE_STRICT_GUARD_ENTER_M
-            )
-            return robust_close or strict_close
-
-        self.right_side_guard = update_guard(
-            self.right_side_guard,
-            right_robust,
-            right_min
-        )
-        self.left_side_guard = update_guard(
-            self.left_side_guard,
-            left_robust,
-            left_min
-        )
-
-        side_nearest = min(right_robust, left_robust)
-        if self.side_forward_blocked:
+        if self.right_side_guard:
             if (
-                (not math.isfinite(side_nearest))
+                (not math.isfinite(right_robust))
                 or
-                side_nearest >= SIDE_VX_STOP_EXIT_M
+                right_robust >= SIDE_TURN_GUARD_EXIT_M
             ):
-                self.side_forward_blocked = False
-        elif (
-            math.isfinite(side_nearest)
-            and
-            side_nearest < SIDE_VX_STOP_ENTER_M
-        ):
-            self.side_forward_blocked = True
+                self.right_side_guard = False
+        else:
+            if (
+                math.isfinite(right_robust)
+                and
+                right_robust < SIDE_TURN_GUARD_ENTER_M
+            ):
+                self.right_side_guard = True
+
+        if self.left_side_guard:
+            if (
+                (not math.isfinite(left_robust))
+                or
+                left_robust >= SIDE_TURN_GUARD_EXIT_M
+            ):
+                self.left_side_guard = False
+        else:
+            if (
+                math.isfinite(left_robust)
+                and
+                left_robust < SIDE_TURN_GUARD_ENTER_M
+            ):
+                self.left_side_guard = True
+
 
     def _update_distance_latches(
         self,
@@ -2695,13 +2830,23 @@ class AntiJitterSafetyFilter:
         self,
         desired_wz,
         front_robust,
-        front_min
+        front_min,
+        *,
+        right_robust,
+        left_robust
     ):
 
-        # Final centering 只受真正的 hard stop 限制。
+        # In-place turns (centering and target search) sweep the body around a
+        # ~0.19 m radius, so they get the same side guard as the avoidance path,
+        # not only the front hard stop. The side readings are required on
+        # purpose: a caller that forgot them would turn with no side check.
         self._update_distance_latches(
             front_robust,
             front_min
+        )
+        self._update_side_latches(
+            right_robust,
+            left_robust
         )
 
         if self.hard_stopped:
@@ -2719,6 +2864,20 @@ class AntiJitterSafetyFilter:
             -VISUAL_CENTER_MAX_WZ,
             VISUAL_CENTER_MAX_WZ
         )
+
+        if self.right_side_guard and wz < 0.0:
+            return (
+                0.0,
+                0.0,
+                f"SIDE_GUARD_R {right_robust:.3f}m"
+            )
+
+        if self.left_side_guard and wz > 0.0:
+            return (
+                0.0,
+                0.0,
+                f"SIDE_GUARD_L {left_robust:.3f}m"
+            )
 
         return (
             0.0,
@@ -2752,9 +2911,16 @@ class AntiJitterSafetyFilter:
                 )
             )
 
-        # The target itself may occupy the front LiDAR sector here. This
-        # short blind approach ignores the normal forward-block latch, while
-        # the strict-min hard stop above remains active.
+        if self.forward_blocked:
+            return (
+                0.0,
+                0.0,
+                (
+                    "FWD_BLOCK_HOLD "
+                    f"front={front_robust:.3f}m "
+                    f"release>{FRONT_BLOCK_EXIT_M:.2f}"
+                )
+            )
 
         vx = clamp(
             float(desired_vx),
@@ -2772,21 +2938,122 @@ class AntiJitterSafetyFilter:
         )
 
 
+    def apply_contract(
+        self,
+        desired_vx,
+        desired_wz,
+        front_robust,
+        front_min,
+        *,
+        right_robust,
+        left_robust,
+        odom_vx=0.0,
+        now=None
+    ):
+        """Safety essentials for the training-matched policy (TRAINING_CONTRACT).
+
+        The training plant already slows near obstacles, so this adds no slow-down
+        or turn hold; it keeps only the lines that must not be crossed: the front
+        hard stop, the front block (turning still allowed), the side guard, and a
+        bounded reverse (allowed by the user in this mode only, 2026-10-12).
+        """
+        now = time.monotonic() if now is None else float(now)
+        self._update_distance_latches(front_robust, front_min)
+        self._update_side_latches(right_robust, left_robust)
+        backup = self._contract_backup(odom_vx, now)
+        if backup is not None:
+            return backup
+        if self.hard_stopped:
+            return 0.0, 0.0, f"HARD_STOP_HOLD min={front_min:.3f}m"
+        vx = clamp(float(desired_vx), -CONTRACT_REVERSE_MAX_MPS, TEST_MAX_FWD)
+        wz = clamp(float(desired_wz), -TEST_MAX_WZ, TEST_MAX_WZ)
+        parts = []
+        if self.right_side_guard and wz < 0.0:
+            wz = 0.0
+            parts.append(f"SIDE_GUARD_R {right_robust:.3f}m")
+        if self.left_side_guard and wz > 0.0:
+            wz = 0.0
+            parts.append(f"SIDE_GUARD_L {left_robust:.3f}m")
+        if parts and vx > 0.0:
+            # The turn it wanted was refused: never turn that into a push forward.
+            vx = 0.0
+        if self.forward_blocked and vx > 0.0:
+            vx = 0.0
+            parts.append(f"FWD_BLOCK front={front_robust:.3f}m")
+        if vx < 0.0:
+            parts.append("REVERSE rear unobserved")
+        reason = f"CONTRACT front={front_robust:.3f}m"
+        return float(vx), float(wz), reason + "".join(" | " + p for p in parts)
+
+    def _contract_backup(self, odom_vx, now):
+        """Enoch mode's way out of a hard stop: one short reverse, then the policy.
+
+        2026-10-17 run 18: the policy pushed into an obstacle until the hard stop at
+        0.18 m and then wanted forward-left; the hard stop held both, so the chassis
+        sat there until NO_PROGRESS ended the run. Same steps as apply()'s recovery:
+        held HARD_RECOVERY_WAIT_S -> reverse HARD_RECOVERY_TARGET_M by odometry at
+        0.08 m/s (this mode's reverse limit; nothing watches behind) -> settle ->
+        back to the policy, whose front block then lets it turn but not push. Once
+        per hard-stop episode. Returns None when the policy's command applies.
+        """
+        if self.recovery_active:
+            dt = max(0.0, min(0.25, now - self.recovery_last_time))
+            self.recovery_last_time = now
+            if math.isfinite(float(odom_vx)):
+                self.recovery_travel_m += max(0.0, -float(odom_vx)) * dt
+            if (self.recovery_travel_m >= HARD_RECOVERY_TARGET_M
+                    or now - self.recovery_started_at >= HARD_RECOVERY_MAX_S):
+                self.recovery_active = False
+                self.recovery_settle_until = now + HARD_RECOVERY_SETTLE_S
+                self.hard_stop_since = None
+                self.reset_motion()
+                return 0.0, 0.0, f"HARD_RECOVERY_DONE travel={self.recovery_travel_m:.3f}m"
+            return (float(HARD_RECOVERY_REVERSE_VX), 0.0,
+                    f"HARD_RECOVERY_BACKUP travel={self.recovery_travel_m:.3f}/"
+                    f"{HARD_RECOVERY_TARGET_M:.3f}m | REVERSE rear unobserved")
+        if now < self.recovery_settle_until:
+            return 0.0, 0.0, "HARD_RECOVERY_SETTLE"
+        if not self.hard_stopped:
+            self.hard_stop_since = None
+            self.recovery_used_this_hard_stop = False
+            return None
+        if self.hard_stop_since is None:
+            self.hard_stop_since = now
+        if (now - self.hard_stop_since >= HARD_RECOVERY_WAIT_S
+                and not self.recovery_used_this_hard_stop):
+            self.recovery_active = True
+            self.recovery_started_at = now
+            self.recovery_last_time = now
+            self.recovery_travel_m = 0.0
+            self.recovery_used_this_hard_stop = True
+            self.reset_motion()
+            return (float(HARD_RECOVERY_REVERSE_VX), 0.0,
+                    "HARD_RECOVERY_START | REVERSE rear unobserved")
+        return None
+
+
     def _stabilize_turn_direction(
         self,
         wz,
-        front_robust,
-        right_robust,
-        left_robust
+        front_robust
     ):
-        """Debounce PPO sign changes near obstacles without choosing a side."""
+        """
+        近障礙物專用的方向 hysteresis。
+
+        - 不平滑 wz 大小。
+        - 不延遲同方向的 PPO 變化。
+        - 只有 PPO 左右方向反覆翻轉時，要求新方向連續出現
+          AVOID_TURN_SWITCH_CONFIRM_TICKS 次才切換。
+        """
 
         wz = float(wz)
+
         near_obstacle = (
             math.isfinite(front_robust)
             and
             front_robust < AVOID_TURN_HOLD_ENTER_M
         )
+
         clear_again = (
             (not math.isfinite(front_robust))
             or
@@ -2801,6 +3068,7 @@ class AntiJitterSafetyFilter:
             return (wz, "")
 
         if abs(wz) < AVOID_TURN_MIN_ABS_WZ:
+            # PPO 幾乎沒有要求轉向時，不自行創造轉向。
             return (wz, "")
 
         requested_sign = 1.0 if wz > 0.0 else -1.0
@@ -2809,19 +3077,22 @@ class AntiJitterSafetyFilter:
             self.avoid_turn_sign = requested_sign
             self.avoid_switch_sign = 0.0
             self.avoid_switch_count = 0
+
             return (
-                wz,
-                "TURN_FILTER_START=L" if requested_sign > 0.0 else "TURN_FILTER_START=R"
+                self.avoid_turn_sign * abs(wz),
+                "TURN_HOLD_START=L" if self.avoid_turn_sign > 0.0 else "TURN_HOLD_START=R"
             )
 
         if requested_sign == self.avoid_turn_sign:
             self.avoid_switch_sign = 0.0
             self.avoid_switch_count = 0
+
             return (
-                wz,
-                "TURN_FILTER=L" if requested_sign > 0.0 else "TURN_FILTER=R"
+                self.avoid_turn_sign * abs(wz),
+                "TURN_HOLD=L" if self.avoid_turn_sign > 0.0 else "TURN_HOLD=R"
             )
 
+        # PPO 想換方向：必須連續多個 tick 都要求同一個新方向。
         if requested_sign != self.avoid_switch_sign:
             self.avoid_switch_sign = requested_sign
             self.avoid_switch_count = 1
@@ -2832,18 +3103,21 @@ class AntiJitterSafetyFilter:
             self.avoid_turn_sign = requested_sign
             self.avoid_switch_sign = 0.0
             self.avoid_switch_count = 0
+
             return (
-                wz,
-                "TURN_FILTER_SWITCH=L" if requested_sign > 0.0 else "TURN_FILTER_SWITCH=R"
+                self.avoid_turn_sign * abs(wz),
+                "TURN_SWITCH=L" if self.avoid_turn_sign > 0.0 else "TURN_SWITCH=R"
             )
 
+        # 尚未確認換向：只鎖 sign，wz magnitude 仍使用本幀 PPO 值。
         return (
             self.avoid_turn_sign * abs(wz),
-            "TURN_FILTER_WAIT {}/{}".format(
-                self.avoid_switch_count,
-                AVOID_TURN_SWITCH_CONFIRM_TICKS
+            (
+                "TURN_SWITCH_WAIT "
+                f"{self.avoid_switch_count}/{AVOID_TURN_SWITCH_CONFIRM_TICKS}"
             )
         )
+
 
     def apply(
         self,
@@ -2854,17 +3128,20 @@ class AntiJitterSafetyFilter:
         right_robust=float("inf"),
         left_robust=float("inf"),
         odom_vx=0.0,
-        now=None,
-        right_min=float("inf"),
-        left_min=float("inf")
+        now=None
     ):
 
         """
         PPO command -> LiDAR safety -> motor.
 
-        HARD_STOP is a safety veto, not a recovery planner.
-        Forward and in-place commands stop immediately. Reverse motion is
-        allowed only when PPO explicitly requests it; no backup is invented.
+        HARD_STOP recovery（簡化版）：
+          1) HARD_STOP 立即停止
+          2) 必須連續維持 HARD_RECOVERY_WAIT_S（0.30 s）
+          3) 才倒退一小段（odom 實際量約 6 cm）
+          4) 停一下後把控制權交回 PPO
+          5) 同一次 HARD_STOP episode 只退一次
+
+        注意：後方 LiDAR 被車體遮住，因此完全不使用 rear scan。
         """
 
         if now is None:
@@ -2879,56 +3156,154 @@ class AntiJitterSafetyFilter:
 
         self._update_side_latches(
             right_robust,
-            right_min,
-            left_robust,
-            left_min
+            left_robust
         )
 
         # ----------------------------------------------------
-        # Hard stop remains a safety veto. It never invents a recovery move.
-        # A reverse command is passed only when PPO explicitly requests it.
+        # Active reverse recovery
         # ----------------------------------------------------
-        if self.hard_stopped:
-            escape_vx = clamp(
-                float(desired_vx),
-                -TEST_MAX_REV,
-                0.0
+        if self.recovery_active:
+
+            dt = max(
+                0.0,
+                min(
+                    0.25,
+                    now - self.recovery_last_time
+                )
             )
-            escape_wz = clamp(
-                float(desired_wz),
-                -TEST_MAX_WZ,
-                TEST_MAX_WZ
+            self.recovery_last_time = now
+
+            # 用實際 odom 倒車速度積分，靜摩擦時不會把「有送命令」誤當成已退距離。
+            if math.isfinite(float(odom_vx)):
+                self.recovery_travel_m += (
+                    max(0.0, -float(odom_vx)) * dt
+                )
+
+            elapsed = now - self.recovery_started_at
+
+            enough_distance = (
+                self.recovery_travel_m >= HARD_RECOVERY_TARGET_M
+            )
+            timed_out = (
+                elapsed >= HARD_RECOVERY_MAX_S
             )
 
-            if escape_vx < -1e-3:
-                if self.right_side_guard and escape_wz < 0.0:
-                    escape_wz = 0.0
-                if self.left_side_guard and escape_wz > 0.0:
-                    escape_wz = 0.0
-
+            if enough_distance or timed_out:
+                travelled = self.recovery_travel_m
+                self.recovery_active = False
+                self.recovery_settle_until = now + HARD_RECOVERY_SETTLE_S
+                self.hard_stop_since = None
                 self.reset_motion()
+
                 return (
-                    float(escape_vx),
-                    float(escape_wz),
-                    "HARD_STOP_PPO_ESCAPE min={:.3f}m".format(front_min),
+                    0.0,
+                    0.0,
+                    (
+                        "HARD_RECOVERY_DONE "
+                        f"travel={travelled:.3f}m "
+                        + ("timeout " if timed_out and not enough_distance else "")
+                        + f"settle={HARD_RECOVERY_SETTLE_S:.2f}s"
+                    ),
                     0.0
                 )
 
-            self.reset_motion()
             return (
+                float(HARD_RECOVERY_REVERSE_VX),
                 0.0,
-                0.0,
-                "HARD_STOP_HOLD min={:.3f}m".format(front_min),
+                (
+                    "HARD_RECOVERY_BACKUP "
+                    f"travel={self.recovery_travel_m:.3f}/"
+                    f"{HARD_RECOVERY_TARGET_M:.3f}m "
+                    f"t={elapsed:.2f}s"
+                ),
                 0.0
             )
 
-        self.recovery_active = False
-        self.hard_stop_since = None
-        self.recovery_used_this_hard_stop = False
-        # PPO output direct, no temporal smoothing.
+        # Recovery 完成後先完全停一下，避免一退完立刻又被 PPO 指令拉走。
+        if now < self.recovery_settle_until:
+            return (
+                0.0,
+                0.0,
+                (
+                    "HARD_RECOVERY_SETTLE "
+                    f"remain={self.recovery_settle_until - now:.2f}s"
+                ),
+                0.0
+            )
+
+        # HARD_STOP 已真的解除，才算新的 episode；之後若再撞近才可再退一次。
+        if not self.hard_stopped:
+            self.hard_stop_since = None
+            self.recovery_used_this_hard_stop = False
+
+        # ----------------------------------------------------
+        # Hard stop: 必須連續卡住 0.30 s，之後只倒一次
+        # ----------------------------------------------------
+        if self.hard_stopped:
+
+            if self.hard_stop_since is None:
+                self.hard_stop_since = now
+
+            hard_elapsed = now - self.hard_stop_since
+
+            if (
+                ALLOW_REVERSE
+                and
+                hard_elapsed >= HARD_RECOVERY_WAIT_S
+                and
+                not self.recovery_used_this_hard_stop
+            ):
+                self.recovery_active = True
+                self.recovery_started_at = now
+                self.recovery_last_time = now
+                self.recovery_travel_m = 0.0
+                self.recovery_used_this_hard_stop = True
+                self.reset_motion()
+
+                return (
+                    float(HARD_RECOVERY_REVERSE_VX),
+                    0.0,
+                    (
+                        "HARD_RECOVERY_START "
+                        f"waited={hard_elapsed:.2f}s "
+                        f"target={HARD_RECOVERY_TARGET_M:.2f}m"
+                    ),
+                    0.0
+                )
+
+            if self.recovery_used_this_hard_stop:
+                reason = (
+                    "HARD_STOP_HOLD_AFTER_RECOVERY "
+                    f"min={front_min:.3f}m"
+                )
+            elif not ALLOW_REVERSE:
+                reason = (
+                    "HARD_STOP_HOLD "
+                    f"min={front_min:.3f}m "
+                    f"held={hard_elapsed:.2f}s reverse=off"
+                )
+            else:
+                reason = (
+                    "HARD_STOP_HOLD "
+                    f"min={front_min:.3f}m "
+                    f"wait={hard_elapsed:.2f}/"
+                    f"{HARD_RECOVERY_WAIT_S:.2f}s"
+                )
+
+            return (
+                0.0,
+                0.0,
+                reason,
+                0.0
+            )
+
+        # PPO 的 action[1] rate limit 已在進入這個 safety class 前完成。
+        # 這裡不再額外做 EMA / vx-wz slew smoothing。
+        reverse_blocked = float(desired_vx) < 0.0 and not ALLOW_REVERSE
+
         vx = clamp(
             float(desired_vx),
-            -TEST_MAX_REV,
+            -TEST_MAX_REV if ALLOW_REVERSE else 0.0,
             TEST_MAX_FWD
         )
 
@@ -2938,36 +3313,34 @@ class AntiJitterSafetyFilter:
             TEST_MAX_WZ
         )
 
+        if reverse_blocked and abs(wz) < AVOID_TURN_MIN_ABS_WZ:
+            # The policy wanted to back off, not to turn. Hold still rather
+            # than let the motor's pure-turn floor make this a full-speed spin.
+            wz = 0.0
+
         wz, turn_hold_reason = self._stabilize_turn_direction(
             wz,
-            front_robust,
-            right_robust,
-            left_robust
+            front_robust
         )
 
         side_reason_parts = []
 
+        if reverse_blocked:
+            side_reason_parts.append("REVERSE_BLOCKED")
+
         if self.right_side_guard and wz < 0.0:
             wz = 0.0
-            self.reset_motion()
             side_reason_parts.append(
                 f"SIDE_GUARD_R {right_robust:.3f}m"
             )
 
         if self.left_side_guard and wz > 0.0:
             wz = 0.0
-            self.reset_motion()
             side_reason_parts.append(
                 f"SIDE_GUARD_L {left_robust:.3f}m"
             )
 
         side_nearest = min(right_robust, left_robust)
-
-        if self.side_forward_blocked and vx > 0.0:
-            vx = 0.0
-            side_reason_parts.append(
-                f"SIDE_FWD_BLOCK {side_nearest:.3f}m"
-            )
 
         if (
             vx > 0.0
@@ -3355,6 +3728,7 @@ class FinalApproachController:
         self.start_time = 0.0
         self.last_update_time = 0.0
         self.travelled_m = 0.0
+        self.travel_m = FINAL_APPROACH_TRAVEL_M
 
 
     def reset(self):
@@ -3364,7 +3738,7 @@ class FinalApproachController:
         self.travelled_m = 0.0
 
 
-    def start(self, target, now):
+    def start(self, target, now, travel_m=None):
         if self.active:
             return False
 
@@ -3372,11 +3746,12 @@ class FinalApproachController:
         self.start_time = now
         self.last_update_time = now
         self.travelled_m = 0.0
+        self.travel_m = FINAL_APPROACH_TRAVEL_M if travel_m is None else float(travel_m)
 
         print(
-            "[FINAL] visual-centered -> forward 15cm | "
+            "[FINAL] straight forward | "
             f"vx={FINAL_APPROACH_VX:.3f}m/s | "
-            f"travel={FINAL_APPROACH_TRAVEL_M:.2f}m | "
+            f"travel={self.travel_m:.2f}m | "
             f"timeout={FINAL_APPROACH_MAX_DURATION_S:.1f}s"
         )
 
@@ -3397,7 +3772,7 @@ class FinalApproachController:
 
         elapsed = now - self.start_time
 
-        if self.travelled_m >= FINAL_APPROACH_TRAVEL_M:
+        if self.travelled_m >= self.travel_m:
             self.active = False
             return (
                 True,
@@ -3428,11 +3803,290 @@ class FinalApproachController:
             (
                 "FINAL_FORWARD "
                 f"travel={self.travelled_m:.3f}/"
-                f"{FINAL_APPROACH_TRAVEL_M:.3f}m "
+                f"{self.travel_m:.3f}m "
                 f"t={elapsed:.2f}s "
                 f"vx={FINAL_APPROACH_VX:.3f}"
             )
         )
+
+
+class PursuitController:
+    """enoch mode's last stretch: creep at the box, steering it onto the E1 line.
+
+    Runs on the target memory, which the rear camera corrects while it sees the
+    box and odometry carries after the gripper hides it. Ends when the box is
+    CONTRACT_FINAL_CENTER_X_M ahead of the centre, or on a timeout; either way E1
+    judges the result, so a miss never becomes a grasp.
+    """
+
+    def __init__(self):
+        self.active = False
+        self.start_time = 0.0
+
+    def reset(self):
+        self.active = False
+        self.start_time = 0.0
+
+    def start(self, now):
+        if self.active:
+            return False
+        self.active = True
+        self.start_time = now
+        print("[PURSUIT] to x={:.2f} m, y={:+.3f} m ahead of the centre | vx={:.2f} m/s "
+              "| turn {:.1f} x bearing error, {:.2f}..{:.2f} rad/s, none within {:.1f} deg".format(
+                  CONTRACT_FINAL_CENTER_X_M, CONTRACT_AIM_Y_M, PURSUIT_VX, PURSUIT_K,
+                  PURSUIT_MIN_WZ, PURSUIT_MAX_WZ, PURSUIT_DEADBAND_DEG))
+        return True
+
+    def command(self, target, now):
+        """-> (vx, wz, done, reason)."""
+        if not self.active:
+            return 0.0, 0.0, True, "PURSUIT_IDLE"
+        x, y = float(target.x), float(target.y)
+        if x <= CONTRACT_FINAL_CENTER_X_M:
+            self.active = False
+            return 0.0, 0.0, True, "PURSUIT_DONE x={:.3f} y={:+.3f}".format(x, y)
+        timeout = (CONTRACT_HANDOFF_CENTER_M - CONTRACT_FINAL_CENTER_X_M) / PURSUIT_VX + 4.0
+        if now - self.start_time > timeout:
+            self.active = False
+            return 0.0, 0.0, True, "PURSUIT_TIMEOUT x={:.3f} y={:+.3f}".format(x, y)
+        error = math.atan2(y, x) - math.atan2(CONTRACT_AIM_Y_M, x)
+        if abs(error) < math.radians(PURSUIT_DEADBAND_DEG):
+            wz = 0.0
+        else:
+            wz = math.copysign(clamp(PURSUIT_K * abs(error), PURSUIT_MIN_WZ, PURSUIT_MAX_WZ),
+                               error)
+        return PURSUIT_VX, wz, False, "PURSUIT x={:.3f} y={:+.3f} err={:+.1f}deg".format(
+            x, y, math.degrees(error))
+
+
+class SeedFacing:
+    """Turn in place toward a seeded box before the policy drives at it.
+
+    Active while the target is a seed and its bearing is beyond
+    SEED_FACE_ENTER_DEG, until it is within SEED_FACE_EXIT_DEG. Odometry turns
+    the seed with the robot, and a sighting refreshes it, so the turn ends on
+    the box, which then sits in the camera's calibrated strip.
+    """
+
+    def __init__(self):
+        self.active = False
+
+    def reset(self):
+        self.active = False
+
+    def command(self, target):
+        """-> wz to turn with, 0.0 when not facing."""
+        if not target.seeded:
+            self.active = False
+            return 0.0
+        bearing = math.degrees(target.bearing)
+        if not self.active and abs(bearing) > SEED_FACE_ENTER_DEG:
+            self.active = True
+            print("[SEED] box {:+.1f} deg to the side: turning in place to face it "
+                  "first".format(bearing))
+        elif self.active and abs(bearing) <= SEED_FACE_EXIT_DEG:
+            self.active = False
+            print("[SEED] facing the box ({:+.1f} deg); the policy drives at it".format(
+                bearing))
+        return math.copysign(TURN_MIN_WZ, bearing) if self.active else 0.0
+
+    def wants(self, target):
+        """Whether command() turns this tick, without changing anything."""
+        return bool(target.seeded) and (
+            self.active or abs(math.degrees(target.bearing)) > SEED_FACE_ENTER_DEG)
+
+
+class SeedLook:
+    """Stand still on a patrol or map estimate until the camera has had its look.
+
+    update() -> "FREE" (nothing to look at: drive as usual), "HOLD" (stand still,
+    count results) or "GIVE_UP" (a patrol estimate the look did not confirm). A far
+    sighting is the camera's own and a measured box no estimate: both are FREE.
+    """
+
+    def __init__(self):
+        self.done = False
+        self.reset()
+
+    def reset(self):
+        """Look again from the start: after a stop."""
+        self.started = None
+        self.still_since = None
+        self.results = 0
+        self.last_sequence = None
+        self.last_reason = "WAIT"
+
+    def looking(self, target):
+        return (not self.done and bool(target.seeded)
+                and target.class_name in ("patrol_seed", "map_seed"))
+
+    def counts(self, frame_time):
+        """A result from a frame that arrived with the robot at rest."""
+        return (self.still_since is not None
+                and frame_time >= self.still_since + SEED_LOOK_SETTLE_S)
+
+    def update(self, now, target, turning, sequence, frame_time, reason):
+        if not self.looking(target):
+            return "FREE"
+        if self.started is None:
+            self.started = now
+            print("[SEED] standing still while the camera looks at the {}".format(
+                target.class_name.replace("_", " ")))
+        if turning:
+            self.still_since, self.results = None, 0
+        elif self.still_since is None:
+            self.still_since = now
+        if sequence != self.last_sequence:
+            self.last_sequence = sequence
+            if sequence and self.counts(frame_time):
+                self.results += 1
+                self.last_reason = reason
+        if self.results < SEED_LOOK_RESULTS and now - self.started < SEED_LOOK_TIMEOUT_S:
+            return "HOLD"
+        self.done = True
+        if target.class_name == "patrol_seed":
+            return "GIVE_UP"
+        print("[SEED] looked from standing still ({} results, last {}): no measurement; "
+              "driving at the map estimate".format(self.results, self.last_reason))
+        return "FREE"
+
+
+def arrival_record(arrived, blocked, arrival_reason, blocked_reason, target, now,
+                   front_robust, front_min):
+    """How the run ended, for the runner's release decision. JSON-safe."""
+    def number(value):
+        value = float(value)
+        return round(value, 4) if math.isfinite(value) else None
+    known = target.has_memory()
+    return {
+        "arrived": bool(arrived),
+        "blocked": bool(blocked),
+        "reason": arrival_reason if arrived else (blocked_reason or "not arrived"),
+        "target_kind": TARGET_KIND,
+        "run_mode": RUN_MODE,
+        "x": number(target.x) if known else None,
+        "y": number(target.y) if known else None,
+        "seeded": bool(target.seeded),
+        "visual_age_s": number(now - target.last_seen) if target.last_seen > 0 else None,
+        "front_robust_m": number(front_robust),
+        "front_min_m": number(front_min),
+        "final_x_m": CONTRACT_FINAL_CENTER_X_M,
+        "aim_y_m": CONTRACT_AIM_Y_M,
+        "t": now,
+    }
+
+
+def write_arrival_report(path, record):
+    # Atomic, so the runner never reads half a file.
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(record, f, allow_nan=False)
+    os.replace(path + ".tmp", path)
+
+
+class BlindFinishController:
+    """Straight creep on the remembered box after the gripper hides it (see BLIND_STOP_X)."""
+
+    def __init__(self):
+        self.spent = False      # one blind finish per approach; R re-arms it
+        self.reset()
+
+    def reset(self):
+        self.active = False
+        self.start_time = 0.0
+        self.last_update_time = 0.0
+        self.travelled_m = 0.0
+        self.budget_m = 0.0
+
+    def rearm(self):
+        self.reset()
+        self.spent = False
+
+    def eligible(self, target, now):
+        if BLIND_STOP_X is None or self.active or self.spent:
+            return False
+        if not target.has_memory() or target.visual_recent(now):
+            return False
+        memory = (target.x, target.y, target.dist, target.bearing)
+        if not all(math.isfinite(v) for v in memory):
+            return False
+        # Too far to finish blind: leave it to the search, do not stop short of
+        # the window and call that an arrival.
+        return (
+            target.dist <= BLIND_START_MAX_M
+            and abs(math.degrees(target.bearing)) <= BLIND_MAX_BEARING_DEG
+            and target.x - BLIND_STOP_X <= BLIND_MAX_TRAVEL_M
+        )
+
+    def start(self, target, now):
+        if not self.eligible(target, now):
+            return False
+        self.active = True
+        self.spent = True
+        self.start_time = now
+        self.last_update_time = now
+        self.travelled_m = 0.0
+        self.budget_m = max(0.0, target.x - BLIND_STOP_X)
+        print(
+            "[BLIND] box hidden at x={:.3f} y={:+.3f}; straight {:.3f} m on odometry "
+            "to x={:.3f}, then E1 must confirm it".format(
+                target.x, target.y, self.budget_m, BLIND_STOP_X))
+        return True
+
+    def _finish(self, arrived, reason):
+        self.active = False
+        return (arrived, 0.0, reason)
+
+    def command(self, target, odom_vx, now):
+        """(arrived, vx, reason). Arrival means the remembered box reached BLIND_STOP_X."""
+        if not self.active:
+            return (False, 0.0, "BLIND_INACTIVE")
+        odom_vx = float(odom_vx)
+        if not math.isfinite(odom_vx):
+            return self._finish(False, "BLIND_BAD_ODOM")
+        dt = max(0.0, now - self.last_update_time)
+        self.last_update_time = now
+        if dt <= 0.5:
+            self.travelled_m += max(0.0, odom_vx) * dt
+        if target.x <= BLIND_STOP_X:
+            return self._finish(True, "BLIND_DONE travel={:.3f}m x={:.3f}".format(
+                self.travelled_m, target.x))
+        # The memory moves with the same odometry, so the distance running out
+        # while the box is still ahead means vision moved it back: not arrived.
+        if self.travelled_m >= self.budget_m + BLIND_BUDGET_SLACK_M:
+            return self._finish(False, "BLIND_BUDGET travel={:.3f}/{:.3f}m x={:.3f}".format(
+                self.travelled_m, self.budget_m, target.x))
+        # Twice the time the creep should need, plus slack for the motor to start.
+        if now - self.start_time > 2.0 * self.budget_m / BLIND_VX + 2.0:
+            return self._finish(False, "BLIND_TIMEOUT travel={:.3f}/{:.3f}m".format(
+                self.travelled_m, self.budget_m))
+        return (False, BLIND_VX, "BLIND_FORWARD travel={:.3f}/{:.3f}m x={:.3f}".format(
+            self.travelled_m, self.budget_m, target.x))
+
+
+class ProgressWatchdog:
+    """Give up when a locked target stops getting closer (see NO_PROGRESS_WINDOW_S).
+
+    Only a new best distance at least NO_PROGRESS_MIN_GAIN_M below the last one
+    restarts the window, so detection noise around a stuck position cannot keep
+    an approach alive; it would have to keep jumping lower every time.
+    """
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.best_dist = math.inf
+        self.since = None
+
+    def update(self, dist, now):
+        """True once the window has passed without that much progress."""
+        if self.since is None:
+            self.since = now
+        if math.isfinite(dist) and dist <= self.best_dist - NO_PROGRESS_MIN_GAIN_M:
+            self.best_dist = dist
+            self.since = now
+        return now - self.since >= NO_PROGRESS_WINDOW_S
 
 
 # ============================================================
@@ -3569,13 +4223,76 @@ def load_policy_and_vecnormalize():
 
         RL_MODEL_PATH,
 
-        device="cpu"
+        device="cpu",
+        # Training schedules are unused at inference. Avoid old Python lambda
+        # pickles; match the navigation runtime's cross-version fallback.
+        custom_objects={"lr_schedule": lambda _: 0.0, "clip_range": lambda _: 0.0}
     )
+
+    if (tuple(model.observation_space.shape) != (55,)
+            or tuple(model.action_space.shape) != (2,)
+            or tuple(vecnormalize.observation_space.shape) != (55,)):
+        raise RuntimeError("avoidance contract must be obs=55D/action=2D")
 
     return (
         model,
         vecnormalize
     )
+
+
+class BackgroundLoad:
+    """Run a loader on its own thread; result() waits for it and re-raises its error."""
+
+    def __init__(self, load):
+        self._value = None
+        self._error = None
+        self._thread = threading.Thread(target=self._run, args=(load,), daemon=True)
+        self._thread.start()
+
+    def _run(self, load):
+        try:
+            self._value = load()
+        except BaseException as exc:
+            self._error = exc
+
+    def result(self):
+        self._thread.join()
+        if self._error is not None:
+            raise self._error
+        return self._value
+
+
+def warm_up_models(yolo_model, sam_model):
+    """One dummy pass through YOLO and SAM2 at the run's own sizes. The first pass
+    on the GPU pays for the CUDA/cuDNN set-up: 2.1-2.4 s on the robot runs, then
+    ~0.45 s a frame (2026-10-20 on this PC: YOLO 1.33 -> 0.06 s, SAM2 1.16 -> 0.45 s)."""
+    frame = np.zeros((FRAME_H, FRAME_W, 3), dtype=np.uint8)
+    yolo_model.predict(frame, imgsz=YOLO_IMGSZ, conf=YOLO_CONF, verbose=False)
+    cx, cy = FRAME_W // 2, FRAME_H // 2
+    sam_model(frame, bboxes=[[cx - 20, cy - 20, cx + 20, cy + 20]], verbose=False)
+
+
+def valid_seed(seed):
+    return (len(seed) == 2 and all(math.isfinite(v) for v in seed)
+            and SEED_MIN_M <= math.hypot(*seed) <= SEED_MAX_M
+            and abs(math.degrees(math.atan2(seed[1], seed[0]))) <= SEED_MAX_BEARING_DEG)
+
+
+def wait_for_go(stream):
+    """{"seed": (x, y) or None} once the runner says go (WAIT_GO); None otherwise."""
+    print("[GO] loaded; waiting for the runner to start the run", flush=True)
+    try:
+        message = json.loads(stream.readline())
+        if message.get("go") is not True:
+            return None
+        seed = message.get("seed")
+        if seed is not None:
+            seed = tuple(float(v) for v in seed)
+            if not (TRAINING_CONTRACT and valid_seed(seed)):
+                return None
+    except (ValueError, TypeError, AttributeError):
+        return None
+    return {"seed": seed}
 
 
 # ============================================================
@@ -3799,6 +4516,8 @@ class MotorClient:
 
         self.last_send = 0.0
 
+        self.refused = 0
+
 
     def connect(
         self
@@ -3900,17 +4619,36 @@ class MotorClient:
 
             return
 
+        vx, wz = float(vx), float(wz)
+        # Last line for every branch (see ALLOW_REVERSE). The safety filters
+        # already clamp reverse, so getting here means a path that forgot to:
+        # stop outright rather than guess which part of the command was meant.
+        # The training-matched policy alone may reverse, and only slowly.
+        if ALLOW_REVERSE:
+            slowest = -math.inf
+        elif TRAINING_CONTRACT:
+            slowest = -CONTRACT_REVERSE_MAX_MPS
+        else:
+            slowest = 0.0
+        if not (math.isfinite(vx) and math.isfinite(wz)) or vx < slowest - 1e-9:
+            self.refused += 1
+            if self.refused in (1, 10) or self.refused % 100 == 0:
+                print(f"[MOTOR] refused vx={vx:+.3f} wz={wz:+.3f} ({self.refused}x): "
+                      f"slowest allowed {slowest:+.3f} m/s; sending stop")
+            vx, wz = 0.0, 0.0
+        # A pure turn below motor 25 stalls on the floor (see TURN_MIN_WZ).
+        # Not in the training-matched mode: its turns are the policy's own, as in
+        # enoch's trials, and the floor would turn a small correction into a spin.
+        if not TRAINING_CONTRACT and abs(vx) < 1e-6 and 1e-6 < abs(wz) < TURN_MIN_WZ:
+            wz = math.copysign(TURN_MIN_WZ, wz)
+
         msg = {
 
             "action": "velocity",
 
-            "vx": float(
-                vx
-            ),
+            "vx": vx,
 
-            "wz": float(
-                wz
-            )
+            "wz": wz
         }
 
         self._send_json(
@@ -3970,6 +4708,15 @@ class MotorClient:
 
 @dataclass
 class TargetState:
+
+    # Initial-only mode (TARGET_INITIAL_ONLY): the first valid detection locks
+    # the target and later ones are ignored; odometry alone moves it after that.
+    freeze_visual_updates: bool = False
+
+    # True while x/y is only the runner's map estimate (SEED_TARGET): the camera
+    # has not confirmed the box yet. Any confirmed sighting replaces it outright,
+    # however far it is from the estimate.
+    seeded: bool = False
 
     x: float = 0.0
 
@@ -4063,7 +4810,35 @@ class TargetState:
         self.on_floor = False
         self.rejected_count = 0
         self.last_match_error = float("inf")
+        self.seeded = False
         self.clear_candidate()
+
+
+    def seed(
+        self,
+        x,
+        y,
+        now,
+        source="map_seed"
+    ):
+        # Memory for the policy to drive at, but never "seen": last_seen stays 0,
+        # so the first real measurement replaces it instead of averaging into it.
+        # Only ever called with no memory or a seed (never over a real sighting),
+        # and it keeps the acquisition candidate: a box on the edge of the
+        # calibrated area may alternate between far seeds and real frames.
+        self.x = float(x)
+        self.y = float(y)
+        self.dist = math.hypot(self.x, self.y)
+        self.bearing = math.atan2(self.y, self.x)
+        self.last_seen = 0.0
+        self.last_geometry_stamp = now
+        self.last_motion_update = now
+        self.conf = 0.0
+        self.class_name = source
+        self.on_floor = True
+        self.rejected_count = 0
+        self.last_match_error = float("inf")
+        self.seeded = True
 
 
     def _update_candidate(
@@ -4133,10 +4908,19 @@ class TargetState:
         geometry_locked=False
     ):
 
+        if self.freeze_visual_updates:
+            if self.has_memory() and not self.seeded:
+                return False, "TARGET_INITIAL_ONLY_ODOM", 0.0, 0.0
+            self.set_measurement(measurement, now)
+            self.clear_candidate()
+            return True, "TARGET_LOCKED", 0.0, 0.0
+
         new_x = float(measurement["x"])
         new_y = float(measurement["y"])
 
-        if not self.has_memory():
+        # A seed is only an estimate: acquire the box exactly as with no memory
+        # (the same confirmation frames), never reject it for disagreeing.
+        if not self.has_memory() or self.seeded:
             self._update_candidate(
                 new_x,
                 new_y,
@@ -4348,6 +5132,8 @@ class TargetState:
         )
 
         self.on_floor = True
+
+        self.seeded = False
 
 
     def refresh_seen_only(
@@ -4994,7 +5780,7 @@ def check_files():
 # MAIN
 # ============================================================
 
-def main():
+def main(resources=None, go_stream=None, headless=False):
 
     if RUN_MODE not in {
 
@@ -5010,6 +5796,17 @@ def main():
             "RUN_MODE must be "
             "VISION / DRY_RUN / DRIVE"
         )
+
+    # Driving in the training-matched mode is a second, explicit opt-in: it
+    # reverses, so a leftover environment variable must not be enough.
+    if TRAINING_CONTRACT and RUN_MODE == "DRIVE" and not CONTRACT_ALLOW_DRIVE:
+        raise SystemExit("training-matched DRIVE needs SUGARBOX_CONTRACT_ALLOW_DRIVE=1")
+    if TARGET_INITIAL_ONLY and not TRAINING_CONTRACT:
+        raise SystemExit("SUGARBOX_TARGET_INITIAL_ONLY needs the training-matched mode")
+    # Both rest on the steer-in and its arrival report, which only enoch mode has.
+    if (TARGET_KIND == "placement" or SEED_TARGET is not None or FAR_SEED) \
+            and not TRAINING_CONTRACT:
+        raise SystemExit("placement target and seeds need the training-matched mode")
 
 
     print()
@@ -5027,6 +5824,29 @@ def main():
         f"[MODE] {RUN_MODE}"
     )
 
+    if TRAINING_CONTRACT:
+        print(f"[CONTRACT] training-matched approach (enoch): target and rays from the "
+              f"chassis centre (+{training_contract.GOAL_ORIGIN_OFFSET_X_M:.3f} m), unsigned "
+              f"speed, action delay {CONTRACT_ACTION_DELAY_STEPS}, training shaping, "
+              f"reverse <= {CONTRACT_REVERSE_MAX_MPS:.2f} m/s; no centring, search or blind "
+              f"finish; hands over at {CONTRACT_HANDOFF_CENTER_M:.2f} m from the centre, "
+              f"then creeps and steers the box to x={CONTRACT_FINAL_CENTER_X_M:.2f} m, "
+              f"y={CONTRACT_AIM_Y_M:+.3f} m (no sideways motion); policy rays "
+              f"x{CONTRACT_DISTANCE_SCALE:.2f}; forward brake only within "
+              f"+-{CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M:.2f} m of the centre line. "
+              "Target x/y below are centre-frame.")
+    if TARGET_INITIAL_ONLY:
+        print("[TARGET_INITIAL_ONLY] the first valid detection locks the target; "
+              "odometry alone moves it after that")
+    print(f"[TARGET] {TARGET_KIND} | model {YOLO_MODEL_PATH}")
+    if SEED_TARGET is not None:
+        print("[SEED] {} x={:.3f} y={:+.3f} m; the camera must confirm the box "
+              "before the steer-in".format(SEED_SOURCE.replace("_", " "), *SEED_TARGET))
+    if FAR_SEED:
+        print("[SEED] a box seen beyond the calibrated area is driven at until the camera "
+              "measures it; unmeasured at {:.2f} m from the centre stops the run".format(
+                  SEED_GIVE_UP_CENTER_M))
+
     print(
         f"[NET] Jetson = {JETSON_IP}"
     )
@@ -5042,7 +5862,8 @@ def main():
     print(
         f"[PERF] camera_pipe={CAMERA_PIPE_FPS} FPS (live async) | "
         f"vision={1.0 / VISION_INTERVAL:.1f} Hz max | "
-        f"display={DISPLAY_HZ:.1f} Hz"
+        f"display={DISPLAY_HZ:.1f} Hz | "
+        f"yolo imgsz={YOLO_IMGSZ} conf={YOLO_CONF:.2f}"
     )
 
 
@@ -5055,150 +5876,95 @@ def main():
 
 
     # --------------------------------------------------------
-    # Homography
+    # Startup, overlapped (2026-10-20). Measured on 2026-10-19 each stage took
+    # ~25 s to its first usable result, all of it one after the other: imports and
+    # models ~16 s, then the receiver ~6 s to its first frame, then a 2.1-2.4 s
+    # first inference. The receiver now starts first, the policy loads beside
+    # YOLO and SAM2, and one dummy pass warms both models up.
     # --------------------------------------------------------
 
     print()
-    print(
-        "[GROUND] Loading..."
-    )
+    print("[CAMERA] Opening rear camera (it fills while the models load)...")
 
-    (
-        H,
-        rear_cam_to_front_m,
-        calibration_hull
-    ) = load_ground_calibration(
-
-        HOMOGRAPHY_PATH
-    )
-
-    print(
-        "[GROUND] Loaded"
-    )
-
-    print(
-        "[GROUND] rear_cam_to_front_m = "
-        f"{rear_cam_to_front_m:.3f}"
-    )
-
-    print(
-        "[GROUND] H ="
-    )
-
-    print(
-        H
-    )
-
-
-    # --------------------------------------------------------
-    # YOLO
-    # --------------------------------------------------------
-
-    print()
-    print(
-        "[MODEL] Loading YOLO..."
-    )
-
-    yolo_model = YOLO(
-        YOLO_MODEL_PATH
-    )
-
-    print(
-        "[MODEL] YOLO classes:"
-    )
-
-    print(
-        yolo_model.names
-    )
-
-
-    # --------------------------------------------------------
-    # SAM2
-    # --------------------------------------------------------
-
-    print()
-    print(
-        "[MODEL] Loading SAM2..."
-    )
-
-    sam_model = SAM(
-        SAM2_MODEL_PATH
-    )
-
-    print(
-        "[MODEL] SAM2 ready"
-    )
-
-
-    # --------------------------------------------------------
-    # PPO / ROS
-    # --------------------------------------------------------
-
-    rl_model = None
-
-    vecnormalize = None
-
-    ros_bridge = None
-
-    motor = None
-
-
-    if RUN_MODE != "VISION":
-
-        (
-            rl_model,
-            vecnormalize
-        ) = load_policy_and_vecnormalize()
-
-        ros_bridge = RosSensorBridge(
-
-            JETSON_IP,
-
-            ROSBRIDGE_PORT
-        )
-
-        ros_bridge.start()
-
-
-    # --------------------------------------------------------
-    # DRIVE only motor
-    # --------------------------------------------------------
-
-    if RUN_MODE == "DRIVE":
-
-        motor = MotorClient(
-
-            JETSON_IP,
-
-            MOTOR_PORT
-        )
-
-        motor.connect()
-
-        motor.stop(
-            repeat=3
-        )
-
-
-    # --------------------------------------------------------
-    # Camera
-    # --------------------------------------------------------
-
-    print()
-    print(
-        "[CAMERA] Opening rear camera..."
-    )
-
-    reader = LatestFrameReader(
-
+    reader = resources.reader() if resources is not None else LatestFrameReader(
         width=FRAME_W,
-
         height=FRAME_H,
-
         udp_port=CAMERA_UDP_PORT,
-
         gst_exe=GSTREAMER_LAUNCH_EXE
     )
+
+    rl_model = None
+    vecnormalize = None
+    ros_bridge = None
+    motor = None
+    seed_target = SEED_TARGET
+
+    try:
+        print()
+        print("[GROUND] Loading...")
+        (
+            H,
+            rear_cam_to_front_m,
+            calibration_hull
+        ) = load_ground_calibration(HOMOGRAPHY_PATH)
+        print("[GROUND] Loaded")
+        print(f"[GROUND] rear_cam_to_front_m = {rear_cam_to_front_m:.3f}")
+        print("[GROUND] H =")
+        print(H)
+
+        policy_load = load_policy_and_vecnormalize if resources is None else lambda: resources.policy(
+            sys.modules[__name__])
+        policy = BackgroundLoad(policy_load) if RUN_MODE != "VISION" else None
+
+        print()
+        print("[MODEL] Loading YOLO...")
+        yolo_model = YOLO(YOLO_MODEL_PATH) if resources is None else None
+        print("[MODEL] YOLO classes:")
+        if yolo_model is not None:
+            print(yolo_model.names)
+
+        print()
+        print("[MODEL] Loading SAM2...")
+        if resources is None:
+            sam_model = SAM(SAM2_MODEL_PATH)
+        else:
+            yolo_model, sam_model = resources.models(sys.modules[__name__])
+        print("[MODEL] SAM2 ready")
+
+        started = time.time()
+        if resources is None:
+            warm_up_models(yolo_model, sam_model)
+        print("[MODEL] warm-up pass {:.1f} s: the first real frame runs at full "
+              "speed".format(time.time() - started))
+
+        if policy is not None:
+            rl_model, vecnormalize = policy.result()
+            ros_bridge = RosSensorBridge(JETSON_IP, ROSBRIDGE_PORT)
+            ros_bridge.start()
+
+        go = wait_for_go(sys.stdin if go_stream is None else go_stream) if WAIT_GO else {"seed": None}
+        if go is not None and go["seed"] is not None:
+            seed_target = go["seed"]
+            print("[SEED] {} x={:.3f} y={:+.3f} m from the runner".format(
+                SEED_SOURCE.replace("_", " "), *seed_target))
+
+        if go is not None and RUN_MODE == "DRIVE":
+            motor = MotorClient(JETSON_IP, MOTOR_PORT)
+            motor.connect()
+            motor.stop(repeat=3)
+    except BaseException:
+        # A receiver left behind would hold the camera port for the next stage.
+        reader.release()
+        if ros_bridge is not None:
+            ros_bridge.close(terminate=resources is None)
+        raise
+
+    if go is None:
+        print("[GO] the runner did not start the run; the motors were never connected")
+        reader.release()
+        if ros_bridge is not None:
+            ros_bridge.close(terminate=resources is None)
+        return 5
 
     vision_worker = AsyncVisionWorker(
         reader=reader,
@@ -5215,7 +5981,14 @@ def main():
     # Runtime states
     # --------------------------------------------------------
 
-    target = TargetState()
+    target = TargetState(freeze_visual_updates=TARGET_INITIAL_ONLY)
+    if seed_target is not None:
+        target.seed(seed_target[0], seed_target[1], time.time(), source=SEED_SOURCE)
+    far_sighting = FarSighting()
+
+    obs_logger = ObsLogger(OBS_LOG_PATH)
+    if OBS_LOG_PATH:
+        print("[OBS_LOG] writing every policy observation to " + OBS_LOG_PATH)
 
     prev_raw_action = np.zeros(
 
@@ -5313,11 +6086,26 @@ def main():
     anti_jitter = AntiJitterSafetyFilter()
     center_controller = BottomCenterController()
     final_approach = FinalApproachController()
+    pursuit = PursuitController()
+    seed_facing = SeedFacing()
+    seed_look = SeedLook()
+    seed_look_state = "FREE"
+    last_vision_frame_time = 0.0
+    handoff_deferred = False
+    path_blocked_ticks = 0
+    blind_finish = BlindFinishController()
 
 
     e_stop_latched = False
 
     arrived_latched = False
+    arrival_reason = ""
+
+    blocked_latched = False
+    blocked_reason = ""
+    progress = ProgressWatchdog()
+    contract_action = training_contract.TrainingActionReference(
+        delay_steps=CONTRACT_ACTION_DELAY_STEPS)
 
     target_search_start = 0.0
 
@@ -5374,8 +6162,12 @@ def main():
         "(external safety still uses raw meters)"
     )
     print(
-        "[HARD_STOP] safety veto only | no automatic backup | "
-        "PPO reverse command may escape"
+        "[RECOVERY] hard-stop = STOP -> "
+        f"wait {HARD_RECOVERY_WAIT_S:.2f}s -> "
+        f"reverse {HARD_RECOVERY_TARGET_M:.2f}m "
+        f"@ {abs(HARD_RECOVERY_REVERSE_VX):.2f}m/s -> "
+        f"settle {HARD_RECOVERY_SETTLE_S:.2f}s | "
+        "one backup per hard-stop episode | NO rear LiDAR"
     )
 
     print(
@@ -5462,6 +6254,11 @@ def main():
                 last_vision_result = vision_result
                 last_vision_frame = vision_source_frame
                 last_vision_reason = vision_reason
+                last_vision_frame_time = vision_frame_time
+                # While the robot stands still to look at an estimate, a frame
+                # from before it came to rest (taken mid-turn) is not looked at.
+                pre_rest_frame = (seed_look.looking(target)
+                                  and not seed_look.counts(vision_frame_time))
 
                 if vision_source_frame is not None:
                     last_vision_panel = draw_vision_annotation_frame(
@@ -5501,7 +6298,9 @@ def main():
                         f"bearing={raw_bearing_text}->{comp_bearing_text}"
                     )
 
-                if (
+                if pre_rest_frame:
+                    pass
+                elif (
                     vision_result is not None
                     and
                     vision_reason == "VALID"
@@ -5556,6 +6355,22 @@ def main():
                                     float(vision_result["y"])
                                 )
                             )
+
+                elif (
+                    FAR_SEED
+                    and vision_reason == "OUTSIDE_CALIBRATION"
+                    and (not target.has_memory() or target.seeded)
+                ):
+                    far_stamp = vision_done_time if vision_done_time > 0.0 else now
+                    far_point = far_sighting.update(
+                        (vision_result or {}).get("coarse"), far_stamp)
+                    if far_point is not None:
+                        if target.class_name != "far_sighting":
+                            print("[SEED] box seen beyond the calibrated area at about "
+                                  "({:.2f}, {:+.2f}) m; the policy drives at it until the "
+                                  "camera can measure it".format(*far_point))
+                        target.seed(far_point[0], far_point[1], far_stamp,
+                                    source="far_sighting")
 
 
             # ==================================================
@@ -5678,6 +6493,13 @@ def main():
                     should_stop = True
 
 
+                elif blocked_latched:
+
+                    safety_reason = blocked_reason
+
+                    should_stop = True
+
+
                 elif (
                     camera_age
                     >
@@ -5736,6 +6558,35 @@ def main():
 
 
                 # ------------------------------------------------
+                # No progress: with reverse off, stop for good and say why
+                # (only when driving; a dry run never gets closer). The clock
+                # waits for the camera's first frame: a seed is a target from the
+                # start, and the first YOLO+SAM2 pass took ~11 s on 2026-10-19,
+                # so a patrol-seeded run stopped before it had seen anything.
+                # ------------------------------------------------
+
+                if (
+                    RUN_MODE == "DRIVE"
+                    and target.has_memory()
+                    and math.isfinite(camera_age)
+                    and not (e_stop_latched or arrived_latched or blocked_latched)
+                ):
+                    if progress.update(target.dist, now):
+                        blocked_latched = True
+                        # The last reason is what kept it from getting closer:
+                        # a LiDAR hold, a stale sensor, a looping centre or search.
+                        blocked_reason = (
+                            "NO_PROGRESS {:.0f}s: not {:.0f} cm closer | last: {}".format(
+                                NO_PROGRESS_WINDOW_S, NO_PROGRESS_MIN_GAIN_M * 100,
+                                last_safety_reason))
+                        print("[STOPPED] " + blocked_reason)
+                        safety_reason = blocked_reason
+                        should_stop = True
+                elif not target.has_memory() or not math.isfinite(camera_age):
+                    progress.reset()
+
+
+                # ------------------------------------------------
                 # LiDAR adapter
                 # ------------------------------------------------
 
@@ -5761,16 +6612,27 @@ def main():
 
                 if not should_stop:
 
-                    lidar_48 = scan_to_policy_rays(
-                        scan
-                    )
+                    if TRAINING_CONTRACT:
+                        try:
+                            lidar_48 = training_contract.center_rays(robot_scan_samples(
+                                scan.ranges, scan.angle_min, scan.angle_increment,
+                                LIDAR_GEOMETRY))
+                        except ValueError:
+                            lidar_48 = None
+                    else:
+                        lidar_48 = scan_to_policy_rays(
+                            scan
+                        )
 
                     (
                         front_robust,
                         front_min,
                         front_samples
-                    ) = raw_front_metrics(
-                        scan
+                    ) = (
+                        raw_front_corridor_metrics(
+                            scan, CONTRACT_FRONT_CORRIDOR_HALF_WIDTH_M)
+                        if TRAINING_CONTRACT
+                        else raw_front_metrics(scan)
                     )
 
                     (
@@ -5800,11 +6662,36 @@ def main():
 
 
                 # ------------------------------------------------
+                # Blind finish: the box was lost close and straight
+                # ahead, i.e. behind the gripper (see BLIND_STOP_X)
+                # ------------------------------------------------
+
+                if (
+                    not TRAINING_CONTRACT
+                    and not should_stop
+                    and not final_approach.active
+                    and blind_finish.eligible(target, now)
+                ):
+                    center_controller.reset()
+                    anti_jitter.reset_motion()
+                    blind_finish.start(target, now)
+
+                # ------------------------------------------------
                 # Odom-memory visual reacquisition near the target
                 # ------------------------------------------------
 
+                # Once the final 15 cm has started, losing the box (it slides
+                # behind the gripper) must not hand control to the search: on
+                # 2026-10-04 that reset FINAL_FORWARD at 11 cm and arrival never
+                # came. Sensor staleness, E-stop and the LiDAR stops still win.
                 target_searching = (
+                    not TRAINING_CONTRACT
+                    and
                     not should_stop
+                    and
+                    not blind_finish.active
+                    and
+                    not final_approach.active
                     and
                     target.has_memory()
                     and
@@ -5850,7 +6737,8 @@ def main():
                 center_reason = ""
                 center_just_started = False
 
-                if not should_stop and not target_searching:
+                if (not TRAINING_CONTRACT and not should_stop and not target_searching
+                        and not blind_finish.active):
 
                     # FINAL_FORWARD 一旦開始，禁止 CENTER 在途中重新啟動。
                     # 之前 log 會反覆出現 CENTERED -> FINAL start，導致 0.55s
@@ -5917,13 +6805,100 @@ def main():
 
 
                 # ------------------------------------------------
+                # Training-matched handoff: the policy has brought the box to
+                # CONTRACT_HANDOFF_CENTER_M; PursuitController lines it up for
+                # E1 from here. E1 decides whether it can grasp.
+                # ------------------------------------------------
+
+                if TRAINING_CONTRACT and arrived_latched:
+                    should_stop = True   # E1's turn now; never back to the PPO
+
+                path_block_m = float("inf")
+                if TRAINING_CONTRACT and not should_stop and target.has_memory():
+                    path_block_m = path_obstacle_distance(
+                        scan, target.x, target.y, CONTRACT_PATH_HALF_WIDTH_M)
+
+                seed_look_state = "FREE"
+                if TRAINING_CONTRACT and not should_stop:
+                    seed_look_state = seed_look.update(
+                        now, target, seed_facing.wants(target), last_vision_sequence,
+                        last_vision_frame_time, last_vision_reason)
+
+                if (
+                    TRAINING_CONTRACT
+                    and not should_stop
+                    and target.seeded
+                    and (seed_look_state == "GIVE_UP"
+                         or (seed_look_state == "FREE"
+                             and target.dist <= SEED_GIVE_UP_CENTER_M))
+                ):
+                    # The camera finds the box well before this; if it still has
+                    # not, the estimate is wrong or something hides the box.
+                    blocked_latched = True
+                    if seed_look_state == "GIVE_UP":
+                        blocked_reason = (
+                            "SEED_NOT_CONFIRMED: looked at the {} estimate {:.2f} m away from "
+                            "standing still ({} results, last {}) and the camera has not "
+                            "measured the box".format(
+                                target.class_name, target.dist, seed_look.results,
+                                seed_look.last_reason))
+                    else:
+                        blocked_reason = (
+                            "SEED_NOT_CONFIRMED: {:.2f} m from the {} estimate and the "
+                            "camera has not measured the box".format(
+                                target.dist, target.class_name))
+                    print("[STOPPED] " + blocked_reason)
+                    safety_reason = blocked_reason
+                    should_stop = True
+                elif (
+                    TRAINING_CONTRACT
+                    and not should_stop
+                    and not pursuit.active
+                    and target.has_memory()
+                    and not target.seeded       # only a box the camera measured
+                    and target.dist <= CONTRACT_HANDOFF_CENTER_M
+                ):
+                    if math.isfinite(path_block_m):
+                        # Not yet: the policy avoids, the steer-in would not.
+                        if not handoff_deferred:
+                            print("[HANDOFF] deferred: obstacle {:.2f} m along the "
+                                  "path to the box; the policy keeps driving".format(
+                                      path_block_m))
+                        handoff_deferred = True
+                    else:
+                        handoff_deferred = False
+                        safety_reason = (
+                            "HANDOFF centre_dist={:.3f}m bearing={:+.1f}deg y={:+.3f}m".format(
+                                target.dist, math.degrees(target.bearing), target.y))
+                        print("[HANDOFF] " + safety_reason)
+                        contract_action.reset()
+                        anti_jitter.reset_motion()
+                        pursuit.start(now)
+                elif TRAINING_CONTRACT and pursuit.active and not should_stop:
+                    path_blocked_ticks = (path_blocked_ticks + 1
+                                          if math.isfinite(path_block_m) else 0)
+                    if path_blocked_ticks >= CONTRACT_HANDBACK_TICKS:
+                        print("[HANDBACK] obstacle {:.2f} m along the path to the box; "
+                              "the policy steers around it".format(path_block_m))
+                        path_blocked_ticks = 0
+                        pursuit.reset()
+                        contract_action.reset()
+                        anti_jitter.reset_motion()
+
+
+                # ------------------------------------------------
                 # STOP
                 # ------------------------------------------------
 
                 if should_stop:
 
+                    contract_action.reset()
                     center_controller.reset()
                     final_approach.reset()
+                    pursuit.reset()
+                    blind_finish.reset()
+                    seed_facing.reset()
+                    seed_look.reset()
 
                     last_raw_action[:] = 0.0
 
@@ -5960,6 +6935,83 @@ def main():
                             0.0,
                             0.0
                         )
+
+                        if EXIT_ON_ARRIVAL and (blocked_latched or arrived_latched):
+                            motor.stop(repeat=5)
+                            break
+
+
+                # ------------------------------------------------
+                # Blind finish drive (straight, front LiDAR safety kept)
+                # ------------------------------------------------
+
+                elif blind_finish.active:
+
+                    center_controller.reset()
+                    final_approach.reset()
+                    last_raw_action[:] = 0.0
+                    prev_raw_action = np.zeros(
+                        2,
+                        dtype=np.float32
+                    )
+                    action_delay = [
+                        np.zeros(
+                            2,
+                            dtype=np.float32
+                        )
+                        for _ in range(
+                            MOTOR_DELAY_STEPS
+                        )
+                    ]
+
+                    (
+                        blind_arrived,
+                        blind_vx,
+                        blind_reason
+                    ) = blind_finish.command(
+                        target,
+                        odom.vx,
+                        now
+                    )
+
+                    last_desired_vx = float(blind_vx)
+                    last_desired_wz = 0.0
+
+                    if blind_finish.active:
+                        (
+                            vx_cmd,
+                            wz_cmd,
+                            blind_safety_reason
+                        ) = anti_jitter.apply_final_approach(
+                            blind_vx,
+                            front_robust,
+                            front_min
+                        )
+                        safety_reason = (
+                            blind_reason + " | " + blind_safety_reason
+                        )
+                    else:
+                        anti_jitter.reset_motion()
+                        vx_cmd = 0.0
+                        wz_cmd = 0.0
+                        safety_reason = blind_reason
+                        print("[BLIND] " + blind_reason)
+                        if blind_arrived:
+                            arrived_latched = True
+                            safety_reason = "ARRIVED_BLIND " + blind_reason
+
+                    last_cmd_vx = float(vx_cmd)
+                    last_cmd_wz = float(wz_cmd)
+
+                    if RUN_MODE == "DRIVE":
+                        motor.send_velocity(
+                            last_cmd_vx,
+                            last_cmd_wz,
+                            force=not blind_finish.active
+                        )
+                        if EXIT_ON_ARRIVAL and arrived_latched:
+                            motor.stop(repeat=5)
+                            break
 
 
                 # ------------------------------------------------
@@ -6006,7 +7058,9 @@ def main():
                     ) = anti_jitter.apply_center_turn(
                         search_wz,
                         front_robust,
-                        front_min
+                        front_min,
+                        right_robust=right_side_robust,
+                        left_robust=left_side_robust
                     )
 
                     last_cmd_vx = float(vx_cmd)
@@ -6075,7 +7129,9 @@ def main():
                         ) = anti_jitter.apply_center_turn(
                             center_wz_cmd,
                             front_robust,
-                            front_min
+                            front_min,
+                            right_robust=right_side_robust,
+                            left_robust=left_side_robust
                         )
 
                         # hard stop 永遠比置中優先；
@@ -6103,6 +7159,57 @@ def main():
                             last_cmd_wz,
                             force=center_immediate_stop
                         )
+
+
+                # ------------------------------------------------
+                # enoch mode's last stretch (PursuitController)
+                # ------------------------------------------------
+
+                elif pursuit.active:
+
+                    last_raw_action[:] = 0.0
+                    prev_raw_action = np.zeros(2, dtype=np.float32)
+
+                    (
+                        pursuit_vx,
+                        pursuit_wz,
+                        pursuit_done,
+                        pursuit_reason
+                    ) = pursuit.command(target, now)
+
+                    last_desired_vx = float(pursuit_vx)
+                    last_desired_wz = float(pursuit_wz)
+
+                    if pursuit_done:
+                        anti_jitter.reset_motion()
+                        vx_cmd = 0.0
+                        wz_cmd = 0.0
+                        arrived_latched = True
+                        arrival_reason = pursuit_reason
+                        safety_reason = "ARRIVED_CONTRACT " + pursuit_reason
+                        print("[ARRIVED] " + safety_reason)
+                    else:
+                        # Same essentials as the policy: hard stop, front block
+                        # (turn kept), side guard on turns.
+                        vx_cmd, wz_cmd, pursuit_safety = anti_jitter.apply_contract(
+                            pursuit_vx, pursuit_wz, front_robust, front_min,
+                            right_robust=right_side_robust,
+                            left_robust=left_side_robust,
+                            odom_vx=odom.vx, now=now)
+                        safety_reason = pursuit_reason + " | " + pursuit_safety
+
+                    last_cmd_vx = float(vx_cmd)
+                    last_cmd_wz = float(wz_cmd)
+
+                    if RUN_MODE == "DRIVE":
+                        motor.send_velocity(
+                            last_cmd_vx,
+                            last_cmd_wz,
+                            force=pursuit_done
+                        )
+                        if EXIT_ON_ARRIVAL and arrived_latched:
+                            motor.stop(repeat=5)
+                            break
 
 
                 # ------------------------------------------------
@@ -6190,6 +7297,61 @@ def main():
                             last_cmd_wz,
                             force=final_reason.startswith("FINAL_DONE")
                         )
+                        if EXIT_ON_ARRIVAL and arrived_latched:
+                            motor.stop(repeat=5)
+                            break
+
+
+                # ------------------------------------------------
+                # Face a seed that is off to the side (SeedFacing)
+                # ------------------------------------------------
+
+                elif TRAINING_CONTRACT and seed_facing.command(target) != 0.0:
+
+                    face_wz = math.copysign(TURN_MIN_WZ, target.bearing)
+                    last_raw_action[:] = 0.0
+                    prev_raw_action = np.zeros(2, dtype=np.float32)
+                    contract_action.reset()
+                    last_desired_vx = 0.0
+                    last_desired_wz = face_wz
+                    vx_cmd, wz_cmd, face_safety = anti_jitter.apply_contract(
+                        0.0, face_wz, front_robust, front_min,
+                        right_robust=right_side_robust,
+                        left_robust=left_side_robust,
+                        odom_vx=odom.vx, now=now)
+                    # The filter caps turns at the policy's 0.78 rad/s, which
+                    # stalls a pure turn; keep only its stop/guard decisions.
+                    if vx_cmd == 0.0 and wz_cmd * face_wz > 0.0:
+                        wz_cmd = face_wz
+                    safety_reason = "SEED_FACE bearing={:+.1f}deg | {}".format(
+                        math.degrees(target.bearing), face_safety)
+                    last_cmd_vx = float(vx_cmd)
+                    last_cmd_wz = float(wz_cmd)
+
+                    if RUN_MODE == "DRIVE":
+                        motor.send_velocity(last_cmd_vx, last_cmd_wz)
+
+
+                # ------------------------------------------------
+                # Stand still while the camera looks at an estimate (SeedLook)
+                # ------------------------------------------------
+
+                elif TRAINING_CONTRACT and seed_look_state == "HOLD":
+
+                    progress.reset()       # standing still on purpose is not stuck
+                    last_raw_action[:] = 0.0
+                    prev_raw_action = np.zeros(2, dtype=np.float32)
+                    contract_action.reset()
+                    anti_jitter.reset_motion()
+                    last_desired_vx = 0.0
+                    last_desired_wz = 0.0
+                    last_cmd_vx = 0.0
+                    last_cmd_wz = 0.0
+                    safety_reason = "SEED_LOOK {}/{} | {}".format(
+                        seed_look.results, SEED_LOOK_RESULTS, last_vision_reason)
+
+                    if RUN_MODE == "DRIVE":
+                        motor.send_velocity(0.0, 0.0)
 
 
                 # ------------------------------------------------
@@ -6213,6 +7375,12 @@ def main():
                         lidar_48
                     )
 
+                    if TRAINING_CONTRACT:
+                        raw_obs = training_contract.training_observation(
+                            target.x, target.y, odom.vx, odom.vy, odom.wz,
+                            prev_raw_action, lidar_48,
+                            distance_scale=CONTRACT_DISTANCE_SCALE)
+
 
                     raw_action = policy_predict(
 
@@ -6222,6 +7390,8 @@ def main():
 
                         raw_obs
                     )
+
+                    obs_logger.write(now, raw_obs, raw_action, target)
 
 
                     last_raw_action = (
@@ -6262,6 +7432,16 @@ def main():
                         delayed_action
                     )
 
+                    if TRAINING_CONTRACT:
+                        # The training plant's own shaping replaces the legacy
+                        # action mapping (its delay is set separately).
+                        shaped = contract_action.step(
+                            raw_action, float(np.min(lidar_48)), target.dist,
+                            target.bearing, odom.vx, odom.vy)
+                        vx_cmd, wz_cmd = training_contract.limited_reference_twist(
+                            shaped["vx"], shaped["wz"], TEST_MAX_FWD,
+                            CONTRACT_REVERSE_MAX_MPS, TEST_MAX_WZ)
+
 
                     # ------------------------------------------------
                     # Anti-jitter safety layer
@@ -6272,23 +7452,28 @@ def main():
                     last_desired_vx = float(vx_cmd)
                     last_desired_wz = float(wz_cmd)
 
-                    (
-                        vx_cmd,
-                        wz_cmd,
-                        safety_reason,
-                        _slow_scale
-                    ) = anti_jitter.apply(
-                        vx_cmd,
-                        wz_cmd,
-                        front_robust,
-                        front_min,
-                        right_side_robust,
-                        left_side_robust,
-                        odom.vx,
-                        now,
-                        right_min=right_side_min,
-                        left_min=left_side_min
-                    )
+                    if TRAINING_CONTRACT:
+                        vx_cmd, wz_cmd, safety_reason = anti_jitter.apply_contract(
+                            vx_cmd, wz_cmd, front_robust, front_min,
+                            right_robust=right_side_robust,
+                            left_robust=left_side_robust,
+                            odom_vx=odom.vx, now=now)
+                    else:
+                        (
+                            vx_cmd,
+                            wz_cmd,
+                            safety_reason,
+                            _slow_scale
+                        ) = anti_jitter.apply(
+                            vx_cmd,
+                            wz_cmd,
+                            front_robust,
+                            front_min,
+                            right_side_robust,
+                            left_side_robust,
+                            odom.vx,
+                            now
+                        )
 
                     last_cmd_vx = vx_cmd
                     last_cmd_wz = wz_cmd
@@ -6518,10 +7703,8 @@ def main():
                         x0:x0 + inset_w
                     ] = inset
 
-                cv2.imshow(
-                    "Sugarbox RL Approach",
-                    live_display
-                )
+                if not headless:
+                    cv2.imshow("Sugarbox RL Approach", live_display)
 
 
             # ==================================================
@@ -6622,7 +7805,7 @@ def main():
             # ==================================================
 
             key = (
-                cv2.waitKey(1)
+                (cv2.waitKey(1) if not headless else -1)
                 &
                 0xFF
             )
@@ -6661,6 +7844,7 @@ def main():
                 e_stop_latched = False
 
                 arrived_latched = False
+                arrival_reason = ""
 
                 prev_raw_action = np.zeros(
 
@@ -6684,6 +7868,10 @@ def main():
                 anti_jitter.reset_all()
                 center_controller.reset()
                 final_approach.reset()
+                blind_finish.rearm()
+                blocked_latched = False
+                blocked_reason = ""
+                progress.reset()
                 target_search_start = 0.0
                 last_safety_reason = "RESET"
 
@@ -6699,9 +7887,11 @@ def main():
             ):
 
                 target.clear()
+                progress.reset()
                 target_search_start = 0.0
                 center_controller.reset()
                 final_approach.reset()
+                blind_finish.rearm()
                 anti_jitter.reset_all()
                 last_safety_reason = "TARGET_MEMORY_CLEARED"
 
@@ -6751,21 +7941,44 @@ def main():
 
         if ros_bridge is not None:
 
-            ros_bridge.close()
+            ros_bridge.close(terminate=resources is None)
 
 
         try:
-            vision_worker.release()
+            if resources is None:
+                vision_worker.release()
+            elif not vision_worker.release(timeout=10.0):
+                resources.poisoned = True
         except Exception:
-            pass
+            if resources is not None:
+                resources.poisoned = True
 
         reader.release()
 
-        cv2.destroyAllWindows()
+        obs_logger.close()
+
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            # A headless OpenCV build has no windows to close (ncu's PC,
+            # 2026-10-21): that must not replace the stage's own result.
+            pass
 
         print(
             "[INFO] ended"
         )
+
+    if ARRIVAL_REPORT_PATH:
+        write_arrival_report(ARRIVAL_REPORT_PATH, arrival_record(
+            arrived_latched, blocked_latched, arrival_reason, blocked_reason, target,
+            time.time(), last_front_robust, last_front_min))
+
+    if EXIT_ON_ARRIVAL:
+        if blocked_latched:
+            print("[STOPPED] " + blocked_reason)
+            return 4
+        return 0 if arrived_latched and RUN_MODE == "DRIVE" else 3
+    return 0
 
 
 if __name__ == "__main__":
@@ -6773,4 +7986,4 @@ if __name__ == "__main__":
     if "--selftest-target-memory" in sys.argv:
         run_target_memory_selftest()
     else:
-        main()
+        raise SystemExit(main())

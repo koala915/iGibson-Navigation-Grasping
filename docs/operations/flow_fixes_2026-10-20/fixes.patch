@@ -1,0 +1,990 @@
+--- a/integration/mission_loop.py
++++ b/integration/mission_loop.py
+@@ -14,8 +14,9 @@
+ 
+ The design was settled with the user on 2026-10-19 (docs/planning/
+ PATROL_LOOP_DECISIONS_2026-10-19.md). The loop runs until two whole laps find no
+-sugarbox to fetch. A missed grasp with the arm in a known state backs out and
+-patrols on (a spot that failed twice is left alone); a failed placement still
++sugarbox to fetch. Only a confirmed arrival followed by a missed grasp with a
++known arm state may back out and patrol on (with the box guarded). Any failure
++before arrival stops without automatic reverse/retry. A failed placement still
+ holding the object looks around for the box once and tries again. Anything
+ leaving the arm's state unknown stops the loop where it is and says why.
+ 
+@@ -38,6 +39,7 @@
+     python integration/mission_loop.py --host <IP> --real --i-am-beside-the-robot
+ """
+ import argparse
++from collections import deque
+ import importlib.util
+ import ipaddress
+ import json
+@@ -93,8 +95,8 @@
+ # Known sugarboxes the watcher cannot be trusted to see: one a grasp missed with
+ # the robot at it (backing out 0.20 m leaves it ~0.48 m ahead, inside the
+ # gripper's blind zone), one the loop gave up on (passed over by the watcher), and
+-# a candidate first seen this near that the parked camera may not have seen at
+-# all. The box is below the LiDAR's scan plane, so nothing else stops the patrol:
++# an unconfirmed candidate that may become close or hidden later. The box is
++# below the LiDAR's scan plane, so nothing else stops the patrol:
+ # one of them in the way ends the mission instead (2026-10-19: the patrol pushed a
+ # sugarbox and kept going). "In the way", chassis-centre frame: the corridor ahead
+ # and the turn-in-place circle, each the body (placement_dock.BODY_RECTANGLES:
+@@ -104,7 +106,6 @@
+ GUARD_RIGHT_M = 0.385
+ GUARD_LEFT_M = 0.30
+ GUARD_TURN_M = 0.40
+-BLIND_REJECT_M = 0.85
+ # Where a grasp that reached the box leaves it: the approach's stop, ahead of the
+ # chassis centre (sugarbox_approach_grasp.py --final-x-m default).
+ AT_BOX_X_M = 0.28
+@@ -120,6 +121,10 @@
+ # Parked confirmation: frames taken after the stop, for at most CONFIRM_S.
+ CONFIRM_S = 4.0
+ POSE_MAX_AGE_S = 0.5
++# Map exclusions are permitted only if pose samples cover the entire possible
++# capture/inference interval and the chassis stayed still throughout it.
++FRAME_STILL_M = 0.005
++FRAME_STILL_RAD = math.radians(0.5)
+ # Candidates the parked camera did not confirm, per lap, before the mission gives
+ # up: the black wall clips read as sugarboxes at 0.53-0.73 (ncu, 2026-10-19).
+ MAX_FALSE_STOPS_PER_LAP = 6
+@@ -247,6 +252,7 @@
+             dock.LOCALIZATION_HEALTH, HEALTH_SOCKET)
+         self.clock, self.allowed = clock, False
+         self.pose, self.pose_at = None, None
++        self.pose_history = deque(maxlen=100)
+         self.patrol = None                      # (pid, alive) as the Jetson last saw it
+         self.lock = threading.Lock()
+         self.proc = popen(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
+@@ -266,12 +272,20 @@
+                 pose = [float(v) for v in record['pose']]
+                 age = float(record['t']) - float(record['stamp'])
+                 if (record.get('ready') is not True or len(pose) != 3
+-                        or not 0 <= age <= dock.LOCALIZATION_MAX_AGE_S):
++                        or not all(math.isfinite(v) for v in pose)
++                        or not 0 <= age <= min(dock.LOCALIZATION_MAX_AGE_S, POSE_MAX_AGE_S)):
++                    with self.lock:
++                        self.pose, self.pose_at = None, None
++                        self.pose_history.clear()
+                     continue
+             except (ValueError, KeyError, TypeError, AttributeError):
++                with self.lock:
++                    self.pose, self.pose_at = None, None
++                    self.pose_history.clear()
+                 continue
+             with self.lock:
+-                self.pose, self.pose_at = tuple(pose), self.clock()
++                self.pose, self.pose_at = tuple(pose), self.clock() - age
++                self.pose_history.append((self.pose_at, self.pose))
+ 
+     def send(self, allow, age):
+         """`age`: seconds from the frame's capture to now (a generous bound)."""
+@@ -296,6 +310,38 @@
+             self.proc.stdin.flush()
+         except (OSError, ValueError) as exc:
+             raise MissionError('vision permit link to the robot lost: {}'.format(exc))
++
++    def pose_for_frame(self, stamp):
++        """A map pose only when capture through inference is known stationary.
++
++        The RTP stream has no shared camera/AMCL timestamp. Do not pretend a
++        current pose matches a moving frame: withhold map filtering and park.
++        Include the stream latency bound and pose freshness allowance before
++        the decoded frame; reject missing coverage, movement and sample gaps.
++        """
++        now = self.clock()
++        if not math.isfinite(stamp) or stamp > now or now - stamp > STREAM_STALE_S:
++            return None
++        with self.lock:
++            if (self.pose_at is None or now - self.pose_at > POSE_MAX_AGE_S
++                    or not self.pose_history):
++                return None
++            history = list(self.pose_history)
++        since = stamp - STREAM_LATENCY_S - POSE_MAX_AGE_S
++        anchors = [i for i, (at, _pose) in enumerate(history) if at <= since]
++        if not anchors:
++            return None
++        history = history[anchors[-1]:]
++        at, pose = history[-1]
++        if now - at > POSE_MAX_AGE_S:
++            return None
++        for i, (sample_at, sample) in enumerate(history):
++            if i and not 0 <= sample_at - history[i - 1][0] <= POSE_MAX_AGE_S:
++                return None
++            if (math.hypot(sample[0] - pose[0], sample[1] - pose[1]) > FRAME_STILL_M
++                    or abs(dock.wrap(sample[2] - pose[2])) > FRAME_STILL_RAD):
++                return None
++        return pose
+ 
+     def patrol_alive(self, pid):
+         """True/False for the watched patrol, None while the Jetson has not said."""
+@@ -553,9 +599,11 @@
+     the robot parked agree. One the parked camera does not confirm is passed over
+     for the rest of the lap, as are a sugarbox at the placement box (delivered),
+     one at a spot in `skip` and one against a wall of the `walls` polygon (map
+-    frame). A spot in `guard` (a box the camera cannot vouch for), or an
+-    unconfirmed candidate first seen nearer than BLIND_REJECT_M, in the robot's way
+-    ends the mission. A patrol that refuses to start where the robot stands gets
++    frame). All unconfirmed spots remain collision hazards. A rejected box still
++    visible down the forward corridor, or any remembered hazard in the near drive/
++    turn envelope, ends the mission. Moving frames cannot exclude wall/bin clips
++    without a pose covering their possible capture time. A patrol that refuses to
++    start where the robot stands gets
+     make_room() and another try.
+ 
+     Returns {'point': chassis-centre (x, y), 'map': its map position or None},
+@@ -604,8 +652,19 @@
+                                        .format(POSE_LOST_S))
+             else:
+                 no_pose_since = None
+-            where = map_point(pose, point) if pose is not None and point is not None else None
++            frame_pose = link.pose_for_frame(last_stamp) if point is not None else None
++            where = map_point(frame_pose, point) if frame_pose is not None else None
+             if point is not None and passed_over(where, box, skip, rejected, walls, far):
++                # "Do not fetch" is not permission to drive through a real box.
++                # A rejected/failed spot visible anywhere down the forward
++                # corridor must not be counted as a clear frame, even at >0.9 m.
++                if (not passed_over(where, box, (), (), walls, far)
++                        and passed_over(where, None, skip, rejected, far=far)
++                        and ((point[0] > 0 and -GUARD_RIGHT_M <= point[1] <= GUARD_LEFT_M)
++                             or math.hypot(*point) <= GUARD_TURN_M)):
++                    link.send(False, now() - last_stamp + STREAM_LATENCY_S)
++                    raise MissionError('a rejected sugarbox is still visible in the patrol\'s '
++                                       'way; not fetching it does not make the way clear')
+                 point = None
+             in_way = box_in_the_way(pose, list(guard) + unseen) if pose is not None else None
+             if in_way is not None:
+@@ -645,12 +704,15 @@
+             confirmed = confirm_parked(reader, watcher, link, now)
+             if confirmed is None:
+                 false_stops += 1
++                if where is None:
++                    raise MissionError('an unconfirmed sugarbox has no reliable parked map '
++                                       'position; remaining stopped, cannot vouch for the way')
+                 if where is not None:
+                     rejected.append((where[0], where[1], far))
+-                    if math.hypot(*point) < BLIND_REJECT_M:
+-                        # Parked this near, the gripper may have hidden it: not
+-                        # seeing it again says nothing.
+-                        unseen.append(where)
++                    # Keep every unresolved spot for collision avoidance, even
++                    # beyond the immediate stop corridor; it may become close
++                    # or hidden later. Wall/delivered exclusions do not get here.
++                    unseen.append(where)
+                 print('[PATROL] not confirmed with the robot parked: passed over this lap',
+                       flush=True)
+                 if false_stops > MAX_FALSE_STOPS_PER_LAP:
+@@ -707,7 +769,7 @@
+                                   'with; still holding')
+     for step in range(SEARCH_STEPS + 1):
+         if step:
+-            turn(host, SEARCH_STEP_RAD)
++            runner.turn_if_clear(host, SEARCH_STEP_RAD, rotate=turn)
+         confirm.reset()
+         deadline = now() + SEARCH_LOOK_S
+         while now() < deadline:
+@@ -742,6 +804,16 @@
+         return proc.wait()
+ 
+ 
++def stage_options(args):
++    """The same calibration and decoder for all stages, retries and resumes."""
++    options = []
++    for option, name in (('--homography', 'homography'), ('--gstreamer', 'gstreamer')):
++        value = getattr(args, name, None)
++        if value is not None:
++            options += [option, str(Path(value).resolve())]
++    return options
++
++
+ def arm_camera_state(host):
+     """'ok', 'service_down' (the bridge gave up, camera present) or 'unplugged'."""
+     words = ssh(host, 'test -e {} && echo camera-present; systemctl is-active grasp-vision'
+@@ -850,7 +922,11 @@
+         chassis = status.get('chassis', {})
+         if chassis.get('arm_pose') not in poses or chassis.get('moving') is not False:
+             issues.append('arm not in {} or chassis moving'.format('/'.join(poses)))
+-        holding = runner.ctl(args.host, 'health').get('holding')
++        health = runner.ctl(args.host, 'health')
++        holding = health.get('holding')
++        problem = runner.service_protocol_problem(status, health)
++        if problem:
++            issues.append(problem)
+         if holding_wanted and holding is not True:
+             issues.append('nothing is held: --resume-at place needs the object in the jaw')
+         elif not holding_wanted and holding is not False:
+@@ -897,7 +973,7 @@
+     """One object, no patrol: the flow that delivered twice on 2026-10-18."""
+     log_dir.mkdir(parents=True, exist_ok=True)
+     place_argv = ['--target', 'placement', '--real', '--i-am-beside-the-robot',
+-                  '--obs-log', str(log_dir / 'place_obs.jsonl')]
++                  '--obs-log', str(log_dir / 'place_obs.jsonl')] + stage_options(args)
+     if args.wall_m is not None:
+         place_argv += ['--wall-m', str(args.wall_m)]
+     stage, started = 'START', time.monotonic()
+@@ -909,10 +985,9 @@
+             problem = ensure_arm_camera(args.host, fix=True)
+             if problem:
+                 raise MissionError(problem)
+-            if runner.ctl(args.host, 'status').get('chassis', {}).get('maintenance') is True:
+-                runner.service_command(args.host, 'maintenance-unlock')
++            unlock(args.host)
+             argv = ['--target', 'sugarbox', '--real', '--i-am-beside-the-robot',
+-                    '--obs-log', str(log_dir / 'grasp_obs.jsonl')]
++                    '--obs-log', str(log_dir / 'grasp_obs.jsonl')] + stage_options(args)
+             if args.resume_at == 'grasp-e1':
+                 argv.append('--handoff-only')
+             code = run_stage(args.host, argv, log_dir / 'grasp.log')
+@@ -925,6 +1000,7 @@
+             if runner.ctl(args.host, 'health').get('holding') is not True:
+                 raise MissionError('grasp reported done but nothing is held')
+         stage = 'PLACE'
++        unlock(args.host)
+         code = run_stage(args.host, place_argv, log_dir / 'place.log')
+         if code:
+             still = runner.ctl(args.host, 'health').get('holding') is True
+@@ -958,18 +1034,17 @@
+ 
+ 
+ def fetch_sugarbox(args, sighting, log_dir, n):
+-    """GRASP: 'held', 'missed' (nothing held, arm in a known state: patrol on) or
+-    'missed_at_box' (the same, but the approach had reached the box).
+-
+-    Raises MissionError whenever the service cannot vouch for the arm, and when
+-    the arm camera is off USB (someone has to replug it).
++    """GRASP: 'held' or 'missed_at_box' (confirmed arrival, empty known arm).
++
++    Pre-arrival failures, including an unconfirmed patrol seed, stop the mission.
++    An empty arm alone is not evidence of a completed approach or a missed grasp.
+     """
+     problem = ensure_arm_camera(args.host, fix=True)
+     if problem:
+         raise MissionError(problem)
+     unlock(args.host)
+     argv = ['--target', 'sugarbox', '--real', '--i-am-beside-the-robot',
+-            '--obs-log', str(log_dir / 'grasp_{}_obs.jsonl'.format(n))]
++            '--obs-log', str(log_dir / 'grasp_{}_obs.jsonl'.format(n))] + stage_options(args)
+     seed = approach_seed(args.host, sighting)
+     if seed is not None:
+         argv += ['--seed', '{:.3f}'.format(seed[0]), '{:.3f}'.format(seed[1])]
+@@ -984,14 +1059,18 @@
+     if arm_camera_state(args.host) == 'unplugged':
+         raise MissionError('grasp runner exit {}: the arm camera dropped off USB; replug '
+                            'it'.format(code))
++    if code != runner.AT_BOX_EXIT:
++        raise MissionError('grasp runner exit {} before confirmed arrival; remaining stopped, '
++                           'no automatic back-out or patrol restart (check grasp_{}.log)'
++                           .format(code, n))
+     to_travel(args.host)
+-    return 'missed_at_box' if code == runner.AT_BOX_EXIT else 'missed'
++    return 'missed_at_box'
+ 
+ 
+ def place_held(args, layout_copy, log_dir, n, new_reader, new_watcher):
+     """PLACE: turn toward the box and release over it. Still holding after a
+     failure: look around for the box once and try again from where it shows."""
+-    argv = ['--target', 'placement', '--real', '--i-am-beside-the-robot']
++    argv = ['--target', 'placement', '--real', '--i-am-beside-the-robot'] + stage_options(args)
+     if args.wall_m is not None:
+         argv += ['--wall-m', str(args.wall_m)]
+     code = run_stage(args.host, argv + [
+@@ -1065,19 +1144,20 @@
+             stage = 'GRASP {}'.format(n)
+             outcome = fetch_sugarbox(args, sighting, log_dir, n)
+             if outcome != 'held':
+-                spot = sighting['map']
+-                if outcome == 'missed_at_box':
+-                    # Right in front, and once backed out inside the gripper's
+-                    # blind zone: guarded, from where the approach left it.
+-                    spot = box_left_at(args.host) or spot
+-                    if spot is not None:
+-                        at_box.append(spot)
+-                if spot is not None:
+-                    failures.append(spot)
+-                print('[MISSION] grasp {} missed{} at {}: backing out, patrolling on'.format(
+-                    n, ' with the robot at the box' if outcome == 'missed_at_box' else '',
+-                    'map ({:.2f}, {:.2f})'.format(*spot) if spot is not None
+-                    else 'an unknown map spot (not counted)'), flush=True)
++                if outcome != 'missed_at_box':
++                    raise MissionError('unrecognized grasp outcome {}; remaining stopped'
++                                       .format(outcome))
++                # Right in front, and once backed out inside the gripper's
++                # blind zone: guarded, from where the approach left it.
++                spot = box_left_at(args.host) or sighting['map']
++                if spot is None:
++                    raise MissionError('missed sugarbox position unknown; cannot safely '
++                                       'back out and restart patrol')
++                at_box.append(spot)
++                failures.append(spot)
++                print('[MISSION] grasp {} missed with the robot at the box at map '
++                      '({:.2f}, {:.2f}): backing out, patrolling on'.format(
++                          n, *spot), flush=True)
+                 stage = 'BACK_OUT {}'.format(n)
+                 room.leave()
+                 continue
+--- a/integration/sugarbox_approach_grasp.py
++++ b/integration/sugarbox_approach_grasp.py
+@@ -160,6 +160,31 @@
+                     and abs(v) <= 0.01 for v in twist))
+ 
+ 
++def service_protocol_problem(status, health):
++    """Read-only contract with ncu's resident stack; never invent missing fields.
++
++    The checkout's older arm-only service is not the deployed G2 service. A
++    working health endpoint, holding state and explicit maintenance state are
++    required before this pipeline may claim it can hand motion between stages.
++    """
++    if not isinstance(status, dict) or not isinstance(health, dict):
++        return 'resident service protocol: status/health response missing'
++    chassis = status.get('chassis')
++    health_chassis = health.get('chassis')
++    pid = health.get('service_pid')
++    if (health.get('ok') is not True or health.get('stack_version') != 'v23'
++            or health.get('chassis_tcp_ready') is not True
++            or not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0
++            or not isinstance(health.get('holding'), bool)
++            or not isinstance(chassis, dict) or not isinstance(health_chassis, dict)
++            or not isinstance(chassis.get('maintenance'), bool)
++            or not isinstance(health_chassis.get('maintenance'), bool)):
++        return ('resident service protocol incompatible: need v23 health, owner PID, '
++                'holding, chassis TCP readiness and maintenance state; preserve/deploy '
++                'the compatible G2 resident service, not the older arm-only checkout')
++    return None
++
++
+ def target_position(status):
+     detection = status.get('detection', {})
+     pos = detection.get('pos')
+@@ -332,6 +357,20 @@
+         return turned
+     finally:
+         odom.close()
++
++
++def turn_if_clear(host, radians, localize=None, rotate=None, record=None):
++    """Admit a bounded turn only with fresh, positive map clearance evidence.
++
++    Shared by normal placement alignment and the failure look-around. The
++    low-level turn retains odometry, direction, timeout and stop protections.
++    """
++    if record is None:
++        record = (localize or dock.read_localization)(host)
++    dock.localization_pose(record)
++    if (record.get('state') or {}).get('turn_clear') is not True:
++        raise RuntimeError('localization reports no room to turn; remaining stopped')
++    return (rotate or turn)(host, radians)
+ 
+ 
+ def back_straight(host, metres, walls, speed=0.08, localize=dock.read_localization,
+@@ -487,7 +526,7 @@
+             back(host, FACE_BACKOFF_STEP_M)
+             backed += FACE_BACKOFF_STEP_M
+             continue
+-        rotate(host, bearing)
++        turn_if_clear(host, bearing, rotate=rotate, record=record)
+         turns += 1
+ 
+ 
+@@ -597,6 +636,13 @@
+     for module in ('cv2', 'numpy', 'torch', 'gymnasium', 'roslibpy', 'stable_baselines3', 'ultralytics'):
+         if importlib.util.find_spec(module) is None:
+             issues.append('missing Python dependency: ' + module)
++    if not issues and getattr(args, 'host', None):
++        try:
++            problem = service_protocol_problem(ctl(args.host, 'status'), ctl(args.host, 'health'))
++            if problem:
++                issues.append(problem)
++        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
++            issues.append('resident service protocol unavailable: ' + str(exc))
+     return paths, issues
+ 
+ 
+--- a/grasp/v23/graspctl.py
++++ b/grasp/v23/graspctl.py
+@@ -15,17 +15,18 @@
+ import sys
+ 
+ DEFAULT_SOCKET = "/tmp/grasp_service.sock"
++HEALTH_SOCKET = "/tmp/grasp_health.sock"
+ # A grasp episode is ~10 s today; the cap is generous so a slow retry still
+ # reports its own outcome rather than the client inventing a timeout.
+-TIMEOUTS = {"grasp": 180.0, "release": 120.0, "home": 60.0, "stow": 60.0,
+-            "status": 15.0, "quit": 15.0}
++TIMEOUTS = {"grasp": 180.0, "release": 120.0, "release-preview": 120.0,
++            "home": 60.0, "stow": 60.0, "status": 15.0, "health": 2.0, "quit": 15.0}
+ 
+ 
+ def main(argv) -> int:
+     cmd = argv[1] if len(argv) > 1 else "status"
+-    sock_path = argv[2] if len(argv) > 2 else DEFAULT_SOCKET
++    sock_path = argv[2] if len(argv) > 2 else (HEALTH_SOCKET if cmd == "health" else DEFAULT_SOCKET)
+     if cmd not in TIMEOUTS:
+-        print("usage: graspctl.py [grasp|release|home|stow|status|quit] [socket]",
++        print("usage: graspctl.py [grasp|release|release-preview|home|stow|status|health|quit] [socket]",
+               file=sys.stderr)
+         return 2
+ 
+@@ -57,7 +58,7 @@
+         return 1
+ 
+     print(json.dumps(data, indent=2, ensure_ascii=False))
+-    if not data.get("ok"):
++    if not isinstance(data, dict) or data.get("ok") is not True:
+         return 1
+     if cmd == "grasp" and not data.get("confirmed"):
+         return 3
+--- a/tests/test_mission_loop.py
++++ b/tests/test_mission_loop.py
+@@ -68,6 +68,10 @@
+     def pose_now(self):
+         return self.pose
+ 
++    def pose_for_frame(self, stamp):
++        # This fake never moves: capture and inference have the same pose.
++        return self.pose_now()
++
+     def watch(self, pid):
+         self.watched.append(pid)
+ 
+@@ -86,6 +90,15 @@
+ LAYOUT = {'frame_id': 'map', 'room_polygon': [[-1, -1], [3, -1], [3, 3], [-1, 3]], 'bin': {
+     'pose_map': {'x': 1.76, 'y': 0.88}, 'pose_map_valid_for_current_placement': False,
+     'placement_update': {'midpoint_pose_map_candidate': {'x': 1.56, 'y': 0.83}}}}
++
++
++def resident_reply(host, command):
++    """Required fields of ncu's G2 status/health protocol, not an arm-only fake."""
++    chassis = {'arm_pose': 'travel', 'moving': False, 'maintenance': False}
++    if command == 'health':
++        return {'ok': True, 'stack_version': 'v23', 'service_pid': 123,
++                'chassis_tcp_ready': True, 'holding': False, 'chassis': chassis}
++    return {'chassis': chassis}
+ 
+ 
+ class PatrolTests(unittest.TestCase):
+@@ -219,8 +232,10 @@
+         self.assertEqual(link.sent[:7], [True] * 6 + [False])
+ 
+     def test_a_spot_where_grasping_failed_twice_is_left_alone(self):
+-        points = [None] + [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 4
+-        seen, _, stopped, _ = self.run_patrol(points, skip=[(1.05, 0.1)])
++        # A skipped box to the side may be passed over; one directly ahead is
++        # now a collision hazard, not a clear frame (test_flow_contracts).
++        points = [None] + [(1.0, 0.5)] * 3 + [(0.8, -0.3)] * 4
++        seen, _, stopped, _ = self.run_patrol(points, skip=[(1.05, 0.5)])
+         self.assertEqual([round(v, 6) for v in seen['point']], [0.8, -0.3])
+         self.assertEqual(stopped, [41])
+ 
+@@ -524,7 +539,8 @@
+         class Watcher:
+             def look(self, frame):
+                 return ((1.5, 0.2), False) if len(turned) >= seen_after_turns else None
+-        with patch('builtins.print'):
++        with patch('builtins.print'), patch.object(mission.dock, 'read_localization', return_value={
++                'ready': True, 'age': 0.0, 'state': {'pose': [0, 0, 0], 'turn_clear': True}}):
+             found = mission.search_placement('host', ClockReader(clock), Watcher(),
+                                              turn=lambda host, r: turned.append(r),
+                                              now=lambda: clock[0])
+@@ -600,9 +616,12 @@
+     def test_a_miss_with_the_robot_at_the_box_says_so(self):
+         self.assertEqual(self.fetch(mission.runner.AT_BOX_EXIT, 'empty'), 'missed_at_box')
+ 
+-    def test_a_clean_miss_stows_and_patrols_on(self):
+-        self.assertEqual(self.fetch(2, 'empty'), 'missed')
+-        self.assertEqual(self.calls[-1], 'travel')
++    def test_a_prearrival_failure_is_not_a_missed_grasp(self):
++        for code in (2, 3, 4, 5, 7, -1):
++            with self.subTest(code=code), self.assertRaisesRegex(
++                    mission.MissionError, 'before confirmed arrival'):
++                self.fetch(code, 'empty')
++        self.assertNotIn('travel', self.calls)
+ 
+     def test_anything_doubtful_stops(self):
+         for code, state, camera in ((2, 'unknown', 'ok'), (0, 'empty', 'ok'),
+@@ -703,7 +722,7 @@
+ 
+     def test_a_missed_grasp_backs_out_and_a_spot_missed_twice_is_skipped(self):
+         spot = {'point': (1.0, 0.0), 'map': (0.5, 0.5)}
+-        code, order = self.run_mission([spot, spot, None], ['missed', 'missed'])
++        code, order = self.run_mission([spot, spot, None], ['missed_at_box', 'missed_at_box'])
+         self.assertEqual(code, 0)
+         self.assertEqual(order, [('patrol', 0), 'reset', 'grasp', 'leave',
+                                  ('patrol', 0), 'reset', 'grasp', 'leave',
+@@ -716,7 +735,9 @@
+         self.assertEqual(code, 0)
+         self.assertEqual(self.guards, [[], [(0.62, 0.48)]])
+         code, order = self.run_mission([spot, None], ['missed'])
+-        self.assertEqual(self.guards, [[], []])         # one miss far off: the camera sees it
++        self.assertEqual(code, 2)                     # no evidence of arrival: no restart
++        self.assertNotIn('leave', order)
++        self.assertEqual(self.guards, [[]])
+ 
+     def test_max_deliveries_stops_after_the_last_one(self):
+         spot = {'point': (1.0, 0.0), 'map': None}
+@@ -775,9 +796,7 @@
+         args = mission.argparse.Namespace(
+             host='10.0.0.1', no_patrol=False, resume_at=None, scene='scene',
+             homography=ROOT / 'detection/rear_ground_homography.json', gstreamer=__file__)
+-        with patch.object(mission.runner, 'ctl', side_effect=lambda h, c: (
+-                {'holding': False} if c == 'health'
+-                else {'chassis': {'arm_pose': 'travel', 'moving': False}})), \
++        with patch.object(mission.runner, 'ctl', side_effect=resident_reply), \
+              patch.object(mission.dock, 'read_localization', return_value={
+                  'ready': True, 'age': 0.1, 'state': {'pose': [0, 0, 0]}}), \
+              patch.object(mission, 'ensure_arm_camera', return_value=None), \
+@@ -885,9 +904,7 @@
+         args = mission.argparse.Namespace(
+             host='10.0.0.1', no_patrol=True, resume_at=None, scene=mission.SCENE,
+             homography=ROOT / 'detection/rear_ground_homography.json', gstreamer=__file__)
+-        with patch.object(mission.runner, 'ctl', side_effect=lambda h, c: (
+-                {'holding': False} if c == 'health'
+-                else {'chassis': {'arm_pose': 'travel', 'moving': False}})), \
++        with patch.object(mission.runner, 'ctl', side_effect=resident_reply), \
+              patch.object(mission.dock, 'read_localization', side_effect=OSError('down')), \
+              patch.object(mission, 'ensure_arm_camera', return_value=None):
+             self.assertEqual(mission.preflight(args), [])
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -120,7 +120,7 @@
+ |------|------|
+ | `mission_pipeline.py` | ★**完整任務**：巡航→辨識→接近→夾取→送垃圾桶→續巡。單一 Py3.8 程序擁有 `/dev/myserial`，ROS 只跑感測/定位。見 `MISSION.md` |
+ | `sugarbox_approach_grasp.py` / `sugarbox_rl_approach_final2.py` | Windows 的 doorway PPO 避障接近→停車→E1 新鮮辨識→v23夾取交接；預設只讀，實機需 `--real --i-am-beside-the-robot`。後相機校正已補，載入驗證使用 `sugarbox_ground_calibration.py`；未完成現場 dry-run／實機驗收，見 `docs/operations/SUGARBOX_APPROACH_GRASP_2026-10-03.md` |
+-| `mission_loop.py` | 決賽總控（Windows）：ncu 的地圖巡航（Jetson）→ 後相機確認糖果盒就停（校正範圍外也算）→ 接近＋E1 夾取 → 依常駐 AMCL 位置轉向放置盒 → 放置盒接近＋放開 → 後退 0.20 m → 續巡航，連續 2 圈沒看到才結束。巡航帶 ncu 的 `--vision-permit`：任一張畫面出現候選就撤回許可、車子自停，停穩後再用 3 張新畫面確認（`patrol_vision_permit_jetson.py` 是 Jetson 端）；糖果盒信心 0.70 以下、地圖上離牆 15 cm 內的都不算。連續 5 張沒有候選、且有定位，才開巡航；失敗 2 次被略過的糖果盒若在車前 0.90 m 內，整個任務停下等人（10-19 巡航撞過）。接近時巡航的估計位置只用來原地轉正，停著讓相機看過才前進（10-19 四次都在量到前就放棄）。引擎提早啟動、模型暖機，收臂和轉向時同步載入，送「開始」前不連馬達。見決策文件 10-20 節。失敗分類、後退規則、放置失敗時環視重試照 2026-10-19 與使用者定的決定（`docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md`）；ArUco 起點定位尚未實作（**巡航串接尚未實機測試**）。`--no-patrol` 只跑一個物體：夾前方糖果盒 → 帶到放置盒放開（放置盒須在夾完後的後相機視野內），10/18 實機成功 2 次；`--resume-at grasp-e1|place` 從中途接著做，各段輸出存在 `logs/`。預設只做檢查，實機需 `--real --i-am-beside-the-robot` |
++| `mission_loop.py` | 決賽總控（Windows）：ncu 的地圖巡航（Jetson）→ 後相機確認糖果盒就停（校正範圍外也算）→ 接近＋E1 夾取 → 依常駐 AMCL 位置轉向放置盒 → 放置盒接近＋放開 → 後退 0.20 m → 續巡航，連續 2 圈沒看到才結束。巡航帶 ncu 的 `--vision-permit`：任一張畫面出現候選就撤回許可、車子自停，停穩後再用 3 張新畫面確認（`patrol_vision_permit_jetson.py` 是 Jetson 端）；糖果盒信心 0.70 以下、地圖上離牆 15 cm 內的都不算。連續 5 張沒有候選、且有定位，才開巡航；略過／未確認的糖果盒仍保留避撞位置：前方走道仍看得見時不因距離超過 0.90 m 就放行；記憶位置進入前方 0.90 m 或旋轉範圍也整個任務停下（10-19 巡航撞過）。接近時巡航的估計位置只用來原地轉正，停著讓相機看過才前進（10-19 四次都在量到前就放棄）。引擎提早啟動、模型暖機，收臂和轉向時同步載入，送「開始」前不連馬達。見決策文件 10-20 節。10-20 修正：未確認到達的接近失敗（含 SEED_NOT_CONFIRMED）直接停住，不再當夾空退出續巡；只有到達後夾取失敗（exit 6）且手臂狀態與障礙位置可確認，才依原規則收臂退出。環視每段重新確認新鮮定位與 turn_clear。其他失敗分類、後退規則照決策文件（`docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md`）；ArUco 起點定位尚未實作（**巡航串接尚未實機測試**）。`--no-patrol` 只跑一個物體：夾前方糖果盒 → 帶到放置盒放開（放置盒須在夾完後的後相機視野內），10/18 實機成功 2 次；`--resume-at grasp-e1|place` 從中途接著做，各段輸出存在 `logs/`。預設只做檢查，實機需 `--real --i-am-beside-the-robot` |
+ | `placement_dock.py` | 放置模式（`sugarbox_approach_grasp.py --target placement`）的幾何與檢查：盒子地圖位置**只讀 ncu 車上的 `scene_layout.json`**（`bin.pose_map` 在他標成有效前用移動後候選點，視為未驗證：只轉向、不憑地圖開過去）、抵達報告檢查、LiDAR 牆距校正；`--where`、`--measure-wall` 兩個現場量測工具 |
+ | `mission_fsm.py` | 21 狀態任務機（純邏輯，`--selftest`/`--diagram`）。強制「輪子與手臂不同時動」「換目標來源必重置 nav」 |
+ | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`。含 `--validate` 與弧長重取樣（Route C 原檔最小間距只有 0.049 m） |
+@@ -136,6 +136,8 @@
+ | `nav_best_model/` | 導航 PPO 權重（best + checkpoint 281440，各配 vecnorm pkl，來源 igibson_x3_test） |
+ | `mission_status.py` | 遙測發布器。`--status-udp` 每 tick 一個 JSON 封包（UDP），fire-and-forget，沒人聽也不影響任務 |
+ | `README.md` | 兩種模式開啟流程、各檔用途、校正清單 |
++
++總控各階段（含投放重試、`--resume-at place`）共用同一份 `--homography`／`--gstreamer`，動作前走原有 maintenance 解鎖，服務拒絕時仍停止。巡航候選只有位姿歷史涵蓋影格可能拍攝到推論結束期間、且位置／角度近乎不動時，才能用地圖排除牆邊／已投放物；其餘先停車重看。這是串流延遲上限 0.30 s 的保守假設，尚非來源時間同步。總控與接近端預檢要求車上 ncu G2 v23 的獨立 health、service PID、holding、chassis TCP readiness 與 maintenance 欄位；本 repo 舊的 arm-only service 不可整份覆蓋車上服務。`graspctl health` 使用 `/tmp/grasp_health.sock`，`release-preview` 由相容服務執行。離線修正與驗證見 `docs/operations/flow_fixes_2026-10-20/CHANGELOG.md`。
+ 
+ **2026-10-12 起總指揮預設 `--approach enoch`**：enoch 的訓練一致模式（`sugarbox_training_contract.py`，
+ 目標／LiDAR 以車體中心為原點、動作延遲 0），PPO 負責遠程避障，最後一段交給慢速轉向對準
+--- a/docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md
++++ b/docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md
+@@ -37,7 +37,8 @@
+ | 情況 | 做法 |
+ |---|---|
+ | 手臂狀態不明（服務無法確認夾到沒、手臂不在 travel/E1、忙碌） | 停下等人 |
+-| 夾取前失敗、夾爪空、手臂正常 | 收臂、退 0.20 m、續巡航；同一位置（0.25 m 內）失敗 2 次就略過 |
++| 接近在確認到達前失敗（含 SEED_NOT_CONFIRMED、timeout、preflight 拒絕） | 停住結束任務，不自動退後續巡；夾爪空不代表已完成接近（10-20 修正） |
++| 已確認到達後夾取失敗（exit 6）、夾爪空、手臂正常 | 收臂；能確認障礙地圖位置才依原規則退出；同一位置失敗 2 次不再夾，但仍避撞；位置無法確認時停住 |
+ | 手臂相機從 USB 掉線 | 停下等人重插 |
+ | 放置失敗、仍夾著 | 原地環視（每次 26°、看 2.5 s、最多 14 次）找放置盒，找到後只靠相機再接近一次；再失敗停下 |
+ | 定位失效 | 只在巡航階段自動重新定位（尚未實作，目前巡航會報錯停下） |
+@@ -109,3 +110,15 @@
+ 
+ - 巡航一圈的後相機能不能看到整個場地；看不到的地方要不要加環視停點。
+ - 走完一次 PPO 接近（含 1.0 rad/s 原地轉）與夾取後，AMCL 是否仍準。
++
++## 10-20 完整流程交叉檢查後的補強（尚未上車驗證）
++
++- 第 3 輪的四次 `SEED_NOT_CONFIRMED` 先前都被 exit 2／空爪誤判為「夾空」，自動退出再巡。總控現在只接受 exit 6 作為到達後的夾取失敗；其他失敗留在原地停止，不再形成進退循環。原有停著等相機確認的 SeedLook 修正保留，沒有改 PPO 權重或安全距離。
++- 「失敗兩次不再夾」和「可通過」分開。未確認候選無論初見遠近都留下避撞位置；略過／拒絕的點若仍可見於前方走道，即使超過 0.90 m，也不能累積為 5 張淨空影格。失去可靠位置時停止。
++- 舊影格不能直接套推論完成後的 AMCL 位姿排除。位姿歷史須涵蓋可能拍攝時間（串流 0.30 s 加定位容許 0.50 s）至推論完成，且移動 ≤5 mm、角度變化 ≤0.5°；否則先停車確認。這只是保守的延遲假設，仍需實測來源延遲與 AMCL 品質。
++- 放置失敗後環視每一段 26° 都走同一個 `turn_if_clear()`，重新讀新鮮定位、明確 `turn_clear=True` 才轉；欠缺證據持物停住。
++- 夾取、投放、重試與恢復都繼承相同的校正檔／GStreamer。`--no-patrol --resume-at place` 也走既有 maintenance 解鎖；服務拒絕則不啟動階段。
++- `graspctl` 補上 health／release-preview；預檢讀實際 health／status 驗證 ncu G2 協定，不以 mock 的 holding 假定相容。本 repo 的舊 arm-only service 仍非車上完整服務，不能整份覆蓋；不合併 PR #5 的決定維持。
++
++本次修改前快照、僅本次差異、離線回歸與實車待驗項目見
++[`../operations/flow_fixes_2026-10-20/CHANGELOG.md`](../operations/flow_fixes_2026-10-20/CHANGELOG.md)。
+--- a/.github/workflows/tests.yml
++++ b/.github/workflows/tests.yml
+@@ -68,6 +68,21 @@
+       - name: Sugarbox approach to E1 handoff
+         run: python tests/test_sugarbox_approach_grasp.py
+ 
++      - name: Patrol, grasp and placement mission loop
++        run: python tests/test_mission_loop.py
++
++      - name: Cross-stage safety and resident protocol contracts
++        run: python tests/test_flow_contracts.py
++
++      - name: Patrol seed confirmation before approach
++        run: python tests/test_sugarbox_seed_target.py
++
++      - name: Placement geometry and release guards
++        run: python tests/test_placement_dock.py
++
++      - name: Patrol vision permission and process ownership
++        run: python tests/test_patrol_vision_permit.py
++
+       - name: Sugarbox approach runtime (blind finish, turn safety, reverse, no progress, enoch's mode)
+         run: python tests/test_sugarbox_blind_finish.py
+ 
+--- /dev/null
++++ b/tests/test_flow_contracts.py
+@@ -0,0 +1,367 @@
++"""Cross-stage safety regressions, with no robot, models, camera or network."""
++import argparse
++from collections import deque
++import copy
++import importlib.util
++import io
++import json
++import math
++from pathlib import Path
++import tempfile
++import threading
++import unittest
++from unittest.mock import patch
++
++ROOT = Path(__file__).resolve().parents[1]
++spec = importlib.util.spec_from_file_location('flow_contract_fakes', ROOT / 'tests/test_mission_loop.py')
++fakes = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(fakes)
++mission = fakes.mission
++runner = mission.runner
++
++
++class StationaryLink(fakes.FakeLink):
++    def pose_for_frame(self, stamp):
++        return self.pose_now()
++
++
++class PatrolSafetyTests(unittest.TestCase):
++    def run_candidate(self, point, link=None, confirmed=None):
++        clock = [100.0]
++        with patch.object(mission, 'confirm_parked', return_value=confirmed), \
++                patch.object(mission, 'start_patrol', side_effect=AssertionError(
++                    'must not start through an unresolved visible candidate')) as start, \
++                patch('builtins.print'):
++            result = mission.patrol_until_sugarbox(
++                'mock', 'scene', fakes.ClockReader(clock),
++                fakes.FakeWatcher([point] * 30), link or StationaryLink(),
++                walls=[(-1, -1), (2, -1), (2, 2), (-1, 2)], now=lambda: clock[0])
++        start.assert_not_called()
++        return result
++
++    def test_visible_rejected_box_does_not_become_five_clear_frames(self):
++        with self.assertRaises(mission.MissionError):
++            self.run_candidate((1.0, 0.0))
++
++    def test_no_map_exclusion_without_a_pose_matching_the_frame(self):
++        class MovingLink(StationaryLink):
++            def pose_for_frame(self, stamp):
++                return None
++        link = MovingLink(pose=(0.0, 0.2, 0.5))
++        actual = (0.8, 0.6)
++        parked_point = mission.dock.relative_point(link.pose, actual)
++        clock = [100.0]
++        with patch.object(mission, 'confirm_parked', return_value=(parked_point, False)), \
++                patch.object(mission, 'start_patrol', side_effect=AssertionError(
++                    'moving frame was incorrectly excluded as a wall clip')), \
++                patch('builtins.print'):
++            result = mission.patrol_until_sugarbox(
++                'mock', 'scene', fakes.ClockReader(clock),
++                fakes.FakeWatcher([(0.8, 0.4)] * 10), link,
++                walls=[(-1, -1), (1, -1), (1, 1), (-1, 1)], now=lambda: clock[0])
++        self.assertAlmostEqual(result['map'][0], actual[0])
++        self.assertAlmostEqual(result['map'][1], actual[1])
++
++    def test_an_unlocated_rejection_stays_stopped(self):
++        class UnknownFrameLink(StationaryLink):
++            def pose_for_frame(self, stamp):
++                return None
++        with self.assertRaises(mission.MissionError):
++            self.run_candidate((1.0, 0.0), UnknownFrameLink())
++
++
++class SearchSafetyTests(unittest.TestCase):
++    def test_search_rejects_no_clearance_stale_and_missing_localization(self):
++        records = [
++            None,
++            {'ready': False, 'age': 0.0, 'state': {'pose': [0, 0, 0], 'turn_clear': True}},
++            {'ready': True, 'age': 2.0, 'state': {'pose': [0, 0, 0], 'turn_clear': True}},
++            {'ready': True, 'age': 0.0, 'state': {'pose': [0, 0, 0], 'turn_clear': False}},
++            {'ready': True, 'age': 0.0, 'state': {'pose': [0, 0, 0]}},
++        ]
++        for record in records:
++            with self.subTest(record=record):
++                clock = [100.0]
++                with patch.object(runner.dock, 'read_localization', return_value=record), \
++                        patch('builtins.print'), \
++                        self.assertRaises((mission.MissionError, RuntimeError, ValueError)):
++                    mission.search_placement(
++                        'mock', fakes.ClockReader(clock), fakes.FakeWatcher([]),
++                        turn=lambda *a: self.fail('unsafe search turn requested'),
++                        now=lambda: clock[0])
++
++
++class ApproachFailureTests(unittest.TestCase):
++    def run_failure(self, code, map_spot):
++        args = argparse.Namespace(host='mock', scene='scene', homography=Path('h.json'),
++                                  gstreamer=None, wall_m=None, max_deliveries=None)
++        room = unittest.mock.Mock()
++        sighting = {'point': (0.98, 0.0), 'map': map_spot}
++        with tempfile.TemporaryDirectory() as directory, \
++                patch.object(mission.dock, 'fetch_layout', return_value=fakes.LAYOUT), \
++                patch.object(mission, 'stream_running', return_value=True), \
++                patch.object(mission, 'SugarboxWatcher'), \
++                patch('integration.rear_stream.StreamReader'), \
++                patch.object(mission, 'patrol_until_sugarbox', return_value=sighting) as patrol, \
++                patch.object(mission, 'ensure_arm_camera', return_value=None), \
++                patch.object(mission, 'unlock'), \
++                patch.object(mission, 'approach_seed', return_value=(0.98, 0.0)), \
++                patch.object(mission, 'run_stage', return_value=code) as stage, \
++                patch.object(mission, 'arm_state', return_value='empty'), \
++                patch.object(mission, 'arm_camera_state', return_value='ok'), \
++                patch.object(mission, 'box_left_at', return_value=None), \
++                patch.object(mission, 'to_travel'), \
++                patch.object(runner, 'stop') as stop, patch('builtins.print'):
++            result = mission.patrol_mission(args, 'mock', Path(directory), room=room,
++                                            new_link=lambda host: StationaryLink())
++        self.assertEqual(result, 2)
++        self.assertEqual(patrol.call_count, 1)
++        self.assertEqual(stage.call_count, 1)
++        room.leave.assert_not_called()
++        stop.assert_called_once()
++
++    def test_run3_prearrival_failure_never_reverses_or_restarts_the_patrol(self):
++        self.run_failure(2, (0.98, 0.0))
++
++    def test_even_an_at_box_miss_cannot_restart_without_a_hazard_position(self):
++        self.run_failure(runner.AT_BOX_EXIT, None)
++
++
++class StageContractTests(unittest.TestCase):
++    def setUp(self):
++        self.args = argparse.Namespace(host='mock', wall_m=None,
++            homography=ROOT / 'CUSTOM_CALIBRATION.json', gstreamer=ROOT / 'CUSTOM_GST.exe')
++
++    def assert_assets(self, args):
++        for option, value in [('--homography', self.args.homography),
++                              ('--gstreamer', self.args.gstreamer)]:
++            self.assertIn(option, args)
++            self.assertEqual(Path(args[args.index(option) + 1]), value)
++
++    def test_grasp_forwards_the_same_calibration_and_decoder(self):
++        with patch.object(mission, 'ensure_arm_camera', return_value=None), \
++                patch.object(mission, 'unlock'), \
++                patch.object(mission, 'approach_seed', return_value=(1.0, 0.0)), \
++                patch.object(mission, 'run_stage', return_value=0) as stage, \
++                patch.object(mission, 'arm_state', return_value='holding'):
++            mission.fetch_sugarbox(self.args, {'point': (1, 0), 'map': None}, ROOT, 1)
++        self.assert_assets(stage.call_args.args[1])
++
++    def test_placement_and_retry_forward_the_same_assets(self):
++        with patch.object(mission, 'run_stage', side_effect=[2, 0]) as stage, \
++                patch.object(mission, 'arm_state', side_effect=['holding', 'empty']), \
++                patch.object(mission, 'to_travel'), \
++                patch.object(mission, 'search_placement', return_value=True), patch('builtins.print'):
++            mission.place_held(self.args, ROOT / 'layout.json', ROOT, 1,
++                              lambda: fakes.ClockReader([0.0]), lambda: object())
++        for call in stage.call_args_list:
++            self.assert_assets(call.args[1])
++
++    def test_resume_place_unlocks_before_starting_and_preserves_assets(self):
++        self.args.resume_at = 'place'
++        unlocked = []
++
++        def ctl(host, command):
++            return {'chassis': {'maintenance': not unlocked}} if command == 'status' else {'holding': True}
++
++        def stage(host, argv, log=None):
++            self.assertTrue(unlocked, 'placement started before maintenance unlock')
++            self.assert_assets(argv)
++            return 0
++
++        with tempfile.TemporaryDirectory() as directory, \
++                patch.object(mission, 'stream_running', return_value=True), \
++                patch.object(runner, 'ctl', side_effect=ctl), \
++                patch.object(runner, 'service_command', side_effect=lambda h, c: unlocked.append(c)), \
++                patch.object(runner, 'stop'), patch.object(mission, 'run_stage', side_effect=stage), \
++                patch('builtins.print'):
++            self.assertEqual(mission.grasp_and_place(self.args, 'mock', Path(directory)), 0)
++        self.assertEqual(unlocked, ['maintenance-unlock'])
++
++    def test_no_patrol_grasp_and_placement_share_assets(self):
++        self.args.resume_at = None
++        calls = []
++
++        def ctl(host, command):
++            return {'chassis': {'maintenance': False}} if command == 'status' else {'holding': True}
++
++        with tempfile.TemporaryDirectory() as directory, \
++                patch.object(mission, 'stream_running', return_value=True), \
++                patch.object(mission, 'ensure_arm_camera', return_value=None), \
++                patch.object(runner, 'ctl', side_effect=ctl), patch.object(runner, 'stop'), \
++                patch.object(mission, 'run_stage', side_effect=lambda h, a, log=None:
++                             calls.append(a) or 0), patch('builtins.print'):
++            self.assertEqual(mission.grasp_and_place(self.args, 'mock', Path(directory)), 0)
++        self.assertEqual(len(calls), 2)
++        for args in calls:
++            self.assert_assets(args)
++
++    def test_resume_never_starts_a_stage_when_unlock_is_refused(self):
++        self.args.resume_at = 'place'
++        with tempfile.TemporaryDirectory() as directory, \
++                patch.object(mission, 'stream_running', return_value=True), \
++                patch.object(runner, 'ctl', return_value={'chassis': {'maintenance': True}}), \
++                patch.object(runner, 'service_command', side_effect=RuntimeError('busy')), \
++                patch.object(runner, 'stop'), patch.object(mission, 'run_stage') as stage, \
++                patch('builtins.print'):
++            self.assertEqual(mission.grasp_and_place(self.args, 'mock', Path(directory)), 2)
++        stage.assert_not_called()
++
++
++class FramePoseTests(unittest.TestCase):
++    def link(self, samples, now=11.0):
++        link = mission.VisionLink.__new__(mission.VisionLink)
++        link.clock = lambda: now
++        link.lock = threading.Lock()
++        link.pose_history = deque(samples, maxlen=100)
++        link.pose = samples[-1][1] if samples else None
++        link.pose_at = samples[-1][0] if samples else None
++        return link
++
++    def test_only_stationary_history_covering_capture_through_inference_is_usable(self):
++        pose = (0.0, 0.2, 0.0)
++        samples = [(at, pose) for at in (9.0, 9.5, 10.0, 10.5, 10.9)]
++        link = self.link(samples)
++        self.assertEqual(link.pose_for_frame(10.5), pose)
++        for bad in ([(10.4, pose), (10.9, pose)],
++                    samples[:3] + [(10.5, (0.0, 0.2, 0.5)), samples[-1]],
++                    samples[:3] + [(10.5, (0.03, 0.2, 0.0)), samples[-1]],
++                    [(9.0, pose), (10.9, pose)]):
++            with self.subTest(samples=bad):
++                self.assertIsNone(self.link(bad).pose_for_frame(10.5))
++
++    def test_stale_missing_and_future_frames_have_no_map_pose(self):
++        pose = (0.0, 0.0, 0.0)
++        self.assertIsNone(self.link([]).pose_for_frame(10.5))
++        self.assertIsNone(self.link([(9.0, pose), (10.0, pose)]).pose_for_frame(10.5))
++        self.assertIsNone(self.link([(9.0, pose), (10.9, pose)]).pose_for_frame(12.0))
++
++    def test_yaw_wrap_is_not_mistaken_for_a_full_turn(self):
++        poses = [(at, (0.0, 0.0, math.pi - 0.001 if i % 2 else -math.pi + 0.001))
++                 for i, at in enumerate((9.0, 9.5, 10.0, 10.5, 10.9))]
++        self.assertIsNotNone(self.link(poses).pose_for_frame(10.5))
++
++    def test_pose_age_is_not_reset_by_receipt_and_bad_reports_clear_the_cache(self):
++        link = self.link([], now=10.0)
++        good = {'t': 100.0, 'stamp': 99.6, 'ready': True, 'pose': [0, 0, 0]}
++        link.proc = unittest.mock.Mock(stdout=io.StringIO(json.dumps(good) + '\n'))
++        link._read()
++        self.assertAlmostEqual(link.pose_at, 9.6)
++        self.assertEqual(link.pose_now(), (0.0, 0.0, 0.0))
++        link.clock = lambda: 10.2
++        self.assertIsNone(link.pose_now())
++        for bad in ({'ready': False}, dict(good, stamp=99.0),
++                    dict(good, pose=[float('nan'), 0, 0]), None):
++            with self.subTest(report=bad):
++                link.pose, link.pose_at = (0, 0, 0), 10.2
++                link.pose_history.append((10.2, link.pose))
++                link.proc.stdout = io.StringIO(json.dumps(bad) + '\n')
++                link._read()
++                self.assertIsNone(link.pose_now())
++                self.assertEqual(list(link.pose_history), [])
++
++
++class ResidentProtocolTests(unittest.TestCase):
++    def replies(self):
++        return fakes.resident_reply('mock', 'status'), fakes.resident_reply('mock', 'health')
++
++    def test_known_g2_protocol_is_accepted_but_missing_fields_are_not_invented(self):
++        status, health = self.replies()
++        self.assertIsNone(runner.service_protocol_problem(status, health))
++        for name, bad in [('stack_version', 'v21'), ('service_pid', None), ('service_pid', True),
++                          ('holding', None), ('chassis_tcp_ready', False), ('chassis', None),
++                          ('ok', False)]:
++            with self.subTest(field=name, value=bad):
++                invalid = dict(health, **{name: bad})
++                self.assertIn('protocol', runner.service_protocol_problem(status, invalid))
++        status['chassis'].pop('maintenance')
++        self.assertIn('protocol', runner.service_protocol_problem(status, health))
++        self.assertIn('protocol', runner.service_protocol_problem(None, health))
++
++    def test_incompatible_protocol_stops_mission_preflight_before_any_stage(self):
++        args = ['--host', '10.0.0.1', '--no-patrol', '--real', '--i-am-beside-the-robot',
++                '--gstreamer', __file__]
++        status, health = self.replies()
++        health.pop('stack_version')
++        with patch.object(runner, 'ctl', side_effect=lambda h, c: health if c == 'health' else status), \
++                patch.object(mission, 'ensure_arm_camera', return_value=None), \
++                patch.object(Path, 'is_file', return_value=True), \
++                patch.object(mission, 'run_stage') as stage, \
++                patch.object(mission, 'pc_address') as address, patch('builtins.print'):
++            self.assertEqual(mission.main(args), 2)
++        stage.assert_not_called()
++        address.assert_not_called()
++
++    def test_standalone_preflight_also_checks_the_actual_service_contract(self):
++        args = argparse.Namespace(target='sugarbox', sam=Path(__file__),
++            homography=Path(__file__), gstreamer=Path(__file__), host='mock', turn_to_box=False)
++        status, health = self.replies()
++        for compatible in (True, False):
++            reply = copy.deepcopy(health)
++            if not compatible:
++                reply.pop('holding')
++            with self.subTest(compatible=compatible), \
++                    patch.object(Path, 'is_file', return_value=True), \
++                    patch.object(runner, 'MODEL_HASHES', {}), \
++                    patch.object(runner, 'load_ground_calibration'), \
++                    patch.object(runner.importlib.util, 'find_spec', return_value=True), \
++                    patch.object(runner, 'ctl', side_effect=lambda h, c:
++                                 reply if c == 'health' else status), \
++                    patch.object(runner, 'service_command') as command:
++                issues = runner.preflight(args)[1]
++            self.assertEqual(bool(issues), not compatible)
++            command.assert_not_called()
++
++
++class GraspctlProtocolTests(unittest.TestCase):
++    def setUp(self):
++        spec = importlib.util.spec_from_file_location('flow_graspctl', ROOT / 'grasp/v23/graspctl.py')
++        self.client = importlib.util.module_from_spec(spec)
++        spec.loader.exec_module(self.client)
++
++    def invoke(self, args, reply):
++        class FakeSocket:
++            def settimeout(sock, value):
++                sock.timeout = value
++
++            def connect(sock, path):
++                sock.path = path
++
++            def sendall(sock, value):
++                sock.sent = value
++
++            def makefile(sock, mode):
++                return io.StringIO(json.dumps(reply) + '\n')
++
++            def close(sock):
++                sock.closed = True
++        sock = FakeSocket()
++        with patch.object(self.client.socket, 'AF_UNIX', 1, create=True), \
++                patch.object(self.client.socket, 'socket', return_value=sock), patch('builtins.print'):
++            code = self.client.main(['graspctl.py'] + args)
++        return code, sock
++
++    def test_health_uses_bounded_independent_socket_and_explicit_override(self):
++        code, sock = self.invoke(['health'], {'ok': True, 'holding': False})
++        self.assertEqual((code, sock.path, sock.sent),
++                         (0, '/tmp/grasp_health.sock', b'health\n'))
++        self.assertEqual(sock.timeout, 2.0)
++        self.assertTrue(sock.closed)
++        code, sock = self.invoke(['health', '/tmp/custom.sock'], {'ok': True})
++        self.assertEqual((code, sock.path), (0, '/tmp/custom.sock'))
++
++    def test_preview_uses_arm_socket_and_cannot_bypass_a_service_refusal(self):
++        for ok, expected in ((True, 0), (False, 1)):
++            code, sock = self.invoke(['release-preview'], {'ok': ok})
++            self.assertEqual(code, expected)
++            self.assertEqual((sock.path, sock.sent),
++                             ('/tmp/grasp_service.sock', b'release-preview\n'))
++
++    def test_malformed_or_truthy_nonboolean_ok_is_never_success(self):
++        for reply in ([], None, {'ok': 'yes'}, {'ok': 1}, {}):
++            with self.subTest(reply=reply):
++                self.assertEqual(self.invoke(['health'], reply)[0], 1)
++
++
++if __name__ == '__main__':
++    unittest.main()

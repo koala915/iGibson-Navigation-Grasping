@@ -1,0 +1,40 @@
+
+== OFFLINE: everything checkable without the robot ==
+
+  [ ok ] integration/map_goal_provider.py
+  [ ok ] integration/feedback_odom.py
+  [ ok ] integration/ros_io.py
+  [ ok ] integration/mission_fsm.py
+  [ ok ] integration/mission_pipeline.py
+  [ ok ] integration/nav_rl.py
+  [ ok ] integration/vision_grasp_pipeline.py
+  [ ok ] integration/nav_rl_grasp_pipeline.py
+  [FAIL] tests/test_grasp_home_homography.py
+         missing
+  [FAIL] tests/test_model_package.py
+         missing
+  [ ok ] tests/test_safety_guards.py
+  [FAIL] tests/test_mission_end_to_end.py
+         missing
+  [FAIL] tests/test_stream_cam_capture.py
+         missing
+  [FAIL] tests/test_vision_grasp_bridge_pose.py
+         missing
+  [FAIL] tests/test_trash_target.py
+         missing
+  [ ok ] grasp/v21/test_deploy_controller.py
+  [ ok ] grasp/v21/test_servo_read.py
+  [ ok ] grasp/v21/test_deploy_floor_guard.py
+  [ ok ] grasp/v21/test_one_command_launcher.py
+  [ ok ] grasp/v23/test_one_command_launcher.py
+[mission] grasp model: grasp-v21-candidate (status=candidate), sha256 verified
+[mission] NOTE: this grasp package is 'candidate', not approved — see manifest status_note before quoting results.
+  [ ok ] grasp model pair matches manifest sha256
+         candidate_v21_seed816_ckpt550000.zip + candidate_v21_seed816_ckpt550000_vec.pkl
+  [ ok ] nav weights present and paired
+  [ ok ] route.yaml loads and validates
+         [map-goal] re-sampled route at 0.75 m: 117 -> 83 waypoints; min gap 0.049 -> 0.530 m (45 gaps under 0.5 m -> 0); loop length 58.2 m
+  [ ok ] arm nav/grasp homes are distinct
+         nav=[90.0, 140.0, 0.0, 0.0, 90.0, 30.0] grasp=[90.0, 67.08, 9.79, 9.79, 90.0, 30.0]
+
+  OFFLINE: 18 pass, 0 warn, 6 fail

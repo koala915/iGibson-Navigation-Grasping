@@ -9,7 +9,7 @@ on:
   push:
     branches: [main, 'merge-**']
   pull_request:
-    branches: [main]
+    branches: [main, v23-grasp-test]
   workflow_dispatch:
 
 jobs:
@@ -38,7 +38,7 @@ jobs:
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements-ci.txt
 
-      - name: Grasp deployment controller (119 checks)
+      - name: Grasp deployment controller (138 checks)
         run: python grasp/v21/test_deploy_controller.py
 
       - name: Servo reads over the half-duplex bus (37 checks)
@@ -46,6 +46,9 @@ jobs:
 
       - name: Preventive floor guard (641 checks)
         run: python grasp/v21/test_deploy_floor_guard.py
+
+      - name: V24 candidate artifact and release identity
+        run: python grasp/v24/test_candidate_package.py
 
       - name: Safety guards
         run: python tests/test_safety_guards.py
@@ -61,6 +64,42 @@ jobs:
 
       - name: Camera capture recovery
         run: python tests/test_stream_cam_capture.py
+
+      - name: Sugarbox approach to E1 handoff
+        run: python tests/test_sugarbox_approach_grasp.py
+
+      - name: Patrol, grasp and placement mission loop
+        run: python tests/test_mission_loop.py
+
+      - name: Patrol mask geometry and run 19 turn-reserve replay
+        run: python tests/test_patrol_mask_reduction.py
+
+      - name: Explicit relocalization and operator error guidance
+        run: python tests/test_relocalize.py
+
+      - name: Loop console (2x2 m final arena) parsing, checks and API gates
+        run: python ui/loop_console/test_loop_console.py
+
+      - name: Cross-stage safety and resident protocol contracts
+        run: python tests/test_flow_contracts.py
+
+      - name: Resident model lifetime, fresh frames and E1 timing
+        run: python tests/test_mission_runtime.py
+
+      - name: Patrol seed confirmation before approach
+        run: python tests/test_sugarbox_seed_target.py
+
+      - name: Placement geometry and release guards
+        run: python tests/test_placement_dock.py
+
+      - name: Patrol vision permission and process ownership
+        run: python tests/test_patrol_vision_permit.py
+
+      - name: Sugarbox approach runtime (blind finish, turn safety, reverse, no progress, enoch's mode)
+        run: python tests/test_sugarbox_blind_finish.py
+
+      - name: Sugarbox training-matched PPO inputs and shaping
+        run: python tests/test_sugarbox_training_contract.py
 
       - name: Vision bridge pose
         run: python tests/test_vision_grasp_bridge_pose.py
@@ -80,8 +119,20 @@ jobs:
       - name: Sugarbox runtime ground calibration
         run: python tests/test_sugarbox_ground_calibration.py
 
+      - name: Sugarbox ROS LiDAR geometry
+        run: python tests/test_sugarbox_lidar_geometry.py
+
+      - name: Resident arm transitions and encoder initialization
+        run: python grasp/v23/test_travel_pose.py
+
+      - name: Resident chassis ownership and arm interlock
+        run: python grasp/v23/test_chassis_server.py
+
       - name: Operator console
         run: python ui/test_server.py
+
+      - name: Dynamic ROS IP and serial-owner helpers
+        run: bash deploy/systemd/test_helpers.sh
 
       # The three pure-logic selftests. They need neither hardware nor torch,
       # and they are the fastest thing that will tell you the FSM wiring broke.
@@ -90,6 +141,12 @@ jobs:
 
       - name: Mission pipeline selftest
         run: python integration/mission_pipeline.py --selftest
+
+      - name: G2 navigation TCP safety client
+        run: python tests/test_g2_nav_client.py
+
+      - name: Patrol route, entry and vision permit
+        run: python -m pytest tests/test_patrol_route_turns.py tests/test_g2_patrol_entry.py tests/test_g2_navigation_goals.py tests/test_patrol_vision_permit.py -q
 
       - name: Vision grasp pipeline selftest
         run: python integration/vision_grasp_pipeline.py --selftest

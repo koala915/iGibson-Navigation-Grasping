@@ -1,0 +1,161 @@
+[graspscan] stopping the resident services (they hold the camera and /dev/myserial)
+[graspscan] running the three-pose scan + grasp
+[WARN] 沒有偵測到 VIRTUAL_ENV。若下面的 import 檢查失敗，先執行 source ~/grasp_venv/bin/activate
+[check] grasp target correction: base +X +5.0 mm (after homography; policy envelope still enforced)
+[check] TCP landing correction: +20.0 mm additional base-X travel (object coordinate unchanged)
+[check] controller: /home/jetson/Documents/deploy_jetson2/grasp/v23/x3plus_real_grasp.py
+[check] vision bridge: /home/jetson/Documents/deploy_jetson2/integration/vision_grasp_bridge.py
+[check] PPO model: /home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip
+[check] VecNormalize: /home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl
+[check] YOLO model: /home/jetson/Documents/deploy_jetson2/detection/models/best.pt
+[check] vision bridge target-correction contract: OK
+[check] controller TCP-correction contract: OK
+[check] three-pose scanner: /home/jetson/Documents/deploy_jetson2/grasp/v23/three_pose_scan.py
+[check] scan config: /home/jetson/Documents/deploy_jetson2/grasp/v23/three_pose_scan.json
+[check] import cv2: OK
+[check] import ultralytics: OK
+[check] import stable_baselines3: OK
+[check] import pybullet: OK
+[check] camera: /dev/v4l/by-id/usb-Sonix_Technology_Co.__Ltd._USB_2.0_Camera-video-index0 (free; this launcher reads it directly)
+[check] Rosmaster port: /dev/myserial
+[check] scan config: /home/jetson/Documents/deploy_jetson2/grasp/v23/three_pose_scan.json (LEFT, E1, RIGHT → E1)
+[check] homography: /home/jetson/Documents/deploy_jetson2/integration/grasp_home_homography_e1.json (7 points, RMSE 0.39 cm, max 0.68 cm)
+[launcher] REAL supervised grasp: stay beside the robot, hand on power.
+[launcher] TARGET CORRECTION: base +X +5.0 mm (forward/away from robot; set --grasp-forward-offset-mm 0 to disable).
+[launcher] TCP CORRECTION: another +20.0 mm of base +X travel without changing the detected object coordinate.
+[launcher] THREE-POSE: scanner exclusively owns camera+serial, returns to E1, exits, then PPO starts with a fixed target.
+[launcher] controller log: /home/jetson/mode_b_integrated_20261003_194745_controller.log
+[launcher] vision log    : /home/jetson/mode_b_integrated_20261003_194745_vision.log
+[launcher] scan log      : /home/jetson/mode_b_integrated_20261003_194745_three_pose_scan.log
+[launcher] 相機由本程序自己開，不需要另外開串流終端機。
+======================================================================
+[UNLOCKED] --unlock-unvalidated-scan: running poses whose hardware
+           evidence is INCOMPLETE. This is a supervised experiment.
+           LEFT   — motion not confirmed on hardware; yaw mapping not confirmed against a ruler
+           RIGHT  — motion not confirmed on hardware; yaw mapping not confirmed against a ruler
+           Every other gate still applies: the S1-only check, the
+           pivot and yaw sign, the reference homography and its hull,
+           sample spread, cross-pose agreement, and the
+           encoder-confirmed E1 return before any target is released.
+           Stay beside the robot with a hand on the power switch.
+======================================================================
+[check] shared E1 homography: /home/jetson/Documents/deploy_jetson2/integration/grasp_home_homography_e1.json
+pybullet build time: Apr 24 2026 11:06:03
+[scan] loading YOLO before opening the servo port: /home/jetson/Documents/deploy_jetson2/detection/models/best.pt
+b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_link[FK] PyBullet DIRECT ready (yahboomcar_deploy.urdf). tcp=gripper_center(14,17) arm=[8, 9, 10, 11, 12] grip_linkage=[13, 14, 15, 16, 17, 18]
+Rosmaster Serial Opened! Baudrate=115200
+----------------create receive threading--------------
+[INFO] Rosmaster_Lib ready on /dev/myserial.
+[scan] positioning at reference E1 [90.0, 74.2, 8.6, 8.6, 90.0, 30.0] before scan
+[scan] initial reference reached=True (arrived)
+[scan] moving to LEFT [70.0, 74.2, 8.6, 8.6, 90.0, 30.0]
+[scan] LEFT reached=True (arrived)
+[scan] LEFT: no valid target (bbox touches the right/bottom frame edge, so it is clipped and its bottom-centre is the image border rather than where the object meets the floor — move the object further into view)
+[scan] moving to E1 [90.0, 74.2, 8.6, 8.6, 90.0, 30.0]
+[scan] E1 reached=True (arrived)
+[scan] E1: no valid target (unusable homography geometry: undistorted pixel (595.0,479.8) is outside calibration hull)
+[scan] moving to RIGHT [110.0, 74.2, 8.6, 8.6, 90.0, 30.0]
+[scan] RIGHT reached=True (arrived)
+[scan] RIGHT: target (+0.2484,-0.0686) from 5 samples, spread 0.2 mm
+[scan] returning to E1 [90.0, 74.2, 8.6, 8.6, 90.0, 30.0]
+[scan] return reached=True (arrived)
+[scan] single rotated view (RIGHT); confirming at E1 with no rotation applied.
+[scan] E1: no valid target (bbox touches the right frame edge, so it is clipped and its bottom-centre is the image border rather than where the object meets the floor — move the object further into view)
+[scan] E1 did not see the object.
+[scan] WARNING: single rotated view, unconfirmed at the reference pose, accepted only because --accept-single-rotated-view was given.
+[scan][result] {"class": "sugarbox", "height": 0.065, "pose": "RIGHT", "pose_count": 1, "poses": ["RIGHT"], "sample_count": 5, "spread_m": 0.0002, "w": 0.0347, "x": 0.2484, "y": -0.0686, "z": 0.0325}
+[launcher] scan target fixed at (+0.2484, -0.0686, +0.0325) from 1 pose(s). Starting PPO only now.
+pybullet build time: Apr 24 2026 11:06:03
+[Init] Stage-0 close gate requires XY < 10.0mm (training/default gate 22mm).
+[Init] Stage-0 S6 contact: 2 consecutive blocked readings confirm contact; hold bias 1 deg.
+[Init] Stage-0 slow-tracking detector enabled: encoder must consume at least 0.50 of the prior outstanding S6 command; otherwise the jaw parks and lifts.
+[Init] Floor guard uses finger-pad correction +15.0mm. The guard now believes the pads are where the ruler says they are — verify clearance visually on the first descent.
+[Init] TCP landing correction: FK/control TCP X 20.0mm toward the robot; policy and close gate will travel that much farther in base +X. Object coordinates and floor FK stay unchanged.
+[UNLOCKED] status='candidate' overridden by --unlock-candidate-real. Integrity and contract verified. Supervised experiment — hand on power.
+[Init] Contract: obs_28_incremental (obs 28D, arm action incremental)
+[Init] Loading model: /home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip
+[Init] Loading VecNormalize: /home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl
+b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_link[FK] PyBullet DIRECT ready (yahboomcar_deploy.urdf). tcp=gripper_center(14,17) arm=[8, 9, 10, 11, 12] grip_linkage=[13, 14, 15, 16, 17, 18]
+Rosmaster Serial Opened! Baudrate=115200
+----------------create receive threading--------------
+[INFO] Rosmaster_Lib ready on /dev/myserial.
+[Init] All systems ready.
+
+============================================================
+X3Plus Real Grasp Controller
+  Stage 0 → align gripper above object
+  Stage 1 → close gripper (grasp)
+  Stage 2 → lift and return home
+============================================================
+
+[Start] Moving to grasp start pose [90.0, 74.2, 8.6, 8.6, 90.0, 30.0]...
+[Start] home: reached=True (arrived, 1 steps; tolerance 3.0 deg)
+[Start] Object position: [0.2484000027179718, -0.06859999895095825, 0.032499998807907104]
+[Start] Running for up to 300 steps at 10.0 Hz
+
+[Init] episode wrist_z_offset = 0.0565 m (object height 0.065, resting z 0.0325)
+
+[Step   1] Stage=0 target_dist=0.101m grip_cmd=-0.76 S1-6=[90.0, 74.0, 8.0, 9.0, 90.0, 30.0]
+[Step   2] Stage=0 target_dist=0.101m grip_cmd=-1.00 S1-6=[92.0, 72.0, 9.0, 10.0, 90.0, 38.0]
+[Step   3] Stage=0 target_dist=0.096m grip_cmd=-1.00 S1-6=[94.0, 69.0, 11.0, 11.0, 90.0, 36.0]
+[Step   4] Stage=0 target_dist=0.090m grip_cmd=-1.00 S1-6=[95.0, 68.0, 12.0, 12.0, 90.0, 30.0]
+[Step   5] Stage=0 target_dist=0.087m grip_cmd=-1.00 S1-6=[98.0, 65.0, 15.0, 13.0, 90.0, 30.0]
+[Step   6] Stage=0 target_dist=0.080m grip_cmd=-1.00 S1-6=[99.0, 63.0, 15.0, 14.0, 90.0, 30.0]
+[Step   7] Stage=0 target_dist=0.075m grip_cmd=-0.99 S1-6=[102.0, 61.0, 18.0, 15.0, 89.0, 30.0]
+[Step   8] Stage=0 target_dist=0.069m grip_cmd=-0.99 S1-6=[103.0, 59.0, 18.0, 15.0, 89.0, 30.0]
+[Step   9] Stage=0 target_dist=0.066m grip_cmd=-0.96 S1-6=[105.0, 57.0, 20.0, 17.0, 88.0, 30.0]
+[Step  10] Stage=0 target_dist=0.060m grip_cmd=-0.95 S1-6=[107.0, 54.0, 21.0, 17.0, 87.0, 32.0]
+[Step  11] Stage=0 target_dist=0.054m grip_cmd=-0.89 S1-6=[108.0, 52.0, 22.0, 18.0, 86.0, 33.0]
+[Step  12] Stage=0 target_dist=0.050m grip_cmd=-0.84 S1-6=[110.0, 50.0, 24.0, 18.0, 85.0, 37.0]
+[Step  13] Stage=0 target_dist=0.046m grip_cmd=-0.78 S1-6=[110.0, 49.0, 24.0, 19.0, 84.0, 40.0]
+[Step  14] Stage=0 target_dist=0.044m grip_cmd=-0.72 S1-6=[111.0, 49.0, 25.0, 19.0, 83.0, 44.0]
+[Step  15] Stage=0 target_dist=0.043m grip_cmd=-0.69 S1-6=[112.0, 47.0, 25.0, 20.0, 82.0, 48.0]
+[Step  16] Stage=0 target_dist=0.039m grip_cmd=-0.60 S1-6=[112.0, 47.0, 26.0, 20.0, 81.0, 52.0]
+[Step  17] Stage=0 target_dist=0.039m grip_cmd=-0.56 S1-6=[113.0, 45.0, 26.0, 21.0, 80.0, 56.0]
+[Step  18] Stage=0 target_dist=0.035m grip_cmd=-0.46 S1-6=[113.0, 45.0, 27.0, 21.0, 79.0, 61.0]
+[Step  19] Stage=0 target_dist=0.035m grip_cmd=-0.40 S1-6=[113.0, 44.0, 27.0, 22.0, 78.0, 66.0]
+[Step  20] Stage=0 target_dist=0.032m grip_cmd=-0.31 S1-6=[113.0, 42.0, 28.0, 22.0, 77.0, 71.0]
+[Step  21] Stage=0 target_dist=0.030m grip_cmd=-0.19 S1-6=[113.0, 42.0, 28.0, 23.0, 76.0, 76.0]
+[Step  22] Stage=0 target_dist=0.029m grip_cmd=-0.11 S1-6=[113.0, 42.0, 28.0, 23.0, 76.0, 81.0]
+[Step  23] Stage=0 target_dist=0.029m grip_cmd=-0.02 S1-6=[113.0, 40.0, 28.0, 24.0, 75.0, 86.0]
+[Step  24] Stage=0 target_dist=0.025m grip_cmd=0.13 S1-6=[113.0, 40.0, 28.0, 24.0, 75.0, 91.0]
+[Gate  25] xy=15.8/10mm z=19.8/18mm r=25.3/26mm centred=False pads_ready=False (pad_after_close=63.8mm, object_top=65.0mm) guard={'pass': 24}
+
+[Step  25] Stage=0 target_dist=0.025m grip_cmd=0.25 S1-6=[114.0, 40.0, 28.0, 25.0, 74.0, 97.0]
+[Step  26] Stage=0 target_dist=0.024m grip_cmd=0.35 S1-6=[114.0, 38.0, 28.0, 25.0, 74.0, 101.0]
+[Step  27] Stage=0 target_dist=0.023m grip_cmd=0.51 S1-6=[115.0, 38.0, 28.0, 26.0, 73.0, 105.0]
+[Step  28] Stage=0 target_dist=0.021m grip_cmd=0.61 S1-6=[115.0, 38.0, 28.0, 26.0, 73.0, 111.0]
+[Step  29] Stage=0 target_dist=0.021m grip_cmd=0.69 S1-6=[115.0, 36.0, 28.0, 27.0, 72.0, 115.0]
+[Step  30] Stage=0 target_dist=0.020m grip_cmd=0.79 S1-6=[116.0, 36.0, 28.0, 27.0, 72.0, 120.0]
+[Step  31] Stage=0 target_dist=0.021m grip_cmd=0.85 S1-6=[116.0, 36.0, 28.0, 27.0, 71.0, 125.0]
+[Step  32] Stage=0 target_dist=0.021m grip_cmd=0.90 S1-6=[116.0, 35.0, 28.0, 28.0, 71.0, 130.0]
+[Step  33] Stage=0 target_dist=0.019m grip_cmd=0.95 S1-6=[117.0, 34.0, 28.0, 28.0, 71.0, 135.0]
+[Step  34] Stage=0 target_dist=0.022m grip_cmd=1.00 S1-6=[117.0, 34.0, 28.0, 28.0, 70.0, 140.0]
+[Step  35] Stage=0 target_dist=0.022m grip_cmd=1.00 S1-6=[117.0, 34.0, 28.0, 29.0, 70.0, 144.0]
+[Step  36] Stage=0 target_dist=0.020m grip_cmd=1.00 S1-6=[117.0, 33.0, 28.0, 29.0, 69.0, 148.0]
+[Step  37] Stage=0 target_dist=0.021m grip_cmd=1.00 S1-6=[117.0, 33.0, 28.0, 29.0, 69.0, 150.0]
+[Stage] 0→2  S6 slipping for 2 steps at 152.0deg (encoder moved 2.0deg of 8.0deg requested); jaw stalled at 152.0deg (18.7% short of closed). Holding at 153.0deg (+1deg bias).
+[Stage 2] grasp check: CONFIRMED — jaw stalled at 151.0deg (19.3% short of closed)
+[Stage 2] lift direction: S2 +0.05 rad raises gripper_center (7.1cm vs 5.7cm)
+[Stage 2] lift 1/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 2/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 3/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 4/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 5/6: reached=True (arrived) guard={'pass'}
+[Stage 2] lift 6/6: reached=True (arrived) guard={'pass'}
+[Stage 2] return home: reached=True (arrived, 5 steps)
+[Stage 2] post-return check: CONFIRMED — jaw stalled at 150.0deg (20.0% short of closed)
+[Done] Scripted return complete; object still detected in the jaw.
+[End] The jaw keeps its hold — take the object, then Ctrl+C. The servos hold position while powered.
+[Bus] servo reads: no failures
+[Guard] policy-step floor guard: {'pass': 38}
+[graspscan] restarting the resident services
+[graspscan] the service needs ~30 s to reload PyBullet before graspctl works

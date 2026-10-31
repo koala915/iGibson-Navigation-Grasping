@@ -1,0 +1,8 @@
+.........................
+----------------------------------------------------------------------
+Ran 25 tests in 0.776s
+
+OK
+[SEED] box +25.0 deg to the side: turning in place to face it first
+[SEED] facing the box (+4.0 deg); the policy drives at it
+[SEED] box -15.0 deg to the side: turning in place to face it first

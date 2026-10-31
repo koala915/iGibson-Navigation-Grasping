@@ -1,0 +1,26 @@
+== wrap_angle ==
+== LaserScan conversion: finite ranges + ROS CCW angles ==
+== scan_to_rays: dead-ahead 1 m, ROS default (dir=+1) ==
+== scan_to_rays: clipping ==
+== scan_to_rays: ROS right/left mapping (dir=+1) ==
+== scan_to_rays: legacy direct RPLIDAR clockwise mapping (dir=-1) ==
+== scan_to_rays: forward mount offset ==
+== front_min_raw sees below the 0.33 ray floor ==
+== build_nav_obs ordering ==
+== shape_action: clear path passthrough ==
+== shape_action: reverse scaling ==
+== shape_action: near-obstacle slowdown (min ray 0.33) ==
+== shape_action: stall assist fires ==
+== ActionDelay (2 steps) ==
+== GoalTracker ==
+== describe_scan: 180deg mounting / forward-coverage check ==
+
+[selftest] OK
+
+== closed-loop plumbing sim (fake P policy) ==
+  steps=25 final dist=0.333 m bearing=+0.2 deg
+
+== safety brake precedence ==
+  vx=0.50 -> braked to 0.0 (front raw 0.15 m)
+
+[selftest] OK

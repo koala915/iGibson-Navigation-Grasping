@@ -1,0 +1,48 @@
+{
+  "sample_poses": [
+    [
+      9.9,
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    [
+      10.4,
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ]
+  ],
+  "decoded_frame_time": 10.3,
+  "allowed_capture_time": 10.15,
+  "physical_motion": "yaw rises 0 -> 0.25 rad then returns to 0 during 9.9..10.4, within 1 rad/s",
+  "estimated_frame_pose_result": [
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    0.0,
+    0.0
+  ],
+  "estimated_spot": [
+    [
+      0.9,
+      0.2
+    ],
+    0.0
+  ],
+  "actual_map_position": [
+    0.8225403876886757,
+    0.41644604767119964
+  ],
+  "actual_map_error_m": 0.22988884942924895,
+  "estimated_position_excluded": true,
+  "actual_position_is_wall_clip": false,
+  "source_file": "integration/mission_loop.py",
+  "source_sha256": "fba7ae143cbdcf7c4b394b84622c6e92bdf9d099b4d183bbea3db15c8664bf53"
+}

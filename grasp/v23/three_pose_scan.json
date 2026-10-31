@@ -1,0 +1,44 @@
+{
+  "schema": "x3plus.v23.three_pose_scan",
+  "version": 2,
+  "mapping": {
+    "type": "s1_yaw_from_reference",
+    "reference_pose": "E1",
+    "reference_s1_deg": 90.0,
+    "homography": "../../integration/grasp_home_homography_e1.json",
+    "pivot_xy_m": [0.118146, -0.003359],
+    "yaw_sign": -1.0,
+    "source": "arm_joint1 origin (0.09825,0) + deploy training-frame offset (0.019896,-0.003359); FK max residual 1.3e-8 m over S1 60..120 deg"
+  },
+  "return_pose": {
+    "name": "E1",
+    "arm_deg": [90.0, 74.2, 8.6, 8.6, 90.0, 30.0]
+  },
+  "poses": [
+    {
+      "name": "LEFT",
+      "arm_deg": [70.0, 74.2, 8.6, 8.6, 90.0, 30.0],
+      "hardware_validated": false,
+      "yaw_mapping_validated": false,
+      "note": "20 deg base-left view; must be visited and checked at >=2 held-out ruler points before enabling"
+    },
+    {
+      "name": "E1",
+      "arm_deg": [90.0, 74.2, 8.6, 8.6, 90.0, 30.0],
+      "hardware_validated": true,
+      "yaw_mapping_validated": true,
+      "note": "centre/reference view; measured E1 homography"
+    },
+    {
+      "name": "RIGHT",
+      "arm_deg": [110.0, 74.2, 8.6, 8.6, 90.0, 30.0],
+      "hardware_validated": false,
+      "yaw_mapping_validated": false,
+      "note": "20 deg base-right view; must be visited and checked at >=2 held-out ruler points before enabling"
+    }
+  ],
+  "samples_per_pose": 5,
+  "per_pose_timeout_sec": 8.0,
+  "within_pose_spread_m": 0.008,
+  "cross_pose_tolerance_m": 0.01
+}

@@ -1,0 +1,13 @@
+
+test_every_added_cell_keeps_wall_bin_and_raw_map_clearance (__main__.MaskReductionTests.test_every_added_cell_keeps_wall_bin_and_raw_map_clearance) ... ok
+test_mask_cannot_be_reduced_below_floor_or_overwrite_source (__main__.MaskReductionTests.test_mask_cannot_be_reduced_below_floor_or_overwrite_source) ... ok
+test_missing_approval_and_below_floor_are_rejected (__main__.MaskReductionTests.test_missing_approval_and_below_floor_are_rejected) ... ok
+test_old_route_and_allowed_cells_are_preserved (__main__.MaskReductionTests.test_old_route_and_allowed_cells_are_preserved) ... ok
+test_rebuild_is_reproducible_and_source_is_unchanged (__main__.MaskReductionTests.test_rebuild_is_reproducible_and_source_is_unchanged) ... ok
+test_reduced_scene_needs_matching_approval_and_image (__main__.MaskReductionTests.test_reduced_scene_needs_matching_approval_and_image) ... ok
+test_run19_turn_refusal_is_resolved_without_any_motion (__main__.MaskReductionTests.test_run19_turn_refusal_is_resolved_without_any_motion) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.910s
+
+OK

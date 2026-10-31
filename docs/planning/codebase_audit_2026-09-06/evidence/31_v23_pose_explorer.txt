@@ -1,0 +1,21 @@
+pybullet build time: Jul 10 2026 12:08:18
+b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkpose_explorer selftest (no hardware, no camera)
+[WARNING] Rosmaster_Lib not found. Servo output will be printed only (dry-run). --real will refuse to start.
+[FK] PyBullet DIRECT ready. tcp=gripper_center(14,17) arm=[8, 9, 10, 11, 12] grip_linkage=[13, 14, 15, 16, 17, 18]
+  [ok] move_guarded_and_verified only touches state Mover supplies
+  [ok] the E1 row equals DeployConfig.home_deg
+  [ok] E1 FK camera z 0.234 matches the manifest 0.2340
+  [ok] E1 gripper_center z 0.1558 matches 0.1558
+  [ok] nav-home theta correction reproduces -3.600 (-3.600)
+  [ok] the C3 row reproduces the registry's measured-anchored h 0.2148 (0.2148)
+  [ok] every candidate keeps the pads >= 5 cm up
+  [ok] every candidate leaves the jaw open at 30 deg
+  [ok] S1 and S5 are fixed at 90 across the table
+  [ok] base +y projects to image-LEFT, matching the 2026-08-29 measurement
+  [ok] candidate names are unique
+
+all 11 checks passed — pose explorer geometry and the borrowed guarded move agree with the deployed stack

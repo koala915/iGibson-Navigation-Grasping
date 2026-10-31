@@ -1,0 +1,2773 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index fadcd62..af479d5 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -120,7 +120,7 @@ v21 是 incremental（`desired = current + action × 0.08 rad`），v17 是 abso
+ |------|------|
+ | `mission_pipeline.py` | ★**完整任務**：巡航→辨識→接近→夾取→送垃圾桶→續巡。單一 Py3.8 程序擁有 `/dev/myserial`，ROS 只跑感測/定位。見 `MISSION.md` |
+ | `sugarbox_approach_grasp.py` / `sugarbox_rl_approach_final2.py` | Windows 的 doorway PPO 避障接近→停車→E1 新鮮辨識→v23夾取交接；預設只讀，實機需 `--real --i-am-beside-the-robot`。後相機校正已補，載入驗證使用 `sugarbox_ground_calibration.py`；未完成現場 dry-run／實機驗收，見 `docs/operations/SUGARBOX_APPROACH_GRASP_2026-10-03.md` |
+-| `mission_loop.py` | 決賽總控（Windows）：ncu 的地圖巡航（Jetson）→ 後相機確認糖果盒就停（校正範圍外也算）→ 接近＋E1 夾取 → 依常駐 AMCL 位置轉向放置盒 → 放置盒接近＋放開 → 後退 0.20 m → 續巡航，連續 2 圈沒看到才結束。失敗分類、後退規則、放置失敗時環視重試照 2026-10-19 與使用者定的決定（`docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md`）；ArUco 起點定位尚未實作（**巡航串接尚未實機測試**）。`--no-patrol` 只跑一個物體：夾前方糖果盒 → 帶到放置盒放開（放置盒須在夾完後的後相機視野內），10/18 實機成功 2 次；`--resume-at grasp-e1|place` 從中途接著做，各段輸出存在 `logs/`。預設只做檢查，實機需 `--real --i-am-beside-the-robot` |
++| `mission_loop.py` | 決賽總控（Windows）：ncu 的地圖巡航（Jetson）→ 後相機確認糖果盒就停（校正範圍外也算）→ 接近＋E1 夾取 → 依常駐 AMCL 位置轉向放置盒 → 放置盒接近＋放開 → 後退 0.20 m → 續巡航，連續 2 圈沒看到才結束。巡航帶 ncu 的 `--vision-permit`：任一張畫面出現候選就撤回許可、車子自停，停穩後再用 3 張新畫面確認（`patrol_vision_permit_jetson.py` 是 Jetson 端）；糖果盒信心 0.70 以下、地圖上離牆 15 cm 內的都不算。連續 5 張沒有候選、且有定位，才開巡航；失敗 2 次被略過的糖果盒若在車前 0.90 m 內，整個任務停下等人（10-19 巡航撞過）。接近時巡航的估計位置只用來原地轉正，停著讓相機看過才前進（10-19 四次都在量到前就放棄）。引擎提早啟動、模型暖機，收臂和轉向時同步載入，送「開始」前不連馬達。見決策文件 10-20 節。失敗分類、後退規則、放置失敗時環視重試照 2026-10-19 與使用者定的決定（`docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md`）；ArUco 起點定位尚未實作（**巡航串接尚未實機測試**）。`--no-patrol` 只跑一個物體：夾前方糖果盒 → 帶到放置盒放開（放置盒須在夾完後的後相機視野內），10/18 實機成功 2 次；`--resume-at grasp-e1|place` 從中途接著做，各段輸出存在 `logs/`。預設只做檢查，實機需 `--real --i-am-beside-the-robot` |
+ | `placement_dock.py` | 放置模式（`sugarbox_approach_grasp.py --target placement`）的幾何與檢查：盒子地圖位置**只讀 ncu 車上的 `scene_layout.json`**（`bin.pose_map` 在他標成有效前用移動後候選點，視為未驗證：只轉向、不憑地圖開過去）、抵達報告檢查、LiDAR 牆距校正；`--where`、`--measure-wall` 兩個現場量測工具 |
+ | `mission_fsm.py` | 21 狀態任務機（純邏輯，`--selftest`/`--diagram`）。強制「輪子與手臂不同時動」「換目標來源必重置 nav」 |
+ | `map_goal_provider.py` | route.yaml 117 waypoint + AMCL pose → `(dist, bearing)`。含 `--validate` 與弧長重取樣（Route C 原檔最小間距只有 0.049 m） |
+diff --git a/deploy/ros/start_rear_approach_stream.sh b/deploy/ros/start_rear_approach_stream.sh
+index 6ceac1c..f9ea294 100644
+--- a/deploy/ros/start_rear_approach_stream.sh
++++ b/deploy/ros/start_rear_approach_stream.sh
+@@ -13,10 +13,14 @@ if fuser "$REAR" >/dev/null 2>&1; then
+     echo 'rear camera already owned; refusing to open a second reader'
+     exit 2
+ fi
++# A receiver that joins mid-stream decodes nothing until the next IDR frame, and
++# the encoder's default is one every 256 frames: ~13 s with the camera at 20 fps.
++# On 2026-10-19 the approach, which opens its receiver after the patrol's closed,
++# saw no frame for 10 s and stopped for no progress. idrinterval=30: under 1.5 s.
+ exec gst-launch-1.0 -e v4l2src device="$REAR" do-timestamp=true \
+   ! 'video/x-raw,format=YUY2,width=640,height=480,framerate=30/1' \
+   ! videoconvert ! 'video/x-raw,format=I420' \
+   ! nvvidconv ! 'video/x-raw(memory:NVMM),format=NV12' \
+-  ! nvv4l2h264enc bitrate=2000000 insert-sps-pps=true iframeinterval=30 \
++  ! nvv4l2h264enc bitrate=2000000 insert-sps-pps=true iframeinterval=30 idrinterval=30 \
+   ! h264parse ! rtph264pay config-interval=1 pt=96 \
+   ! udpsink host="$HOST" port="$PORT" sync=false async=false
+diff --git a/docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md b/docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md
+index cbfed07..15af47c 100644
+--- a/docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md
++++ b/docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md
+@@ -10,7 +10,13 @@
+    比對出的 4 個對稱候選中選出正確的那個，寫入定位起點。只認 ID，不校正相機。
+    **尚未實作**：等 ncu 的小工具與「哪個 ID 貼在地圖哪裡」的表。
+ 2. **巡航找糖果盒**：ncu 的 `patrol-cycle`（會先接到最近路段），筆電同時看後相機。
+-   校正範圍外、側邊的糖果盒也算（外推位置，連續 3 張、容許差 0.40 m）。
++   校正範圍外、側邊的糖果盒也算（外推位置，容許差 0.40 m）。
++   **巡航安全（10-19 晚，ncu 回報巡航撞到糖果盒之後）**：巡航帶 ncu 的
++   `--vision-permit`，只有筆電持續送「允許」時才走；**任何一張畫面出現候選就撤回**，
++   車子自己停，停穩後用停車後的新畫面連續 3 張一致才算數。沒確認的位置這一圈略過，
++   一圈誤停超過 6 次就停任務。筆電斷線或畫面中斷，訊號 1.2 秒沒更新，巡航自停。
++   糖果盒信心度 **0.70 以下不算**（巡航與接近都是；放置盒維持原門檻）。
++   地圖上離牆 **15 cm 內或牆外**的不算（牆板上的黑色夾子曾讀到 0.53–0.73）。
+    離放置盒地圖位置 35 cm 內的視為已投放，略過。
+ 3. **接近＋夾取**：把巡航看到的位置（停車後依目前 AMCL 位置重算）當 `--seed` 交給
+    接近程式；偏 12° 以上先原地轉正，PPO → 1.0 m 轉向對準 → 0.28 m 停 → E1 微調 → 夾。
+@@ -23,6 +29,7 @@
+ 6. **投放**：停車檢查通過才放開，收臂，確認夾爪已空。
+ 7. **退出**：直退 0.20 m。
+ 8. **續巡航**：巡航拒絕出發（在禁區內、沒動過）就再退 0.10 m 重試，總共最多 0.30 m。
++   任務剛開始時不後退（ncu：那時出路是往場內），等人把車移回場內。
+ 9. **結束**：只要還有糖果盒就一直重複；連續 2 圈沒看到才結束。
+ 
+ ## 失敗時
+@@ -54,6 +61,50 @@
+ `grasp/v23/x3plus_real_grasp.py` 會自動合併不報衝突。巡航、定位服務都已在車上，
+ 總控用 ssh 直接呼叫車上的版本；需要他的哪個檔案就單獨拿。
+ 
++## ArUco 起點：用 ncu 的 Jetson 取像工具（10-19 晚定）
++
++ncu 的 `g2_aruco_corner_seed.py` 要求影像時間是 Jetson 的來源時間，筆電收到的串流沒有，
++所以定位時暫停我們的後相機串流幾秒，改用他的 `g2_corner_camera_capture.py`。
++三段：Jetson 取像＋掃描 → 筆電 `g2_scan_match.py`（用車上地圖 YAML 原檔）→ Jetson 選候選、
++寫起點；只接受 `ok`、`localized`、`LOCALIZED`。正式位置表 v2 只有 ID 0／1／2／5／7。
++
++## 已知仍擋不住的
++
++糖果盒比 LiDAR 掃描面（9.5 cm）低；車身 0.64 m 內被夾爪擋住、或在正側邊時相機也看不到。
++只能靠「遠遠看到就先停」。
++
++## 10-19 第 3 輪實車後的修正（10-20，尚未上車驗證）
++
++`logs/mission_20261019_patrol3.out`：4 次接近都以 `SEED_NOT_CONFIRMED` 結束，期間有撞到糖果盒。
++
++- **接近不再照巡航的估計位置盲開。** 舊流程一拿到第一張畫面就以 0.15 m/s 往估計位置開，
++  估計位置在 0.93–0.98 m，0.80 m 就放棄，只有 1.2–1.7 s 可走。相機鎖定要 3 張一致的
++  結果，第一次辨識就要 2.1–2.4 s，所以每次都在量到之前放棄，被判成夾空。這不是目標遺失。
++  現在估計位置只用來原地轉正，之後**停著看**：停穩 0.6 s 後的 6 個結果，或最多 10 s。
++  量到就照 10-18 的路徑交接；巡航估計位置沒量到就結束這次；放置盒的地圖位置看完沒量到，
++  才照原決定開過去（只限已驗證的位置）。
++- **巡航的撞盒。** 兩次退出後，巡航都立刻「lap 1 started」，那時盒子就在前方約 1 m。
++  原因是：只要一張畫面沒認到就給許可、立刻開巡航；或者那個點已失敗 2 次被略過，略過的盒子
++  完全不擋車。糖果盒在 LiDAR 掃描面以下，0.64 m 內又被夾爪擋住，所以撞到也不會停。
++  - 改成連續 5 張沒有候選才開巡航。
++  - 沒有定位就不給許可。
++  - 略過的點若在車前 0.90 m、左右 0.30 m 內，**整個任務停下等人**，不再開過去。
++    這是對「失敗 2 次就略過」的保守解讀：略過的意思是不再夾，不是可以撞。
++- **巡航慢。** 帶了 `--forward-pulse-max 0.08`：每段只開約 1.2 cm，之後要停穩 ≥ 0.45 s，
++  比 ncu 原本慢 5–7 倍。改回他的預設 0.6 s。許可在每段行駛中每 0.04 s 就檢查一次，
++  所以停車反應不受段長影響。
++  另外，總控每張畫面都用 ssh 問一次「巡航還在跑嗎」，約 0.5 s 一次，拖慢了許可更新；
++  現在改成每秒最多問一次。
++- **每段啟動約 25 s。** 套件和模型約 16 s，串流到第一張畫面約 6 s，第一次辨識 2.1–2.4 s，
++  全部依序進行。現在改成：
++  - 先開串流；
++  - PPO 在背景載入；
++  - YOLO 和 SAM2 先用假畫面跑一次暖機；
++  - 接近主程式一開始就啟動引擎，收臂、轉向放置盒的同時讓它載入；準備好才送「開始」，
++    之前不連馬達。
++
++  預估降到約 10–12 s，還沒實測。
++
+ ## 要實測才能定的
+ 
+ - 巡航一圈的後相機能不能看到整個場地；看不到的地方要不要加環視停點。
+diff --git a/grasp/v23/chassis_server.py b/grasp/v23/chassis_server.py
+index 33a2f53..867bbdc 100644
+--- a/grasp/v23/chassis_server.py
++++ b/grasp/v23/chassis_server.py
+@@ -33,11 +33,14 @@ Safety rules, enforced here rather than trusted to clients:
+       last value -- which odometry cannot tell from standing still. Every byte
+       the driver reads is timestamped (install_rx_monitor); after RX_STALE_S of
+       silence the wheels stop and velocity is refused.
+-  R7  The wheels follow the arm pose the service last verified: full speed in the
+-      travel pose, a creep (|vx| <= 0.10 m/s, |wz| <= 0.5 rad/s) at E1 for the
+-      last centimetres into the 3 cm grasp window, and nothing anywhere else --
+-      the braking corridor was measured with the arm in the travel pose, and an
+-      arm frozen half-way through an aborted grasp is not something to drive with.
++  R7  The wheels move only in the travel pose, as the encoders last confirmed it.
++      Navigation and cruising happen in the travel pose and grasping in E1, never
++      the other way round (the team's rule, 2026-10-05): the braking corridor was
++      measured with the arm in the travel pose, the arm camera is only calibrated
++      at E1 standing still, and an arm frozen half-way through an aborted grasp is
++      not something to drive with. Until 2026-10-05 E1 allowed a 0.10 m/s creep
++      for the last centimetres into the grasp window; nothing uses it any more --
++      the approach stops in the travel pose and E1 refuses if it sees nothing.
+ 
+ The wheel mapping is imported from sugarbox_rl_motor_server, never copied: two
+ copies of motor constants is how the old RL server ended up with a mirrored yaw.
+@@ -56,9 +59,7 @@ from pathlib import Path
+ SETTLE_S = 0.5
+ ZERO = (0, 0, 0, 0)
+ MAX_LINE_BYTES = 4096
+-CREEP_VX = 0.10
+-CREEP_WZ = 0.5
+-DRIVE_POSES = ("travel", "e1")
++DRIVE_POSES = ("travel",)
+ RX_STALE_S = 0.5
+ 
+ 
+@@ -218,16 +219,18 @@ class Chassis:
+                     self._log("[chassis] velocity refused (%dx): no data from the board "
+                               "for %.1fs" % (self.rx_blocked, self._rx_age()))
+                 return "board_silent"
++            if vx == 0.0 and wz == 0.0:
++                # A zero velocity is a stop in any pose, not a refused drive.
++                self._write(ZERO)
++                return "ok"
+             if self._arm_pose not in DRIVE_POSES:
+                 self.pose_blocked += 1
+                 self._write(ZERO)
+                 if self.pose_blocked in (1, 10) or self.pose_blocked % 100 == 0:
+-                    self._log("[chassis] velocity refused (%dx): arm pose is %s, "
+-                              "stow or home it first" % (self.pose_blocked, self._arm_pose))
++                    self._log("[chassis] velocity refused (%dx): arm pose is %s; the wheels "
++                              "move only in the travel pose (graspctl stow)"
++                              % (self.pose_blocked, self._arm_pose))
+                 return "arm_pose"
+-            if self._arm_pose == "e1":
+-                vx = max(-CREEP_VX, min(CREEP_VX, vx))
+-                wz = max(-CREEP_WZ, min(CREEP_WZ, wz))
+             self._write(self._to_motor(vx, wz))
+             return "ok"
+ 
+diff --git a/grasp/v23/test_chassis_server.py b/grasp/v23/test_chassis_server.py
+index 3312ae8..de5eaf1 100644
+--- a/grasp/v23/test_chassis_server.py
++++ b/grasp/v23/test_chassis_server.py
+@@ -284,11 +284,17 @@ def main():
+     ch.set_arm_pose("travel")
+     ch.command({"action": "velocity", "vx": 0.15, "wz": 0.0})
+     ok(board.last == (30, 30, 30, 30), "the travel pose drives at full speed")
++    # Navigation only in the travel pose, grasping only in E1 (2026-10-05).
+     ch.set_arm_pose("e1")
++    blocked = ch.pose_blocked
++    ok(ch.command({"action": "velocity", "vx": 0.05, "wz": 0.0}) == "arm_pose"
++       and board.last == (0, 0, 0, 0), "at E1 even a slow creep is refused")
++    ok(ch.command({"action": "velocity", "vx": 0.0, "wz": 1.0}) == "arm_pose"
++       and board.last == (0, 0, 0, 0), "and so is a turn in place")
++    ok(ch.command({"action": "velocity", "vx": 0.0, "wz": 0.0}) == "ok"
++       and ch.pose_blocked == blocked + 2, "a zero velocity at E1 is a plain stop, not a refusal")
++    ch.set_arm_pose("travel")
+     ch.command({"action": "velocity", "vx": 0.15, "wz": 0.0})
+-    ok(board.last == to_motor(cs.CREEP_VX, 0.0), "at E1 forward speed is capped to the creep")
+-    ch.command({"action": "velocity", "vx": 0.0, "wz": 1.0})
+-    ok(board.last == to_motor(0.0, cs.CREEP_WZ), "and so is the turn rate")
+     ch.set_arm_pose("other")
+     ok(board.last == (0, 0, 0, 0), "an arm left anywhere else stops the wheels at once")
+ 
+diff --git a/grasp/v23/test_travel_pose.py b/grasp/v23/test_travel_pose.py
+index 73a7f4a..24194f4 100644
+--- a/grasp/v23/test_travel_pose.py
++++ b/grasp/v23/test_travel_pose.py
+@@ -361,20 +361,23 @@ def main():
+         board = type("B", (), {"calls": [], "set_motor": lambda self, *v: self.calls.append(v)})()
+         ch = cs.Chassis(board, lambda vx, wz: (20, 20, 20, 20) if vx else (0, 0, 0, 0),
+                         clock=ft.monotonic, log=lambda _m: None)
+-        ch.set_arm_pose("e1")
++        ch.set_arm_pose("travel")
+         c = Ctl(E1)
+         s = gs.GraspService(c, lambda ctl, max_steps: ran.append(ft.t) or True, 10,
+                             "/tmp/unused.sock", chassis_server=type("S", (), {"chassis": ch})())
+         ft.t += 60.0                                # the arm has been still for a minute
+         ch.command({"action": "velocity", "vx": 0.05, "wz": 0.0})
++        ok(board.calls and any(board.calls[-1]),
++           "the wheel-settle fixture really moves in the permitted travel pose")
+         ft.t += 0.3
+-        ch.command({"action": "stop"})              # a creep at E1 just ended
++        ch.command({"action": "stop"})              # the travel-pose movement just ended
++        ch.set_arm_pose("e1")                       # now parked for the grasp
+         t1 = ft.t
+         ft.t += 0.6
+         c.detection = Recv(ft, [t1 - 0.5 + k for k in range(10)])
+         s.run_arm_command(s.cmd_grasp)
+         ok(ran and ran[0] >= t1 + gs.GRASP_SETTLE_S,
+-           "a creep of the wheels counts too: the wait runs from when they stopped")
++           "wheel motion before E1 counts too: the wait runs from when the wheels stopped")
+     finally:
+         gs.time = real_time
+ 
+diff --git a/integration/mission_loop.py b/integration/mission_loop.py
+index e359048..38689b7 100644
+--- a/integration/mission_loop.py
++++ b/integration/mission_loop.py
+@@ -48,6 +48,7 @@ import shlex
+ import socket
+ import subprocess
+ import sys
++import threading
+ import time
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+@@ -74,9 +75,64 @@ SCENE = dock.SCENE
+ PATROL_OUTPUT = '/tmp/mission_patrol.json'
+ PATROL_LOG = '/tmp/mission_patrol.log'
+ STREAM_PORT = 5600
++# ncu's patrol drives only while this permit says allow (--vision-permit, PR #5,
++# 2026-10-19), after it ran into a sugarbox below the LiDAR's scan plane: this PC
++# withdraws it on the first sugarbox candidate, confirms with the robot parked,
++# and a PC that goes quiet stops the patrol within 1.2 s.
++PERMIT_PATH = '/dev/shm/mission_vision_permit.json'
++HEALTH_SOCKET = '/tmp/grasp_health.sock'
++PERMIT_SCRIPT = ROOT / 'integration/patrol_vision_permit_jetson.py'
++# Longest forward pulse of the patrol: ncu's own default. 0.08 s (his first advice
++# with the permit) made it 5-7x slower (2026-10-19): each pulse of ~1.2 cm is
++# followed by a >= 0.45 s settle. The pulse length does not delay a stop: the patrol
++# reads the permit every 0.04 s inside a pulse and stops on the first denial.
++PATROL_FORWARD_PULSE_S = 0.6
++# Frames in a row without a candidate before a patrol is started: one frame where
++# YOLO misses a box right ahead must not set the robot going toward it.
++START_CLEAR_FRAMES = 5
++# Known sugarboxes the watcher cannot be trusted to see: one a grasp missed with
++# the robot at it (backing out 0.20 m leaves it ~0.48 m ahead, inside the
++# gripper's blind zone), one the loop gave up on (passed over by the watcher), and
++# a candidate first seen this near that the parked camera may not have seen at
++# all. The box is below the LiDAR's scan plane, so nothing else stops the patrol:
++# one of them in the way ends the mission instead (2026-10-19: the patrol pushed a
++# sugarbox and kept going). "In the way", chassis-centre frame: the corridor ahead
++# and the turn-in-place circle, each the body (placement_dock.BODY_RECTANGLES:
++# y -0.29..+0.14, farthest corner 0.31 m) plus 0.095 m for the box's half size,
++# AMCL and the sighting.
++GUARD_AHEAD_M = 0.90
++GUARD_RIGHT_M = 0.385
++GUARD_LEFT_M = 0.30
++GUARD_TURN_M = 0.40
++BLIND_REJECT_M = 0.85
++# Where a grasp that reached the box leaves it: the approach's stop, ahead of the
++# chassis centre (sugarbox_approach_grasp.py --final-x-m default).
++AT_BOX_X_M = 0.28
++# Without a pose this long the loop gives up (localization lost; re-seeding is
++# not built in yet). The patrol's own permit runs stale meanwhile, so it waits.
++POSE_LOST_S = 8.0
++# Until the Jetson end reports the patrol process, the loop asks over ssh, at
++# most this often (one ssh round trip, ~0.5 s, holds the permit renewals back).
++PATROL_CHECK_S = 1.0
++# Rear camera to this PC (encode, Wi-Fi, decode), a generous bound: a frame's
++# source stamp is put this much before it arrived, so it is never newer than it is.
++STREAM_LATENCY_S = 0.30
++# Parked confirmation: frames taken after the stop, for at most CONFIRM_S.
++CONFIRM_S = 4.0
++POSE_MAX_AGE_S = 0.5
++# Candidates the parked camera did not confirm, per lap, before the mission gives
++# up: the black wall clips read as sugarboxes at 0.53-0.73 (ncu, 2026-10-19).
++MAX_FALSE_STOPS_PER_LAP = 6
++# A sugarbox never stands against a wall (the user, 2026-10-19), and the clips
++# holding the wall panels read up to 0.73, past WATCH_CONF: a sighting placed on
++# the map within this of a wall, or beyond the walls, is passed over.
++WALL_EXCLUDE_M = 0.15
+ # The approach locks a box after 3 consistent frames; the watcher asks the same,
+ # so it never stops the patrol for a box the approach would not take.
+-WATCH_CONF = 0.50
++# Below 0.70 a sugarbox sighting is dropped (the user, 2026-10-19): the black wall
++# clips read 0.53-0.73. Same threshold as the approach engine's sugarbox target.
++WATCH_CONF = 0.70
++PLACEMENT_CONF = 0.50
+ WATCH_IMGSZ = 1280
+ WATCH_FRAMES = 3
+ WATCH_MAX_ERROR_M = 0.25
+@@ -131,7 +187,9 @@ def patrol_command(scene=SCENE, output=PATROL_OUTPUT, log=PATROL_LOG):
+              'export ROS_MASTER_URI=http://127.0.0.1:11311 ROS_IP=127.0.0.1; '
+              'exec /usr/bin/python deploy/ros/g2_map_patrol.py --scene {} '
+              '--destination patrol-cycle --inset .70 --boundary-micro --keep-heading '
+-             '--seconds 600 --output {} --real').format(shlex.quote(scene), shlex.quote(output))
++             '--vision-permit {} --forward-pulse-max {} '
++             '--seconds 600 --output {} --real').format(
++                 shlex.quote(scene), PERMIT_PATH, PATROL_FORWARD_PULSE_S, shlex.quote(output))
+     # The braces keep `&` on nohup alone: backgrounding the whole `cd && ...` list
+     # would make $! a subshell's PID (SIGTERM would miss the patrol) and that
+     # subshell would hold the ssh session open.
+@@ -169,6 +227,97 @@ def patrol_report(host):
+         return {'ok': False, 'error': 'no patrol report'}
+ 
+ 
++def patrol_supports_permit(host):
++    """The robot's patrol takes --vision-permit (ncu's PR #5 e359fb5 and later)."""
++    return ssh(host, 'grep -q -- --vision-permit {}/deploy/ros/g2_map_patrol.py'.format(
++        JETSON_ROOT)).returncode == 0
++
++
++class VisionLink:
++    """The patrol's vision permit and the robot's map pose, over one ssh session.
++
++    send() once per processed frame; the Jetson end (patrol_vision_permit_jetson.py)
++    stamps it on its own clock and writes the permit. Closing the link, or this PC
++    going quiet, stops the patrol.
++    """
++
++    def __init__(self, host, popen=subprocess.Popen, clock=time.monotonic):
++        command = 'python3 -u -c {} {} {} {}'.format(
++            shlex.quote(PERMIT_SCRIPT.read_text(encoding='utf-8')), PERMIT_PATH,
++            dock.LOCALIZATION_HEALTH, HEALTH_SOCKET)
++        self.clock, self.allowed = clock, False
++        self.pose, self.pose_at = None, None
++        self.patrol = None                      # (pid, alive) as the Jetson last saw it
++        self.lock = threading.Lock()
++        self.proc = popen(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
++                           'jetson@' + host, command],
++                          stdin=subprocess.PIPE, stdout=subprocess.PIPE,
++                          stderr=subprocess.DEVNULL, text=True, bufsize=1)
++        threading.Thread(target=self._read, daemon=True).start()
++
++    def _read(self):
++        for line in self.proc.stdout:
++            try:
++                record = json.loads(line)
++                patrol = record.get('patrol')
++                if isinstance(patrol, dict) and isinstance(patrol.get('alive'), bool):
++                    with self.lock:
++                        self.patrol = (patrol.get('pid'), patrol['alive'])
++                pose = [float(v) for v in record['pose']]
++                age = float(record['t']) - float(record['stamp'])
++                if (record.get('ready') is not True or len(pose) != 3
++                        or not 0 <= age <= dock.LOCALIZATION_MAX_AGE_S):
++                    continue
++            except (ValueError, KeyError, TypeError, AttributeError):
++                continue
++            with self.lock:
++                self.pose, self.pose_at = tuple(pose), self.clock()
++
++    def send(self, allow, age):
++        """`age`: seconds from the frame's capture to now (a generous bound)."""
++        try:
++            self.proc.stdin.write(json.dumps({'allow': bool(allow),
++                                              'age': round(max(0.0, age), 3)}) + '\n')
++            self.proc.stdin.flush()
++        except (OSError, ValueError) as exc:
++            raise MissionError('vision permit link to the robot lost: {}'.format(exc))
++        self.allowed = bool(allow)
++
++    def pose_now(self):
++        with self.lock:
++            if self.pose_at is None or self.clock() - self.pose_at > POSE_MAX_AGE_S:
++                return None
++            return self.pose
++
++    def watch(self, pid):
++        """Have the Jetson end report whether this patrol process still runs."""
++        try:
++            self.proc.stdin.write(json.dumps({'watch': int(pid)}) + '\n')
++            self.proc.stdin.flush()
++        except (OSError, ValueError) as exc:
++            raise MissionError('vision permit link to the robot lost: {}'.format(exc))
++
++    def patrol_alive(self, pid):
++        """True/False for the watched patrol, None while the Jetson has not said."""
++        with self.lock:
++            if self.patrol is None or self.patrol[0] != pid:
++                return None
++            return self.patrol[1]
++
++    def alive(self):
++        return self.proc.poll() is None
++
++    def close(self):
++        try:
++            self.proc.stdin.close()          # the Jetson end writes allow false on EOF
++        except (OSError, ValueError):
++            pass
++        try:
++            self.proc.wait(timeout=5)
++        except subprocess.TimeoutExpired:
++            self.proc.kill()
++
++
+ def patrol_refused(report):
+     """The patrol declined to start where the robot stands (outside its map mask,
+     e.g. next to the placement box) and never moved."""
+@@ -274,14 +423,18 @@ class BoxWatcher:
+     """Rear-camera YOLO for one kind of box: the nearest calibrated sighting, else
+     the nearest one beyond the calibrated area."""
+ 
+-    def __init__(self, model_path, homography_path, imgsz):
++    def __init__(self, model_path, homography_path, imgsz, conf):
+         from ultralytics import YOLO
+-        self.model, self.imgsz = YOLO(str(model_path)), imgsz
++        self.model, self.imgsz, self.conf = YOLO(str(model_path)), imgsz, conf
+         self.H, self.rear_cam_to_front, self.hull = load_ground_calibration(homography_path)
+ 
+     def look(self, frame):
+-        """(point, far) in the chassis-centre frame, or None with no box in view."""
+-        result = self.model.predict(frame, imgsz=self.imgsz, conf=WATCH_CONF, verbose=False)[0]
++        """(point, far) in the chassis-centre frame, or None with no box in view.
++
++        The arm camera's corner of the frame is dropped after detection, so a
++        picture of raw YOLO results still shows it boxed.
++        """
++        result = self.model.predict(frame, imgsz=self.imgsz, conf=self.conf, verbose=False)[0]
+         near = far = None
+         for box in result.boxes:
+             bbox = tuple(float(v) for v in box.xyxy[0].tolist())
+@@ -302,12 +455,13 @@ class BoxWatcher:
+ 
+ class SugarboxWatcher(BoxWatcher):
+     def __init__(self, homography_path):
+-        super().__init__(runner.SUGARBOX_MODEL, homography_path, WATCH_IMGSZ)
++        super().__init__(runner.SUGARBOX_MODEL, homography_path, WATCH_IMGSZ, WATCH_CONF)
+ 
+ 
+ class PlacementWatcher(BoxWatcher):
+     def __init__(self, homography_path):
+-        super().__init__(runner.PLACEMENT_MODEL, homography_path, PLACEMENT_IMGSZ)
++        super().__init__(runner.PLACEMENT_MODEL, homography_path, PLACEMENT_IMGSZ,
++                         PLACEMENT_CONF)
+ 
+ 
+ def fresh_frame(reader, last_stamp, now):
+@@ -321,30 +475,114 @@ def fresh_frame(reader, last_stamp, now):
+     return frame, stamp
+ 
+ 
+-def patrol_until_sugarbox(host, scene, reader, watcher, box=None, skip=(), make_room=None,
+-                          now=time.monotonic):
+-    """Patrol lap after lap until the camera confirms a sugarbox worth fetching.
++def wait_first_frame(reader, now, why, limit=8.0):
++    """A receiver just started has no frame for a second or two (start-up and the
++    next keyframe), which fresh_frame() would take for a lost stream."""
++    deadline = now() + limit
++    while reader.latest()[0] is None:
++        if now() > deadline:
++            raise MissionError(why)
++        time.sleep(0.1)
++
++
++def sighting_on_map(link, point):
++    pose = link.pose_now() if point is not None else None
++    return map_point(pose, point) if pose is not None else None
++
+ 
+-    Returns {'point': chassis-centre (x, y) when confirmed, 'map': its map position
+-    or None}, or None after EMPTY_LAPS_TO_END whole laps without one. Passed over:
+-    a sugarbox at the placement box (delivered) and one at a spot in `skip`. A
+-    patrol that refuses to start where the robot stands gets make_room() (a short
+-    straight back-off) and another try. The patrol is stopped before returning,
+-    and on any error too.
++def passed_over(where, box, skip, rejected, walls=None, far=False):
++    """A sighting not to stop for: against a wall (a wall clip, not a sugarbox), at
++    the placement box (delivered), at a spot where grasping failed twice, or one
++    the parked camera already did not confirm. Without a map position, none.
++
++    `rejected` holds (x, y[, far]). A rough spot beyond the calibrated area never
++    passes a measured sighting over: it can be tens of cm off, and the box measured
++    closer in is then most likely the real thing.
++    """
++    if where is None:
++        return False
++    near = lambda spots, radius: any(
++        math.hypot(where[0] - x, where[1] - y) <= radius for x, y in spots)
++    hiding = [r[:2] for r in rejected if far or not (len(r) > 2 and r[2])]
++    return ((walls is not None and dock.near_wall(where, walls, WALL_EXCLUDE_M))
++            or (box is not None and near([(box['x'], box['y'])], PLACED_EXCLUDE_M))
++            or near(skip, SPOT_RADIUS_M) or near(hiding, SPOT_RADIUS_M))
++
++
++def box_in_the_way(pose, spots):
++    """(spot, x, y) of the first box spot the robot would hit driving ahead or
++    turning in place (x, y: chassis-centre frame), else None."""
++    for spot in spots:
++        x, y = dock.relative_point(pose, spot[:2])
++        if ((0.0 < x <= GUARD_AHEAD_M and -GUARD_RIGHT_M <= y <= GUARD_LEFT_M)
++                or math.hypot(x, y) <= GUARD_TURN_M):
++            return tuple(spot[:2]), x, y
++    return None
++
++
++def confirm_parked(reader, watcher, link, now):
++    """(point, far) once WATCH_FRAMES frames taken after the stop agree, else None.
++
++    The permit stays withdrawn throughout, so the patrol cannot start again.
++    """
++    confirm, last_stamp = Confirm(), None
++    since = now() + STREAM_LATENCY_S          # older frames may predate the stop
++    deadline = now() + CONFIRM_S
++    while now() < deadline:
++        frame, last_stamp = fresh_frame(reader, last_stamp, now)
++        if frame is None:
++            continue
++        link.send(False, now() - last_stamp + STREAM_LATENCY_S)
++        if last_stamp < since:
++            continue
++        sighting = watcher.look(frame)
++        point, far = sighting if sighting is not None else (None, False)
++        if confirm.update(point, last_stamp, far):
++            return confirm.mean(), confirm.far
++    return None
++
++
++def patrol_until_sugarbox(host, scene, reader, watcher, link, box=None, skip=(), guard=(),
++                          make_room=None, walls=None, now=time.monotonic):
++    """Patrol lap after lap until a sugarbox worth fetching is confirmed.
++
++    The patrol drives only while `link` permits it, renewed by every frame
++    without a candidate; it starts after START_CLEAR_FRAMES of them, with a pose.
++    The first frame with one withdraws the permit, so the patrol stops itself, and
++    the patrol is ended; the candidate counts once WATCH_FRAMES frames taken with
++    the robot parked agree. One the parked camera does not confirm is passed over
++    for the rest of the lap, as are a sugarbox at the placement box (delivered),
++    one at a spot in `skip` and one against a wall of the `walls` polygon (map
++    frame). A spot in `guard` (a box the camera cannot vouch for), or an
++    unconfirmed candidate first seen nearer than BLIND_REJECT_M, in the robot's way
++    ends the mission. A patrol that refuses to start where the robot stands gets
++    make_room() and another try.
++
++    Returns {'point': chassis-centre (x, y), 'map': its map position or None},
++    or None after EMPTY_LAPS_TO_END whole laps without one.
+     """
+-    confirm, pid, empty_laps, last_stamp = Confirm(), None, 0, None
+-    deadline = now() + 8.0
+-    while reader.latest()[0] is None:          # never patrol blind
++    pid, empty_laps, last_stamp, rejected, false_stops = None, 0, None, [], 0
++    clear, unseen, no_pose_since, checked = 0, [], None, None
++    wait_first_frame(reader, now, 'no rear camera frames; is the stream reaching this PC?')
++    deadline = now() + POSE_LOST_S
++    while link.pose_now() is None:             # nor unlocalized: sightings need the map
+         if now() > deadline:
+-            raise MissionError('no rear camera frames; is the stream reaching this PC?')
++            raise MissionError('no localized pose from the robot; the patrol needs one')
+         time.sleep(0.1)
+     try:
+         while True:
+-            if pid is None or not patrol_running(host, pid):
+-                if pid is not None:
++            if not link.alive():
++                raise MissionError('vision permit link to the robot ended')
++            if pid is not None:
++                alive = link.patrol_alive(pid)
++                if alive is None and now() - checked >= PATROL_CHECK_S:
++                    checked = now()            # the Jetson end has not said yet
++                    alive = patrol_running(host, pid)
++                if alive is False:
+                     report, pid = patrol_report(host), None
+                     if report.get('ok'):
+                         empty_laps += 1
++                        rejected, false_stops = [], 0
+                         if empty_laps >= EMPTY_LAPS_TO_END:
+                             return None
+                     elif patrol_refused(report) and make_room is not None and make_room():
+@@ -352,38 +590,82 @@ def patrol_until_sugarbox(host, scene, reader, watcher, box=None, skip=(), make_
+                               .format(report.get('error')), flush=True)
+                     else:
+                         raise MissionError('patrol stopped: ' + str(report.get('error')))
+-                pid = start_patrol(host, scene)
+-                print('[PATROL] lap {} started (pid {})'.format(empty_laps + 1, pid), flush=True)
+             frame, last_stamp = fresh_frame(reader, last_stamp, now)
+             if frame is None:
+                 continue
+             sighting = watcher.look(frame)
+             point, far = sighting if sighting is not None else (None, False)
+-            if not confirm.update(point, last_stamp, far):
++            pose = link.pose_now()
++            if pose is None:
++                no_pose_since = now() if no_pose_since is None else no_pose_since
++                if now() - no_pose_since > POSE_LOST_S:
++                    raise MissionError('no localized pose from the robot for {:.0f} s: '
++                                       'localization lost (re-seeding it is not built in yet)'
++                                       .format(POSE_LOST_S))
++            else:
++                no_pose_since = None
++            where = map_point(pose, point) if pose is not None and point is not None else None
++            if point is not None and passed_over(where, box, skip, rejected, walls, far):
++                point = None
++            in_way = box_in_the_way(pose, list(guard) + unseen) if pose is not None else None
++            if in_way is not None:
++                link.send(False, now() - last_stamp + STREAM_LATENCY_S)
++                if pid is not None:
++                    stop_patrol(host, pid)
++                    pid = None
++                (sx, sy), x, y = in_way
++                raise MissionError(
++                    'a sugarbox the camera cannot vouch for, at map ({:.2f}, {:.2f}), is in the '
++                    'patrol\'s way ({:.2f} m ahead, {:+.2f} m left of the centre): below the '
++                    'LiDAR and hidden by the gripper, nothing would stop the robot at it. '
++                    'Take it away, or set it where the camera sees it, and start again'.format(
++                        sx, sy, x, y))
++            if point is None and pose is None:
++                # No permit without a pose to place sightings on the map: the
++                # patrol's own permit runs stale and it waits.
++                clear = 0
+                 continue
+-            seen, far = confirm.mean(), confirm.far
+-            confirm.reset()
+-            where = None
+-            try:
+-                where = map_point(dock.localization_pose(dock.read_localization(host)), seen)
+-            except (ValueError, OSError, subprocess.SubprocessError) as exc:
+-                print('[PATROL] cannot place the sighting on the map ({}); taking it'
+-                      .format(exc), flush=True)
+-            if where is not None:
+-                if box is not None and math.hypot(where[0] - box['x'],
+-                                                  where[1] - box['y']) <= PLACED_EXCLUDE_M:
+-                    print('[PATROL] sugarbox at the placement box: already delivered',
++            link.send(point is None, now() - last_stamp + STREAM_LATENCY_S)
++            if point is None:
++                clear += 1
++                if pid is None and clear >= START_CLEAR_FRAMES:
++                    pid = start_patrol(host, scene)
++                    link.watch(pid)
++                    checked = now()
++                    print('[PATROL] lap {} started (pid {})'.format(empty_laps + 1, pid),
+                           flush=True)
+-                    continue
+-                if any(math.hypot(where[0] - x, where[1] - y) <= SPOT_RADIUS_M for x, y in skip):
+-                    print('[PATROL] sugarbox where grasping failed {} times: left alone'
+-                          .format(TRIES_PER_SPOT), flush=True)
+-                    continue
+-            print('[PATROL] sugarbox {:.2f} m ahead, {:+.2f} m left{}: stopping the patrol'
+-                  .format(seen[0], seen[1], ' (beyond the calibrated area, rough)' if far else ''),
+-                  flush=True)
+-            stop_patrol(host, pid)
+-            pid = None
++                continue
++            clear = 0
++            if pid is not None:
++                stop_patrol(host, pid)        # it stopped itself on the permit already
++                pid = None
++            print('[PATROL] candidate {:.2f} m ahead, {:+.2f} m left{}: parked to confirm'
++                  .format(point[0], point[1], ' (beyond the calibrated area, rough)' if far
++                          else ''), flush=True)
++            confirmed = confirm_parked(reader, watcher, link, now)
++            if confirmed is None:
++                false_stops += 1
++                if where is not None:
++                    rejected.append((where[0], where[1], far))
++                    if math.hypot(*point) < BLIND_REJECT_M:
++                        # Parked this near, the gripper may have hidden it: not
++                        # seeing it again says nothing.
++                        unseen.append(where)
++                print('[PATROL] not confirmed with the robot parked: passed over this lap',
++                      flush=True)
++                if false_stops > MAX_FALSE_STOPS_PER_LAP:
++                    raise MissionError('{} unconfirmed sugarbox candidates in one lap: the '
++                                       'camera keeps seeing something that is not one'
++                                       .format(false_stops))
++                continue
++            seen, far = confirmed
++            where = sighting_on_map(link, seen)
++            if passed_over(where, box, skip, (), walls):
++                rejected.append((where[0], where[1], far))
++                continue
++            print('[PATROL] sugarbox {:.2f} m ahead, {:+.2f} m left{}: confirmed'.format(
++                seen[0], seen[1], ' (beyond the calibrated area, rough)' if far else ''),
++                flush=True)
+             return {'point': seen, 'map': where}
+     finally:
+         if pid is not None and patrol_running(host, pid):
+@@ -421,6 +703,8 @@ def search_placement(host, reader, watcher, turn=None, now=time.monotonic):
+     SEARCH_STEPS turns, about a full circle. Arm in travel. True when found."""
+     turn = turn or runner.turn
+     confirm, last_stamp = Confirm(), None
++    wait_first_frame(reader, now, 'no rear camera frames to look for the placement box '
++                                  'with; still holding')
+     for step in range(SEARCH_STEPS + 1):
+         if step:
+             turn(host, SEARCH_STEP_RAD)
+@@ -498,28 +782,35 @@ class Room:
+ 
+     leave() after a delivery or a missed grasp backs BACK_OUT_M. While the patrol
+     still refuses to start, make() backs ROOM_STEP_M more, up to ROOM_MAX_M in all
+-    since the last stage; the runner checks the space behind before every step.
++    since that stage; the runner checks the way back against the room's walls on
++    the map before every step (nothing sees behind the robot). With
++    no stage behind it (the mission's start), make() never backs: a robot set
++    down in the keep-out goes back into the field by hand, not blindly backward
++    (ncu, 2026-10-19: the way out was forward there).
+     """
+ 
+-    def __init__(self, host, back=None):
+-        self.host, self.back, self.backed = host, back, 0.0
++    def __init__(self, host, walls=None, back=None):
++        self.host, self.walls, self.back, self.backed = host, walls, back, None
+ 
+     def _back(self, metres):
+-        (self.back or runner.back_straight)(self.host, metres)
++        if self.back is not None:
++            self.back(self.host, metres)
++        else:
++            runner.back_straight(self.host, metres, self.walls)
+ 
+     def leave(self):
+         self._back(BACK_OUT_M)
+         self.backed = BACK_OUT_M
+ 
+     def make(self):
+-        if self.backed + ROOM_STEP_M > ROOM_MAX_M + 1e-9:
++        if self.backed is None or self.backed + ROOM_STEP_M > ROOM_MAX_M + 1e-9:
+             return False
+         self._back(ROOM_STEP_M)
+         self.backed += ROOM_STEP_M
+         return True
+ 
+     def reset(self):
+-        self.backed = 0.0
++        self.backed = None
+ 
+ 
+ def arm_state(host):
+@@ -579,6 +870,12 @@ def preflight(args):
+                       'and the delivered-sugarbox check uses the unverified position')
+         except (OSError, ValueError, subprocess.SubprocessError) as exc:
+             issues.append('placement box position: ' + str(exc))
++        try:
++            if not patrol_supports_permit(args.host):
++                issues.append('the robot\'s patrol has no --vision-permit: deploy ncu\'s '
++                              'g2_map_patrol.py from PR #5 e359fb5 or later')
++        except (OSError, subprocess.SubprocessError) as exc:
++            issues.append('patrol check: ' + str(exc))
+     if resume != 'place':
+         try:
+             camera = ensure_arm_camera(args.host, fix=False)
+@@ -649,8 +946,20 @@ def grasp_and_place(args, pc_ip, log_dir):
+             print('[MISSION] final stop not delivered: {}; resident watchdog remains'.format(exc))
+ 
+ 
++def box_left_at(host):
++    """Map position of a sugarbox a grasp missed with the robot at it, else None."""
++    try:
++        return map_point(dock.localization_pose(dock.read_localization(host)),
++                         (AT_BOX_X_M, 0.0))
++    except (ValueError, OSError, subprocess.SubprocessError) as exc:
++        print('[MISSION] where the missed sugarbox stands is unknown: {}'.format(exc),
++              flush=True)
++        return None
++
++
+ def fetch_sugarbox(args, sighting, log_dir, n):
+-    """GRASP: 'held', or 'missed' (nothing held, arm in a known state: patrol on).
++    """GRASP: 'held', 'missed' (nothing held, arm in a known state: patrol on) or
++    'missed_at_box' (the same, but the approach had reached the box).
+ 
+     Raises MissionError whenever the service cannot vouch for the arm, and when
+     the arm camera is off USB (someone has to replug it).
+@@ -676,7 +985,7 @@ def fetch_sugarbox(args, sighting, log_dir, n):
+         raise MissionError('grasp runner exit {}: the arm camera dropped off USB; replug '
+                            'it'.format(code))
+     to_travel(args.host)
+-    return 'missed'
++    return 'missed_at_box' if code == runner.AT_BOX_EXIT else 'missed'
+ 
+ 
+ def place_held(args, layout_copy, log_dir, n, new_reader, new_watcher):
+@@ -713,20 +1022,25 @@ def place_held(args, layout_copy, log_dir, n, new_reader, new_watcher):
+     raise MissionError('placement failed twice (exit {}); the arm is {}'.format(code, state))
+ 
+ 
+-def patrol_mission(args, pc_ip, log_dir, room=None):
++def patrol_mission(args, pc_ip, log_dir, room=None, new_link=VisionLink):
+     """Patrol, fetch, place, back out, patrol on: until two whole laps find nothing."""
+     from integration.rear_stream import StreamReader
+     log_dir.mkdir(parents=True, exist_ok=True)
+-    stage, reader, delivered, failures, n = 'START', None, 0, [], 0
++    stage, reader, link, delivered, failures, n = 'START', None, None, 0, [], 0
++    at_box = []
+     try:
+         layout = dock.fetch_layout(args.host, args.scene)
+         layout_copy = log_dir / 'scene_layout.json'
+         layout_copy.write_text(json.dumps(layout, indent=1), encoding='utf-8')
+         box = dock.box_from_layout(layout, str(layout_copy))
++        walls = dock.walls_from_layout(layout)
++        if walls is None:
++            raise MissionError('scene layout has no room_polygon: wall clips could not be '
++                               'told from sugarboxes')
+         if not stream_running(args.host, pc_ip):
+             start_stream(args.host, pc_ip)
+         watcher = SugarboxWatcher(args.homography)
+-        room = room or Room(args.host)
++        room = room or Room(args.host, walls)
+ 
+         def new_reader():
+             return StreamReader(STREAM_PORT, args.gstreamer)
+@@ -734,9 +1048,13 @@ def patrol_mission(args, pc_ip, log_dir, room=None):
+         while args.max_deliveries is None or delivered < args.max_deliveries:
+             n += 1
+             stage = 'PATROL {}'.format(n)
+-            reader = new_reader()
+-            sighting = patrol_until_sugarbox(args.host, args.scene, reader, watcher, box,
+-                                             skip=tried_out(failures), make_room=room.make)
++            reader, link = new_reader(), new_link(args.host)
++            skip = tried_out(failures)
++            sighting = patrol_until_sugarbox(args.host, args.scene, reader, watcher, link, box,
++                                             skip=skip, guard=at_box + skip,
++                                             make_room=room.make, walls=walls)
++            link.close()
++            link = None
+             reader.close()            # the approach opens its own receiver on this port
+             reader = None
+             if sighting is None:
+@@ -745,11 +1063,21 @@ def patrol_mission(args, pc_ip, log_dir, room=None):
+                 return 0
+             room.reset()
+             stage = 'GRASP {}'.format(n)
+-            if fetch_sugarbox(args, sighting, log_dir, n) == 'missed':
+-                if sighting['map'] is not None:
+-                    failures.append(sighting['map'])
+-                print('[MISSION] grasp {} missed: backing out, patrolling on'.format(n),
+-                      flush=True)
++            outcome = fetch_sugarbox(args, sighting, log_dir, n)
++            if outcome != 'held':
++                spot = sighting['map']
++                if outcome == 'missed_at_box':
++                    # Right in front, and once backed out inside the gripper's
++                    # blind zone: guarded, from where the approach left it.
++                    spot = box_left_at(args.host) or spot
++                    if spot is not None:
++                        at_box.append(spot)
++                if spot is not None:
++                    failures.append(spot)
++                print('[MISSION] grasp {} missed{} at {}: backing out, patrolling on'.format(
++                    n, ' with the robot at the box' if outcome == 'missed_at_box' else '',
++                    'map ({:.2f}, {:.2f})'.format(*spot) if spot is not None
++                    else 'an unknown map spot (not counted)'), flush=True)
+                 stage = 'BACK_OUT {}'.format(n)
+                 room.leave()
+                 continue
+@@ -767,6 +1095,8 @@ def patrol_mission(args, pc_ip, log_dir, room=None):
+         print('[MISSION] logs in {}'.format(log_dir), flush=True)
+         return 2
+     finally:
++        if link is not None:
++            link.close()
+         if reader is not None:
+             reader.close()
+         try:
+diff --git a/integration/placement_dock.py b/integration/placement_dock.py
+index 222131b..60e88cf 100644
+--- a/integration/placement_dock.py
++++ b/integration/placement_dock.py
+@@ -97,6 +97,29 @@ def box_from_layout(layout, source='scene_layout.json'):
+             'source': source}
+ 
+ 
++def walls_from_layout(layout):
++    """The room's wall polygon [(x, y), ...] in the map frame, or None if absent."""
++    polygon = layout.get('room_polygon') if isinstance(layout, dict) else None
++    if (not isinstance(polygon, list) or len(polygon) < 3
++            or not all(isinstance(p, (list, tuple)) and len(p) == 2 and finite(*p)
++                       for p in polygon)):
++        return None
++    return [(float(x), float(y)) for x, y in polygon]
++
++
++def near_wall(point, walls, margin):
++    """True for a map point outside the wall polygon or within `margin` of a wall."""
++    x, y = point
++    inside, distances = False, []
++    for (x1, y1), (x2, y2) in zip(walls, walls[1:] + walls[:1]):
++        if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
++            inside = not inside
++        dx, dy = x2 - x1, y2 - y1
++        t = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / (dx * dx + dy * dy or 1.0)))
++        distances.append(math.hypot(x - (x1 + t * dx), y - (y1 + t * dy)))
++    return not inside or min(distances) <= margin
++
++
+ def load_box_map(path):
+     """The placement box from a local copy of scene_layout.json."""
+     with open(path, encoding='utf-8') as f:
+@@ -221,26 +244,42 @@ def corridor_distance(ranges, angle_min, angle_increment,
+     return robust_nearest(values)
+ 
+ 
+-# Chassis footprint around the centre, as the approach drops self-returns
+-# (sugarbox_training_contract.CHASSIS_HALF_*: mast, arm base and wiring).
+-CHASSIS_HALF_LENGTH_M = 0.15
+-CHASSIS_HALF_WIDTH_M = 0.15
++# The robot's outline (x forward, y left from the chassis centre, x1 y1 x2 y2):
++# ncu's surveyed body rectangles in the LiDAR self-return profile (robot file
++# deploy/ros/lidar_self_returns_2026-10-18.json). Each one, not the box around
++# them all: the right-side cables stick out 0.29 m only mid-body, and a box
++# carried that width to a rear corner the robot does not have (2026-10-19).
++BODY_RECTANGLES = ((-0.15, -0.14, 0.22, 0.14), (-0.18, -0.22, -0.06, -0.13),
++                   (-0.20, 0.10, -0.15, 0.14), (-0.05, -0.29, 0.02, -0.21),
++                   (0.04, -0.29, 0.075, -0.21), (-0.23, -0.205, -0.18, -0.135))
++# Backing straight must leave the whole outline this far inside the room's walls
++# (AMCL ~4 cm, and the margin the old LiDAR check kept).
++BACK_WALL_MARGIN_M = 0.08
+ 
+ 
+-def rear_clearance(ranges, angle_min, angle_increment,
+-                   half_width_m=CORRIDOR_HALF_WIDTH_M, geometry=LIDAR):
+-    """Free distance behind the chassis's back edge, in its own-width corridor."""
+-    values = []
+-    for sample in robot_scan_samples(ranges, angle_min, angle_increment, geometry):
+-        if sample.range_m is None:
+-            continue
+-        x = sample.range_m * math.cos(sample.angle_rad)
+-        y = sample.range_m * math.sin(sample.angle_rad)
+-        if abs(x) <= CHASSIS_HALF_LENGTH_M and abs(y) <= CHASSIS_HALF_WIDTH_M:
+-            continue                      # the robot itself
+-        if x < -CHASSIS_HALF_LENGTH_M and abs(y) <= half_width_m:
+-            values.append(-x - CHASSIS_HALF_LENGTH_M)
+-    return robust_nearest(values)
++def to_map(pose, point):
++    """Chassis-centre frame point -> map."""
++    x, y, yaw = pose
++    c, s = math.cos(yaw), math.sin(yaw)
++    return x + c * point[0] - s * point[1], y + s * point[0] + c * point[1]
++
++
++def back_path_problem(pose, metres, walls, margin=BACK_WALL_MARGIN_M):
++    """None when backing `metres` straight keeps the robot inside the room, else why not.
++
++    The LiDAR cannot see behind the robot: the body blocks its rear half (the
++    user, 2026-10-19; what it returned there was the robot's own right-rear
++    corner, read as an obstacle 1 cm away with ~30 cm free). The field has only
++    walls (the user, 2026-10-19), so the map and the AMCL pose decide. The room
++    is convex: an outline inside it at the start and at the end stays inside on
++    the way.
++    """
++    for x1, y1, x2, y2 in BODY_RECTANGLES:
++        for corner in ((x1 - metres, y1), (x1 - metres, y2), (x2 - metres, y1), (x2 - metres, y2)):
++            if near_wall(to_map(pose, corner), walls, margin):
++                return 'backing {:.2f} m would bring the robot within {:.2f} m of a wall'.format(
++                    metres, margin)
++    return None
+ 
+ 
+ def wall_correction(measured_m, taught_m):
+diff --git a/integration/sugarbox_approach_grasp.py b/integration/sugarbox_approach_grasp.py
+index e285962..e73f1f4 100644
+--- a/integration/sugarbox_approach_grasp.py
++++ b/integration/sugarbox_approach_grasp.py
+@@ -68,11 +68,12 @@ BLIND_CREEP_TRIES = 2
+ BLIND_CREEP_LOOKS = 4       # fresh frames in a row that saw nothing (E1 runs at 1 Hz)
+ # Two fresh E1 readings must agree within 8 mm, the second within this long of the first.
+ AGREE_WITHIN_S = 4.0
+-# Straight back-offs (the user, 2026-10-19). Each step is at most BACK_STEP_M and
+-# starts only with that much plus the margin free behind (LiDAR); reversing has
+-# no brake of its own, so the check before each step is the protection.
++# Straight back-offs (the user, 2026-10-19), at most BACK_STEP_M a step. Nothing
++# sees behind the robot (the LiDAR's rear half is blocked by the body), so before
++# every step the AMCL pose and the room's walls on the map must leave the whole
++# robot inside the room after it (placement_dock.back_path_problem); the field
++# has walls only. Not localized: no backing.
+ BACK_STEP_M = 0.20
+-BACK_MARGIN_M = 0.10
+ # No room to turn toward the placement box after a grasp: back along the way the
+ # robot came in, a step at a time, before turning.
+ FACE_BACKOFF_STEP_M = 0.10
+@@ -83,8 +84,13 @@ FACE_BACKOFF_MAX_M = 0.30
+ PLACEMENT_VIEW_MIN_M = 0.90
+ PLACEMENT_VIEW_TARGET_M = 0.95
+ PLACEMENT_BACKOFF_MAX_M = 0.40
+-PLACEMENT_BACKOFF_MARGIN_M = 0.25
+ PLACEMENT_BACKOFF_MPS = 0.06
++# Room left behind that back-off, on the map: the user's 0.25 m (2026-10-19),
++# right after a grasp, when AMCL has not been checked to hold.
++PLACEMENT_BACKOFF_MARGIN_M = 0.25
++# The approach reached the sugarbox and E1 did not grasp it: the box stands right
++# in front (mission_loop guards it once backed out into the gripper's blind zone).
++AT_BOX_EXIT = 6
+ # Same bounds as the approach engine's SUGARBOX_SEED_TARGET check.
+ SEED_MIN_M, SEED_MAX_M, SEED_MAX_BEARING_DEG = 0.30, 3.50, 60.0
+ MODEL_HASHES = {
+@@ -328,24 +334,28 @@ def turn(host, radians):
+         odom.close()
+ 
+ 
+-def back_straight(host, metres, margin=BACK_MARGIN_M, speed=0.08, scans=dock.read_scans,
+-                  drive=drive):
++def back_straight(host, metres, walls, speed=0.08, localize=dock.read_localization,
++                  drive=drive, margin=dock.BACK_WALL_MARGIN_M):
+     """Reverse `metres` in steps of at most BACK_STEP_M; arm in travel.
+ 
+-    Each step starts only with the step plus `margin` free behind the chassis
+-    (median over a few LiDAR scans).
++    Before every step the rest of the way back is checked on the map against the
++    room's `walls` from the AMCL pose, leaving `margin` to them; no pose, no walls
++    or no room: no backing.
+     """
+     if not (math.isfinite(metres) and 0 < metres <= 0.60):
+         raise ValueError('refusing to back {!r} m'.format(metres))
++    if not walls:
++        raise RuntimeError('no room walls to check the way back against; not backing')
+     left = metres
+     while left > 1e-6:
++        try:
++            pose = dock.localization_pose(localize(host))
++        except ValueError as exc:
++            raise RuntimeError('cannot check the way back ({}); not backing'.format(exc))
++        problem = dock.back_path_problem(pose, left, walls, margin)
++        if problem:
++            raise RuntimeError(problem + '; not backing')
+         step = min(left, BACK_STEP_M)
+-        clear = sorted(dock.rear_clearance([float('nan') if r is None else r for r in m['ranges']],
+-                                           m['angle_min'], m['angle_increment'])
+-                       for m in scans(host))
+-        clear = clear[len(clear) // 2]
+-        if clear < step + margin:
+-            raise RuntimeError('only {:.2f} m free behind; not backing {:.2f} m'.format(clear, step))
+         drive(host, -step, limit=BACK_STEP_M, speed=speed)
+         left -= step
+ 
+@@ -499,9 +509,17 @@ def keep_box_in_view(host, box, pose, back):
+     return True
+ 
+ 
+-def placement_box(host, path=None):
+-    """The box from a local scene_layout.json copy, else from the robot's own."""
+-    return dock.load_box_map(path) if path is not None else dock.fetch_box(host)
++def placement_layout(host, path=None):
++    """ncu's scene layout from a local copy, else the robot's own: (box, walls)."""
++    if path is not None:
++        with open(path, encoding='utf-8') as f:
++            layout, source = json.load(f), str(path)
++    else:
++        layout, source = dock.fetch_layout(host), 'robot:{}/scene_layout.json'.format(dock.SCENE)
++    walls = dock.walls_from_layout(layout)
++    if walls is None:
++        raise ValueError('scene layout has no room_polygon: ' + source)
++    return dock.box_from_layout(layout, source), walls
+ 
+ 
+ def place(host, report, final_x, aim_y, empty_test, wall_m=None, read=ctl, send_stop=stop,
+@@ -573,7 +591,7 @@ def preflight(args):
+         issues.append('placement model checksum mismatch: ' + str(PLACEMENT_MODEL))
+     if getattr(args, 'turn_to_box', False):
+         try:
+-            placement_box(args.host, args.box_map)
++            placement_layout(args.host, args.box_map)
+         except (OSError, ValueError, subprocess.SubprocessError) as exc:
+             issues.append('placement box map: ' + str(exc))
+     for module in ('cv2', 'numpy', 'torch', 'gymnasium', 'roslibpy', 'stable_baselines3', 'ultralytics'):
+@@ -582,6 +600,40 @@ def preflight(args):
+     return paths, issues
+ 
+ 
++def start_engine(env):
++    """The approach engine, loading its models and filling its camera while this
++    runner readies the robot (stow, turn toward the box); it connects to no motor
++    before go() (SUGARBOX_WAIT_GO). 2026-10-19: each stage took ~25 s to its first
++    usable frame, with everything done one after the other."""
++    return subprocess.Popen([sys.executable, '-u', str(APPROACH)],
++                            env=dict(env, SUGARBOX_WAIT_GO='1'), stdin=subprocess.PIPE,
++                            text=True)
++
++
++def go(engine, seed=None):
++    """Start the run, with the map estimate of the box when there is one."""
++    line = json.dumps({'go': True,
++                       'seed': None if seed is None else [round(v, 4) for v in seed]})
++    try:
++        engine.stdin.write(line + '\n')
++        engine.stdin.close()
++    except (OSError, ValueError) as exc:
++        raise RuntimeError('the approach engine ended before the start ({})'.format(exc))
++
++
++def kill_tree(proc):
++    """The engine and its camera receiver: one left behind holds the camera port."""
++    if os.name == 'nt':
++        subprocess.run(['taskkill', '/T', '/F', '/PID', str(proc.pid)],
++                       capture_output=True)
++    else:
++        proc.kill()
++    try:
++        proc.wait(timeout=10)
++    except subprocess.TimeoutExpired:
++        pass
++
++
+ def find_gstreamer():
+     supplied = os.environ.get('GSTREAMER_LAUNCH_EXE') or shutil.which('gst-launch-1.0')
+     if supplied:
+@@ -774,7 +826,7 @@ def main(argv=None):
+         if args.turn_to_box:
+             # No turning in a dry run: show where the map says the box is from here.
+             try:
+-                box = placement_box(args.host, args.box_map)
++                box, _ = placement_layout(args.host, args.box_map)
+                 pose = dock.localization_pose(dock.read_localization(args.host))
+                 bearing, distance = dock.box_bearing(pose, box)
+                 print('[FACE] dry run: placement box {:.2f} m away, bearing {:+.1f} deg '
+@@ -794,7 +846,10 @@ def main(argv=None):
+     env.update(SUGARBOX_RUN_MODE='DRIVE',
+                SUGARBOX_EXIT_ON_ARRIVAL='1', SUGARBOX_FINAL_TRAVEL_M=str(args.final_travel_m))
+     outcome = 'nothing released' if placement else 'no E1/grasp'
++    engine, at_box = None, False
+     try:
++        if not args.handoff_only:
++            engine = start_engine(env)
+         stop(args.host)
+         time.sleep(0.6)
+         if args.handoff_only:
+@@ -805,26 +860,37 @@ def main(argv=None):
+         st = ctl(args.host, 'status')
+         if st.get('chassis', {}).get('arm_pose') != 'travel':
+             raise RuntimeError('travel pose not confirmed')
++        seed = None
++        if engine.poll() is not None:
++            raise RuntimeError('the approach engine ended while loading (exit {}); '.format(
++                engine.returncode) + outcome)
+         if args.turn_to_box:
+-            box = placement_box(args.host, args.box_map)
+-            pose = face_box(args.host, box, back=back_straight)
+-            if keep_box_in_view(args.host, box, pose, lambda host, metres: back_straight(
+-                    host, metres, margin=PLACEMENT_BACKOFF_MARGIN_M,
+-                    speed=PLACEMENT_BACKOFF_MPS)):
+-                pose = face_box(args.host, box, back=back_straight)
++            box, walls = placement_layout(args.host, args.box_map)
++
++            def back(host, metres, speed=0.08, margin=dock.BACK_WALL_MARGIN_M):
++                back_straight(host, metres, walls, speed=speed, margin=margin)
++            pose = face_box(args.host, box, back=back)
++            if keep_box_in_view(args.host, box, pose, lambda host, metres: back(
++                    host, metres, speed=PLACEMENT_BACKOFF_MPS,
++                    margin=PLACEMENT_BACKOFF_MARGIN_M)):
++                pose = face_box(args.host, box, back=back)
+             if box['verified']:
+-                env['SUGARBOX_SEED_TARGET'] = '{:.4f},{:.4f}'.format(*dock.seed_point(pose, box))
++                seed = dock.seed_point(pose, box)
+             else:
+                 print('[FACE] the scene layout box position is not verified: turned toward it '
+                       'only; the camera has to find the box from here')
+         if arrival_report.exists():
+             arrival_report.unlink()
+-        result = subprocess.run([sys.executable, '-u', str(APPROACH)], env=env,
+-                                timeout=args.approach_timeout)
+-        if result.returncode == 4:
++        go(engine, seed)
++        try:
++            returncode = engine.wait(timeout=args.approach_timeout)
++        except subprocess.TimeoutExpired:
++            raise RuntimeError('approach still running after {:.0f} s; {}'.format(
++                args.approach_timeout, outcome))
++        if returncode == 4:
+             raise RuntimeError('approach stopped: no progress toward the box (the [STOPPED] '
+                                'line above says what held it); ' + outcome)
+-        if result.returncode:
++        if returncode:
+             raise RuntimeError('approach did not report stopped arrival; ' + outcome)
+         if placement:
+             try:
+@@ -837,12 +903,16 @@ def main(argv=None):
+             return 0
+         # Only enoch's approach may reverse, so only it gets the E1 fine adjustment.
+         tools = dict(look=look, drive=drive) if args.approach == 'enoch' else {}
++        at_box = True
+         print(json.dumps(handoff(args.host, **tools), ensure_ascii=False))
+         return 0
+     except (Exception, KeyboardInterrupt) as exc:
+         print('[STOP] ' + str(exc))
+-        return 2
++        return AT_BOX_EXIT if at_box else 2
+     finally:
++        # Not started (nothing was connected to the motors yet) or overrunning.
++        if engine is not None and engine.poll() is None:
++            kill_tree(engine)
+         try:
+             stop(args.host)
+         except OSError as exc:
+diff --git a/integration/sugarbox_rl_approach_final2.py b/integration/sugarbox_rl_approach_final2.py
+index a8b1281..e545424 100644
+--- a/integration/sugarbox_rl_approach_final2.py
++++ b/integration/sugarbox_rl_approach_final2.py
+@@ -150,7 +150,11 @@ FRAME_H = 480
+ REAR_IGNORE_REGIONS = ((295, 395, 405, 480),)
+ REAR_IGNORE_MIN_OVERLAP = 0.5
+ 
+-YOLO_CONF = 0.30
++# The sugarbox model reads the black clips holding the wall panels as sugarboxes
++# at 0.53-0.73 on the 2026-10-19 field, real boxes at 0.9 and up; the user: drop
++# everything under 0.70. The placement box model keeps 0.30: its lowest
++# validation score was 0.73 and it read the box at 0.81 from 1.6 m.
++YOLO_CONF = 0.30 if os.environ.get("SUGARBOX_TARGET", "").strip().lower() == "placement" else 0.70
+ 
+ # The box is ~25x50 px in the rear camera at 1 m. At 640 the model saw nothing
+ # in a 2026-10-04 frame (best candidate 0.07); at 1280 it found the box at 0.94
+@@ -533,6 +537,12 @@ if SEED_TARGET is not None and not (
+         <= SEED_MAX_BEARING_DEG):
+     raise ValueError("SUGARBOX_SEED_TARGET must be 'x,y', 0.30-3.50 m away within 60 deg")
+ SEED_SOURCE = "map_seed" if TARGET_KIND == "placement" else "patrol_seed"
++# The runner may start this engine before the robot is ready for it (it stows the
++# arm, and turns toward the placement box, meanwhile) with SUGARBOX_WAIT_GO=1: the
++# models load and the camera fills, and nothing reaches the motors until the
++# runner writes one line on stdin, {"go": true, "seed": [x, y] or null}. End of
++# input, or any other line, ends the run without a motor connection (exit 5).
++WAIT_GO = os.environ.get("SUGARBOX_WAIT_GO", "0") == "1"
+ # A box the camera sees beyond its calibrated area (0.55-1.40 m ahead of the front
+ # wheels, +-0.20 m) is otherwise ignored. With SUGARBOX_FAR_SEED=1 its extrapolated
+ # position becomes a seed like the map estimate: the policy drives at it and the
+@@ -552,6 +562,18 @@ SEED_GIVE_UP_CENTER_M = 0.80
+ # (TURN_MIN_WZ); the policy's 0.78 rad/s cap would stall a pure turn.
+ SEED_FACE_ENTER_DEG = 12.0
+ SEED_FACE_EXIT_DEG = 5.0
++# Nothing drives at a patrol or map estimate before the camera has looked at it
++# from standing still. 2026-10-19 run 3: four patrol-seeded approaches drove
++# 13-18 cm on the estimate while the first YOLO+SAM2 pass (2.1-2.4 s) was still
++# running, and gave up at 0.80 m having measured nothing; the 10-18 runs, with no
++# estimate, stood still ~3 s, locked and steered in. Only results from frames that
++# arrived SEED_LOOK_SETTLE_S after the robot came to rest count (the motors settle,
++# the stream runs up to ~0.3 s behind). A patrol estimate still unmeasured after
++# SEED_LOOK_RESULTS of them, or SEED_LOOK_TIMEOUT_S, ends the run; a map estimate
++# is then driven at (the user, 2026-10-19: verified box positions only).
++SEED_LOOK_RESULTS = 6
++SEED_LOOK_SETTLE_S = 0.60
++SEED_LOOK_TIMEOUT_S = 10.0
+ # Written once when the run ends (how it ended, where the box was, the LiDAR
+ # corridor ahead), so the runner can decide whether a release is safe.
+ ARRIVAL_REPORT_PATH = os.environ.get("SUGARBOX_ARRIVAL_REPORT", "").strip()
+@@ -957,12 +979,9 @@ class LatestFrameReader:
+ 
+         self.running = False
+ 
+-        try:
+-            if self.process.stdout is not None:
+-                self.process.stdout.close()
+-        except Exception:
+-            pass
+-
++        # End the receiver before closing its pipe: with no stream arriving the
++        # reader thread sits in a read, and on Windows closing the pipe under it
++        # blocks for good (2026-10-20, an engine started early and never used).
+         try:
+             self.process.terminate()
+         except Exception:
+@@ -978,6 +997,12 @@ class LatestFrameReader:
+             except Exception:
+                 pass
+ 
++        try:
++            if self.process.stdout is not None:
++                self.process.stdout.close()
++        except Exception:
++            pass
++
+         try:
+             self.thread.join(
+                 timeout=0.5
+@@ -3864,6 +3889,66 @@ class SeedFacing:
+                 bearing))
+         return math.copysign(TURN_MIN_WZ, bearing) if self.active else 0.0
+ 
++    def wants(self, target):
++        """Whether command() turns this tick, without changing anything."""
++        return bool(target.seeded) and (
++            self.active or abs(math.degrees(target.bearing)) > SEED_FACE_ENTER_DEG)
++
++
++class SeedLook:
++    """Stand still on a patrol or map estimate until the camera has had its look.
++
++    update() -> "FREE" (nothing to look at: drive as usual), "HOLD" (stand still,
++    count results) or "GIVE_UP" (a patrol estimate the look did not confirm). A far
++    sighting is the camera's own and a measured box no estimate: both are FREE.
++    """
++
++    def __init__(self):
++        self.done = False
++        self.reset()
++
++    def reset(self):
++        """Look again from the start: after a stop."""
++        self.started = None
++        self.still_since = None
++        self.results = 0
++        self.last_sequence = None
++        self.last_reason = "WAIT"
++
++    def looking(self, target):
++        return (not self.done and bool(target.seeded)
++                and target.class_name in ("patrol_seed", "map_seed"))
++
++    def counts(self, frame_time):
++        """A result from a frame that arrived with the robot at rest."""
++        return (self.still_since is not None
++                and frame_time >= self.still_since + SEED_LOOK_SETTLE_S)
++
++    def update(self, now, target, turning, sequence, frame_time, reason):
++        if not self.looking(target):
++            return "FREE"
++        if self.started is None:
++            self.started = now
++            print("[SEED] standing still while the camera looks at the {}".format(
++                target.class_name.replace("_", " ")))
++        if turning:
++            self.still_since, self.results = None, 0
++        elif self.still_since is None:
++            self.still_since = now
++        if sequence != self.last_sequence:
++            self.last_sequence = sequence
++            if sequence and self.counts(frame_time):
++                self.results += 1
++                self.last_reason = reason
++        if self.results < SEED_LOOK_RESULTS and now - self.started < SEED_LOOK_TIMEOUT_S:
++            return "HOLD"
++        self.done = True
++        if target.class_name == "patrol_seed":
++            return "GIVE_UP"
++        print("[SEED] looked from standing still ({} results, last {}): no measurement; "
++              "driving at the map estimate".format(self.results, self.last_reason))
++        return "FREE"
++
+ 
+ def arrival_record(arrived, blocked, arrival_reason, blocked_reason, target, now,
+                    front_robust, front_min):
+@@ -4153,6 +4238,61 @@ def load_policy_and_vecnormalize():
+     )
+ 
+ 
++class BackgroundLoad:
++    """Run a loader on its own thread; result() waits for it and re-raises its error."""
++
++    def __init__(self, load):
++        self._value = None
++        self._error = None
++        self._thread = threading.Thread(target=self._run, args=(load,), daemon=True)
++        self._thread.start()
++
++    def _run(self, load):
++        try:
++            self._value = load()
++        except BaseException as exc:
++            self._error = exc
++
++    def result(self):
++        self._thread.join()
++        if self._error is not None:
++            raise self._error
++        return self._value
++
++
++def warm_up_models(yolo_model, sam_model):
++    """One dummy pass through YOLO and SAM2 at the run's own sizes. The first pass
++    on the GPU pays for the CUDA/cuDNN set-up: 2.1-2.4 s on the robot runs, then
++    ~0.45 s a frame (2026-10-20 on this PC: YOLO 1.33 -> 0.06 s, SAM2 1.16 -> 0.45 s)."""
++    frame = np.zeros((FRAME_H, FRAME_W, 3), dtype=np.uint8)
++    yolo_model.predict(frame, imgsz=YOLO_IMGSZ, conf=YOLO_CONF, verbose=False)
++    cx, cy = FRAME_W // 2, FRAME_H // 2
++    sam_model(frame, bboxes=[[cx - 20, cy - 20, cx + 20, cy + 20]], verbose=False)
++
++
++def valid_seed(seed):
++    return (len(seed) == 2 and all(math.isfinite(v) for v in seed)
++            and SEED_MIN_M <= math.hypot(*seed) <= SEED_MAX_M
++            and abs(math.degrees(math.atan2(seed[1], seed[0]))) <= SEED_MAX_BEARING_DEG)
++
++
++def wait_for_go(stream):
++    """{"seed": (x, y) or None} once the runner says go (WAIT_GO); None otherwise."""
++    print("[GO] loaded; waiting for the runner to start the run", flush=True)
++    try:
++        message = json.loads(stream.readline())
++        if message.get("go") is not True:
++            return None
++        seed = message.get("seed")
++        if seed is not None:
++            seed = tuple(float(v) for v in seed)
++            if not (TRAINING_CONTRACT and valid_seed(seed)):
++                return None
++    except (ValueError, TypeError, AttributeError):
++        return None
++    return {"seed": seed}
++
++
+ # ============================================================
+ # 55D Observation
+ # ============================================================
+@@ -5734,150 +5874,88 @@ def main():
+ 
+ 
+     # --------------------------------------------------------
+-    # Homography
+-    # --------------------------------------------------------
+-
+-    print()
+-    print(
+-        "[GROUND] Loading..."
+-    )
+-
+-    (
+-        H,
+-        rear_cam_to_front_m,
+-        calibration_hull
+-    ) = load_ground_calibration(
+-
+-        HOMOGRAPHY_PATH
+-    )
+-
+-    print(
+-        "[GROUND] Loaded"
+-    )
+-
+-    print(
+-        "[GROUND] rear_cam_to_front_m = "
+-        f"{rear_cam_to_front_m:.3f}"
+-    )
+-
+-    print(
+-        "[GROUND] H ="
+-    )
+-
+-    print(
+-        H
+-    )
+-
+-
+-    # --------------------------------------------------------
+-    # YOLO
+-    # --------------------------------------------------------
+-
+-    print()
+-    print(
+-        "[MODEL] Loading YOLO..."
+-    )
+-
+-    yolo_model = YOLO(
+-        YOLO_MODEL_PATH
+-    )
+-
+-    print(
+-        "[MODEL] YOLO classes:"
+-    )
+-
+-    print(
+-        yolo_model.names
+-    )
+-
+-
+-    # --------------------------------------------------------
+-    # SAM2
++    # Startup, overlapped (2026-10-20). Measured on 2026-10-19 each stage took
++    # ~25 s to its first usable result, all of it one after the other: imports and
++    # models ~16 s, then the receiver ~6 s to its first frame, then a 2.1-2.4 s
++    # first inference. The receiver now starts first, the policy loads beside
++    # YOLO and SAM2, and one dummy pass warms both models up.
+     # --------------------------------------------------------
+ 
+     print()
+-    print(
+-        "[MODEL] Loading SAM2..."
+-    )
+-
+-    sam_model = SAM(
+-        SAM2_MODEL_PATH
+-    )
++    print("[CAMERA] Opening rear camera (it fills while the models load)...")
+ 
+-    print(
+-        "[MODEL] SAM2 ready"
++    reader = LatestFrameReader(
++        width=FRAME_W,
++        height=FRAME_H,
++        udp_port=CAMERA_UDP_PORT,
++        gst_exe=GSTREAMER_LAUNCH_EXE
+     )
+ 
+-
+-    # --------------------------------------------------------
+-    # PPO / ROS
+-    # --------------------------------------------------------
+-
+     rl_model = None
+-
+     vecnormalize = None
+-
+     ros_bridge = None
+-
+     motor = None
++    seed_target = SEED_TARGET
+ 
+-
+-    if RUN_MODE != "VISION":
+-
++    try:
++        print()
++        print("[GROUND] Loading...")
+         (
+-            rl_model,
+-            vecnormalize
+-        ) = load_policy_and_vecnormalize()
+-
+-        ros_bridge = RosSensorBridge(
+-
+-            JETSON_IP,
+-
+-            ROSBRIDGE_PORT
+-        )
+-
+-        ros_bridge.start()
+-
+-
+-    # --------------------------------------------------------
+-    # DRIVE only motor
+-    # --------------------------------------------------------
+-
+-    if RUN_MODE == "DRIVE":
+-
+-        motor = MotorClient(
+-
+-            JETSON_IP,
+-
+-            MOTOR_PORT
+-        )
+-
+-        motor.connect()
+-
+-        motor.stop(
+-            repeat=3
+-        )
+-
+-
+-    # --------------------------------------------------------
+-    # Camera
+-    # --------------------------------------------------------
+-
+-    print()
+-    print(
+-        "[CAMERA] Opening rear camera..."
+-    )
+-
+-    reader = LatestFrameReader(
+-
+-        width=FRAME_W,
+-
+-        height=FRAME_H,
+-
+-        udp_port=CAMERA_UDP_PORT,
++            H,
++            rear_cam_to_front_m,
++            calibration_hull
++        ) = load_ground_calibration(HOMOGRAPHY_PATH)
++        print("[GROUND] Loaded")
++        print(f"[GROUND] rear_cam_to_front_m = {rear_cam_to_front_m:.3f}")
++        print("[GROUND] H =")
++        print(H)
++
++        policy = BackgroundLoad(load_policy_and_vecnormalize) if RUN_MODE != "VISION" else None
++
++        print()
++        print("[MODEL] Loading YOLO...")
++        yolo_model = YOLO(YOLO_MODEL_PATH)
++        print("[MODEL] YOLO classes:")
++        print(yolo_model.names)
++
++        print()
++        print("[MODEL] Loading SAM2...")
++        sam_model = SAM(SAM2_MODEL_PATH)
++        print("[MODEL] SAM2 ready")
++
++        started = time.time()
++        warm_up_models(yolo_model, sam_model)
++        print("[MODEL] warm-up pass {:.1f} s: the first real frame runs at full "
++              "speed".format(time.time() - started))
++
++        if policy is not None:
++            rl_model, vecnormalize = policy.result()
++            ros_bridge = RosSensorBridge(JETSON_IP, ROSBRIDGE_PORT)
++            ros_bridge.start()
++
++        go = wait_for_go(sys.stdin) if WAIT_GO else {"seed": None}
++        if go is not None and go["seed"] is not None:
++            seed_target = go["seed"]
++            print("[SEED] {} x={:.3f} y={:+.3f} m from the runner".format(
++                SEED_SOURCE.replace("_", " "), *seed_target))
++
++        if go is not None and RUN_MODE == "DRIVE":
++            motor = MotorClient(JETSON_IP, MOTOR_PORT)
++            motor.connect()
++            motor.stop(repeat=3)
++    except BaseException:
++        # A receiver left behind would hold the camera port for the next stage.
++        reader.release()
++        if ros_bridge is not None:
++            ros_bridge.close()
++        raise
+ 
+-        gst_exe=GSTREAMER_LAUNCH_EXE
+-    )
++    if go is None:
++        print("[GO] the runner did not start the run; the motors were never connected")
++        reader.release()
++        if ros_bridge is not None:
++            ros_bridge.close()
++        return 5
+ 
+     vision_worker = AsyncVisionWorker(
+         reader=reader,
+@@ -5895,8 +5973,8 @@ def main():
+     # --------------------------------------------------------
+ 
+     target = TargetState(freeze_visual_updates=TARGET_INITIAL_ONLY)
+-    if SEED_TARGET is not None:
+-        target.seed(SEED_TARGET[0], SEED_TARGET[1], time.time(), source=SEED_SOURCE)
++    if seed_target is not None:
++        target.seed(seed_target[0], seed_target[1], time.time(), source=SEED_SOURCE)
+     far_sighting = FarSighting()
+ 
+     obs_logger = ObsLogger(OBS_LOG_PATH)
+@@ -6001,6 +6079,9 @@ def main():
+     final_approach = FinalApproachController()
+     pursuit = PursuitController()
+     seed_facing = SeedFacing()
++    seed_look = SeedLook()
++    seed_look_state = "FREE"
++    last_vision_frame_time = 0.0
+     handoff_deferred = False
+     path_blocked_ticks = 0
+     blind_finish = BlindFinishController()
+@@ -6164,6 +6245,11 @@ def main():
+                 last_vision_result = vision_result
+                 last_vision_frame = vision_source_frame
+                 last_vision_reason = vision_reason
++                last_vision_frame_time = vision_frame_time
++                # While the robot stands still to look at an estimate, a frame
++                # from before it came to rest (taken mid-turn) is not looked at.
++                pre_rest_frame = (seed_look.looking(target)
++                                  and not seed_look.counts(vision_frame_time))
+ 
+                 if vision_source_frame is not None:
+                     last_vision_panel = draw_vision_annotation_frame(
+@@ -6203,7 +6289,9 @@ def main():
+                         f"bearing={raw_bearing_text}->{comp_bearing_text}"
+                     )
+ 
+-                if (
++                if pre_rest_frame:
++                    pass
++                elif (
+                     vision_result is not None
+                     and
+                     vision_reason == "VALID"
+@@ -6462,12 +6550,16 @@ def main():
+ 
+                 # ------------------------------------------------
+                 # No progress: with reverse off, stop for good and say why
+-                # (only when driving; a dry run never gets closer)
++                # (only when driving; a dry run never gets closer). The clock
++                # waits for the camera's first frame: a seed is a target from the
++                # start, and the first YOLO+SAM2 pass took ~11 s on 2026-10-19,
++                # so a patrol-seeded run stopped before it had seen anything.
+                 # ------------------------------------------------
+ 
+                 if (
+                     RUN_MODE == "DRIVE"
+                     and target.has_memory()
++                    and math.isfinite(camera_age)
+                     and not (e_stop_latched or arrived_latched or blocked_latched)
+                 ):
+                     if progress.update(target.dist, now):
+@@ -6481,7 +6573,7 @@ def main():
+                         print("[STOPPED] " + blocked_reason)
+                         safety_reason = blocked_reason
+                         should_stop = True
+-                elif not target.has_memory():
++                elif not target.has_memory() or not math.isfinite(camera_age):
+                     progress.reset()
+ 
+ 
+@@ -6717,18 +6809,35 @@ def main():
+                     path_block_m = path_obstacle_distance(
+                         scan, target.x, target.y, CONTRACT_PATH_HALF_WIDTH_M)
+ 
++                seed_look_state = "FREE"
++                if TRAINING_CONTRACT and not should_stop:
++                    seed_look_state = seed_look.update(
++                        now, target, seed_facing.wants(target), last_vision_sequence,
++                        last_vision_frame_time, last_vision_reason)
++
+                 if (
+                     TRAINING_CONTRACT
+                     and not should_stop
+                     and target.seeded
+-                    and target.dist <= SEED_GIVE_UP_CENTER_M
++                    and (seed_look_state == "GIVE_UP"
++                         or (seed_look_state == "FREE"
++                             and target.dist <= SEED_GIVE_UP_CENTER_M))
+                 ):
+                     # The camera finds the box well before this; if it still has
+                     # not, the estimate is wrong or something hides the box.
+                     blocked_latched = True
+-                    blocked_reason = (
+-                        "SEED_NOT_CONFIRMED: {:.2f} m from the {} estimate and the "
+-                        "camera has not measured the box".format(target.dist, target.class_name))
++                    if seed_look_state == "GIVE_UP":
++                        blocked_reason = (
++                            "SEED_NOT_CONFIRMED: looked at the {} estimate {:.2f} m away from "
++                            "standing still ({} results, last {}) and the camera has not "
++                            "measured the box".format(
++                                target.class_name, target.dist, seed_look.results,
++                                seed_look.last_reason))
++                    else:
++                        blocked_reason = (
++                            "SEED_NOT_CONFIRMED: {:.2f} m from the {} estimate and the "
++                            "camera has not measured the box".format(
++                                target.dist, target.class_name))
+                     print("[STOPPED] " + blocked_reason)
+                     safety_reason = blocked_reason
+                     should_stop = True
+@@ -6780,6 +6889,7 @@ def main():
+                     pursuit.reset()
+                     blind_finish.reset()
+                     seed_facing.reset()
++                    seed_look.reset()
+ 
+                     last_raw_action[:] = 0.0
+ 
+@@ -7213,6 +7323,28 @@ def main():
+                         motor.send_velocity(last_cmd_vx, last_cmd_wz)
+ 
+ 
++                # ------------------------------------------------
++                # Stand still while the camera looks at an estimate (SeedLook)
++                # ------------------------------------------------
++
++                elif TRAINING_CONTRACT and seed_look_state == "HOLD":
++
++                    progress.reset()       # standing still on purpose is not stuck
++                    last_raw_action[:] = 0.0
++                    prev_raw_action = np.zeros(2, dtype=np.float32)
++                    contract_action.reset()
++                    anti_jitter.reset_motion()
++                    last_desired_vx = 0.0
++                    last_desired_wz = 0.0
++                    last_cmd_vx = 0.0
++                    last_cmd_wz = 0.0
++                    safety_reason = "SEED_LOOK {}/{} | {}".format(
++                        seed_look.results, SEED_LOOK_RESULTS, last_vision_reason)
++
++                    if RUN_MODE == "DRIVE":
++                        motor.send_velocity(0.0, 0.0)
++
++
+                 # ------------------------------------------------
+                 # PPO
+                 # ------------------------------------------------
+diff --git a/tests/test_mission_loop.py b/tests/test_mission_loop.py
+index 9f98268..1de6110 100644
+--- a/tests/test_mission_loop.py
++++ b/tests/test_mission_loop.py
+@@ -53,7 +53,37 @@ class ClockReader:
+         pass
+ 
+ 
+-LAYOUT = {'frame_id': 'map', 'bin': {
++class FakeLink:
++    """The vision permit link: what was sent, a fixed pose (None: no pose), and the
++    patrol process as the Jetson end reports it (`running(host, pid)`)."""
++
++    def __init__(self, pose=(0.0, 0.0, 0.0), running=None):
++        self.pose, self.sent, self.allowed, self.closed = pose, [], False, False
++        self.running, self.watched, self.dead = running, [], False
++
++    def send(self, allow, age):
++        self.sent.append(allow)
++        self.allowed = allow
++
++    def pose_now(self):
++        return self.pose
++
++    def watch(self, pid):
++        self.watched.append(pid)
++
++    def patrol_alive(self, pid):
++        if self.running is None or pid not in self.watched:
++            return None
++        return self.running('host', pid)
++
++    def alive(self):
++        return not self.dead
++
++    def close(self):
++        self.closed = True
++
++
++LAYOUT = {'frame_id': 'map', 'room_polygon': [[-1, -1], [3, -1], [3, 3], [-1, 3]], 'bin': {
+     'pose_map': {'x': 1.76, 'y': 0.88}, 'pose_map_valid_for_current_placement': False,
+     'placement_update': {'midpoint_pose_map_candidate': {'x': 1.56, 'y': 0.83}}}}
+ 
+@@ -69,7 +99,9 @@ class PatrolTests(unittest.TestCase):
+         inner = shlex.split(line.split('nohup /bin/bash -c ')[1])[0]
+         for part in ('exec /usr/bin/python deploy/ros/g2_map_patrol.py',
+                      '--destination patrol-cycle', '--boundary-micro', '--real',
+-                     '--output /tmp/mission_patrol.json'):
++                     '--output /tmp/mission_patrol.json',
++                     '--vision-permit /dev/shm/mission_vision_permit.json',
++                     '--forward-pulse-max 0.6'):
+             self.assertIn(part, inner)
+ 
+     def test_three_consistent_sightings_confirm_like_the_approach_lock(self):
+@@ -123,57 +155,214 @@ class PatrolTests(unittest.TestCase):
+         self.assertAlmostEqual(y, 1.00)
+         self.assertIsNone(mission.far_point((300, 100, 340, 200), H, 0.20))   # 3.7 m away
+ 
+-    def run_patrol(self, points, running=None, reports=None, box=None, pose=(0.0, 0.0, 0.0),
+-                   skip=(), make_room=None):
+-        started, stopped = [], []
++    def run_patrol(self, points=(), running=None, reports=None, box=None, pose=(0.0, 0.0, 0.0),
++                   skip=(), make_room=None, watcher=None, walls=None, clear_frames=1, link=None,
++                   guard=None):
++        clock, started, stopped = [0.0], [], []
+         running = running if running is not None else (lambda host, pid: True)
+         reports = iter(reports or [{'ok': True}] * 10)
+-        with patch.object(mission, 'start_patrol',
++        link = link or FakeLink(pose, running)
++        guard = list(skip) if guard is None else guard
++        self.started, self.stopped = started, stopped
++        with patch.object(mission, 'START_CLEAR_FRAMES', clear_frames), \
++             patch.object(mission, 'PATROL_CHECK_S', 0.0), \
++             patch.object(mission, 'start_patrol',
+                           side_effect=lambda host, scene: started.append(scene) or 40 + len(started)), \
+              patch.object(mission, 'patrol_running', side_effect=running), \
+              patch.object(mission, 'stop_patrol', side_effect=lambda host, pid: stopped.append(pid)), \
+              patch.object(mission, 'patrol_report', side_effect=lambda host: next(reports)), \
+-             patch.object(mission.dock, 'read_localization',
+-                          return_value={'ready': True, 'age': 0.1, 'state': {'pose': list(pose)}}), \
+              patch.object(mission.time, 'sleep'), patch('builtins.print'):
+-            seen = mission.patrol_until_sugarbox('host', 'scene', FakeReader(True),
+-                                                 FakeWatcher(points), box, skip=skip,
+-                                                 make_room=make_room, now=lambda: 0.0)
+-        return seen, started, stopped
+-
+-    def test_a_confirmed_sugarbox_stops_the_patrol(self):
+-        seen, started, stopped = self.run_patrol([None, (1.0, 0.1), (1.0, 0.1), (1.0, 0.1)],
+-                                                 pose=(1.0, 0.0, 0.0))
+-        self.assertEqual(started, ['scene'])
+-        self.assertEqual(stopped, [41])
++            seen = mission.patrol_until_sugarbox(
++                'host', 'scene', ClockReader(clock), watcher or FakeWatcher(points), link, box,
++                skip=skip, guard=guard, make_room=make_room, walls=walls, now=lambda: clock[0])
++        return seen, started, stopped, link
++
++    def test_a_candidate_parks_the_robot_and_counts_once_confirmed_there(self):
++        seen, started, stopped, link = self.run_patrol(
++            [None, (1.0, 0.1)] + [(1.0, 0.1)] * 3, pose=(1.0, 0.0, 0.0))
++        self.assertEqual((started, stopped), (['scene'], [41]))
++        # Granted before the patrol starts, withdrawn on the first candidate, and
++        # kept withdrawn while the parked camera confirms.
++        self.assertEqual(link.sent[:2], [True, False])
++        self.assertNotIn(True, link.sent[2:])
+         self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
+         self.assertEqual([round(v, 6) for v in seen['map']], [2.0, 0.1])
+ 
+-    def test_a_sugarbox_beyond_the_calibrated_area_stops_the_patrol_too(self):
+-        seen, _, stopped = self.run_patrol([{'far': (1.8, 0.5)}] * 3)
++    def test_a_sugarbox_beyond_the_calibrated_area_parks_it_too(self):
++        seen, _, stopped, _ = self.run_patrol([None] + [{'far': (1.8, 0.5)}] * 4)
+         self.assertEqual([round(v, 6) for v in seen['point']], [1.8, 0.5])
+         self.assertEqual(stopped, [41])
+ 
+-    def test_the_delivered_sugarbox_is_not_fetched_again(self):
+-        points = [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 3
++    def test_the_patrol_never_starts_with_a_candidate_in_view(self):
++        seen, started, stopped, link = self.run_patrol([(1.0, 0.1)] * 4)
++        self.assertEqual((started, stopped), ([], []))
++        self.assertNotIn(True, link.sent)
++        self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
++
++    def test_the_delivered_sugarbox_never_stops_the_patrol(self):
++        points = [None] + [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 4
+         for verified in (True, False):
+             with self.subTest(verified=verified):
+                 box = {'x': 1.0, 'y': 0.1, 'verified': verified}
+-                seen, _, stopped = self.run_patrol(list(points), box=box)
++                seen, _, stopped, link = self.run_patrol(list(points), box=box)
+                 self.assertEqual([round(v, 6) for v in seen['point']], [0.8, -0.3])
+                 self.assertEqual(stopped, [41])
++                self.assertEqual(link.sent[:5], [True] * 4 + [False])
++
++    def test_a_sighting_against_a_wall_is_a_clip_not_a_sugarbox(self):
++        # 2026-10-19: the black clips holding the wall panels read up to 0.73.
++        room = [(-1.0, -1.0), (3.0, -1.0), (3.0, 3.0), (-1.0, 3.0)]
++        points = [None] + [(2.9, 0.0)] * 3 + [{'far': (3.4, 0.5)}] * 2 + [(1.0, 0.1)] * 4
++        seen, _, stopped, link = self.run_patrol(points, walls=room)
++        self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
++        self.assertEqual(stopped, [41])
++        self.assertEqual(link.sent[:7], [True] * 6 + [False])
+ 
+     def test_a_spot_where_grasping_failed_twice_is_left_alone(self):
+-        points = [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 3
+-        seen, _, _ = self.run_patrol(points, skip=[(1.05, 0.1)])
++        points = [None] + [(1.0, 0.1)] * 3 + [(0.8, -0.3)] * 4
++        seen, _, stopped, _ = self.run_patrol(points, skip=[(1.05, 0.1)])
+         self.assertEqual([round(v, 6) for v in seen['point']], [0.8, -0.3])
++        self.assertEqual(stopped, [41])
++
++    def test_an_unconfirmed_candidate_is_passed_over_and_the_patrol_goes_on(self):
++        seen, started, stopped, _ = self.run_patrol(
++            [None, (1.0, 0.1)], running=lambda host, pid: pid == 41)
++        self.assertIsNone(seen)                       # then two whole laps with nothing
++        self.assertEqual((len(started), stopped), (3, [41]))
++        self.assertTrue(mission.passed_over((1.0, 0.1), None, (), [(1.1, 0.1)]))
++        self.assertFalse(mission.passed_over((1.0, 0.1), None, (), [(1.5, 0.1)]))
++        self.assertFalse(mission.passed_over(None, {'x': 0, 'y': 0}, [(0, 0)], [(0, 0)]))
++
++    def test_a_camera_that_keeps_seeing_unconfirmed_candidates_stops_the_mission(self):
++        class Flicker:
++            """A candidate whenever the patrol drives, each somewhere new (so none is
++            passed over as already rejected), gone once the robot parks."""
++            def look(watcher, frame):
++                if len(self.started) > len(self.stopped):
++                    return (1.0 + 0.5 * len(self.stopped), 0.1), False
++                return None
++        with patch.object(mission, 'MAX_FALSE_STOPS_PER_LAP', 1), \
++             patch.object(mission, 'CONFIRM_S', 0.6), self.assertRaises(mission.MissionError):
++            self.run_patrol(watcher=Flicker())
++        self.assertEqual(len(self.stopped), 2)
++
++    def test_the_patrol_starts_only_after_several_clear_frames(self):
++        # One frame where YOLO misses a box right ahead must not start the patrol.
++        points = [None, (1.0, 0.1), None, None, None] + [(1.0, 0.1)] * 4
++        seen, started, _, _ = self.run_patrol(points, clear_frames=3)
++        self.assertEqual(started, [])
++        self.assertEqual([round(v, 6) for v in seen['point']], [1.0, 0.1])
++        seen, started, _, _ = self.run_patrol([None] * 3 + [(1.0, 0.1)] * 4, clear_frames=3)
++        self.assertEqual(started, ['scene'])
++
++    def test_no_permit_and_no_start_without_a_pose(self):
++        class Pose(FakeLink):
++            """No pose for the first looks, then one."""
++            def __init__(link):
++                super().__init__()
++                link.asked = 0
++
++            def pose_now(link):
++                link.asked += 1
++                return None if 2 <= link.asked <= 5 else (0.0, 0.0, 0.0)
++        link = Pose()
++        seen, started, _, _ = self.run_patrol([None] * 7 + [(1.0, 0.1)] * 4, link=link)
++        # Four clear frames without a pose sent nothing; the three after it, a permit.
++        self.assertEqual(link.sent[:4], [True] * 3 + [False])
++        self.assertEqual(started, ['scene'])
++        self.assertIsNotNone(seen)
++        with patch.object(mission.time, 'sleep'), self.assertRaises(mission.MissionError):
++            clock = iter(range(100))
++            mission.patrol_until_sugarbox('host', 'scene', ClockReader([0.0]), FakeWatcher([]),
++                                          FakeLink(None), now=lambda: next(clock))
++
++    def test_a_box_the_camera_cannot_vouch_for_in_the_way_ends_the_mission(self):
++        # 2026-10-19: the patrol pushed a sugarbox it could not see and kept going.
++        # The corridor ahead is wider on the right (the cables reach y -0.29 m), and
++        # the turn-in-place circle counts as well.
++        for spot, ends in (((0.6, 0.1), True), ((0.3, -0.35), True), ((0.0, -0.38), True),
++                           ((0.6, 0.5), False), ((1.2, 0.0), False), ((-0.5, 0.0), False),
++                           ((0.3, 0.36), False)):
++            with self.subTest(spot=spot):
++                if ends:
++                    with self.assertRaises(mission.MissionError) as raised:
++                        self.run_patrol([None] * 3, guard=[spot])
++                    self.assertIn('cannot vouch for', str(raised.exception))
++                    self.assertEqual(self.started, [])
++                else:
++                    seen, _, _, _ = self.run_patrol([None] + [(1.0, -0.25)] * 4, guard=[spot])
++                    self.assertIsNotNone(seen)
++        spot, x, y = mission.box_in_the_way((1.0, 1.0, math.pi / 2), [(1.0, 1.7)])  # facing +y
++        self.assertAlmostEqual(x, 0.7)
++        self.assertIsNone(mission.box_in_the_way((1.0, 1.0, math.pi / 2), [(1.7, 1.0)]))
++
++    def test_an_unconfirmed_candidate_seen_this_near_is_guarded_not_passed_over(self):
++        # Parked this near, the gripper may hide it: not seeing it again says nothing.
++        with patch.object(mission, 'CONFIRM_S', 0.6), \
++                self.assertRaises(mission.MissionError) as raised:
++            self.run_patrol([None, (0.7, 0.05)] + [None] * 20)
++        self.assertIn('cannot vouch for', str(raised.exception))
++        self.assertEqual(self.stopped, [41])            # stopped there, never restarted
++
++    def test_a_rough_far_rejection_never_hides_the_measured_box(self):
++        rejected = [(1.0, 0.1, True)]
++        self.assertFalse(mission.passed_over((1.05, 0.1), None, (), rejected, far=False))
++        self.assertTrue(mission.passed_over((1.05, 0.1), None, (), rejected, far=True))
++        self.assertTrue(mission.passed_over((1.05, 0.1), None, (), [(1.0, 0.1, False)]))
++
++    def test_the_robot_end_reports_the_patrol_so_the_loop_never_waits_on_ssh(self):
++        asked, clock = [], [0.0]
++        link = FakeLink(running=lambda host, pid: clock[0] < 2.0)
++        with patch.object(mission, 'START_CLEAR_FRAMES', 1), \
++             patch.object(mission, 'start_patrol', return_value=41), \
++             patch.object(mission, 'patrol_running',
++                          side_effect=lambda host, pid: asked.append(clock[0]) or False), \
++             patch.object(mission, 'patrol_report', return_value={'ok': True}), \
++             patch.object(mission, 'stop_patrol'), \
++             patch.object(mission.time, 'sleep'), patch('builtins.print'):
++            seen = mission.patrol_until_sugarbox(
++                'host', 'scene', ClockReader(clock), FakeWatcher([None] * 60), link,
++                now=lambda: clock[0])
++        self.assertIsNone(seen)                         # two laps ended, as the link said
++        self.assertEqual(link.watched, [41, 41])
++        self.assertEqual(asked, [])                     # no ssh round trip in the loop
++
++    def test_without_a_report_from_the_robot_ssh_is_asked_once_a_second(self):
++        asked, clock = [], [0.0]
++        with patch.object(mission, 'START_CLEAR_FRAMES', 1), \
++             patch.object(mission, 'start_patrol', return_value=41), \
++             patch.object(mission, 'patrol_running',
++                          side_effect=lambda host, pid: asked.append(clock[0]) or True), \
++             patch.object(mission, 'stop_patrol'), \
++             patch.object(mission.time, 'sleep'), patch('builtins.print'):
++            mission.patrol_until_sugarbox(
++                'host', 'scene', ClockReader(clock), FakeWatcher([None] * 30 + [(1.0, 0.1)] * 4),
++                FakeLink(), now=lambda: clock[0])
++        self.assertLessEqual(len(asked), 4)             # 3 s of frames at 10 Hz
++
++    def test_a_lost_pose_or_a_dead_link_ends_the_wait(self):
++        class Lost(FakeLink):
++            def __init__(link):
++                super().__init__()
++                link.asked = 0
++
++            def pose_now(link):
++                link.asked += 1
++                return (0.0, 0.0, 0.0) if link.asked == 1 else None
++        with self.assertRaises(mission.MissionError) as raised:
++            self.run_patrol([None] * 200, link=Lost())
++        self.assertIn('localization lost', str(raised.exception))
++        dead = FakeLink()
++        dead.dead = True
++        with self.assertRaises(mission.MissionError) as raised:
++            self.run_patrol([None] * 5, link=dead)
++        self.assertIn('link to the robot ended', str(raised.exception))
++
++    def test_the_patrol_drives_ncus_own_pulses(self):
++        self.assertEqual(mission.PATROL_FORWARD_PULSE_S, 0.6)
+ 
+     def test_finished_laps_restart_and_two_empty_laps_end_the_search(self):
+-        alive = iter([False, True, True, True, True, True, True, True, True])
+-        _, started, _ = self.run_patrol([None, (1.0, 0.0), (1.0, 0.0), (1.0, 0.0)],
+-                                        running=lambda host, pid: next(alive))
+-        self.assertEqual(started, ['scene', 'scene'])
+-        seen, started, _ = self.run_patrol([None] * 9, running=lambda host, pid: False)
++        seen, started, _, _ = self.run_patrol([None] * 9, running=lambda host, pid: False)
+         self.assertIsNone(seen)
+         self.assertEqual(len(started), mission.EMPTY_LAPS_TO_END)
+ 
+@@ -185,8 +374,8 @@ class PatrolTests(unittest.TestCase):
+     def test_a_refusal_to_start_makes_room_and_asks_again(self):
+         refused = {'ok': False, 'pulses': 0, 'error': 'no reachable entry to patrol route'}
+         alive, room = iter([False] + [True] * 9), []
+-        seen, started, stopped = self.run_patrol(
+-            [None, (1.0, 0.1), (1.0, 0.1), (1.0, 0.1)], running=lambda host, pid: next(alive),
++        seen, started, stopped, _ = self.run_patrol(
++            [None, None, (1.0, 0.1)] + [(1.0, 0.1)] * 3, running=lambda host, pid: next(alive),
+             reports=[refused], make_room=lambda: room.append('back') or True)
+         self.assertEqual((started, stopped, room), (['scene', 'scene'], [42], ['back']))
+         with self.assertRaises(mission.MissionError):
+@@ -206,20 +395,88 @@ class PatrolTests(unittest.TestCase):
+              patch.object(mission.time, 'sleep'), self.assertRaises(mission.MissionError):
+             clock = iter(range(100))
+             mission.patrol_until_sugarbox('host', 'scene', FakeReader(False), FakeWatcher([]),
+-                                          now=lambda: next(clock))
++                                          FakeLink(), now=lambda: next(clock))
+         starting.assert_not_called()
+ 
+ 
++class VisionLinkTests(unittest.TestCase):
++    class Stdin:
++        def __init__(self, broken=False):
++            self.lines, self.broken, self.closed = [], broken, False
++
++        def write(self, text):
++            if self.broken:
++                raise OSError('broken pipe')
++            self.lines.append(text)
++
++        def flush(self):
++            pass
++
++        def close(self):
++            self.closed = True
++
++    class Proc:
++        def __init__(self, stdin, lines):
++            self.stdin, self.stdout = stdin, iter(lines)
++
++        def wait(self, timeout=None):
++            return 0
++
++    def link(self, lines=(), broken=False):
++        stdin, calls = self.Stdin(broken), []
++
++        def popen(command, **kwargs):
++            calls.append(command)
++            return self.Proc(stdin, list(lines))
++        link = mission.VisionLink('10.0.0.1', popen=popen, clock=lambda: 0.0)
++        return link, stdin, calls[0]
++
++    def wait_for_pose(self, link):
++        for _ in range(200):
++            if link.pose is not None:
++                return
++            mission.time.sleep(0.005)
++
++    def test_permits_go_out_one_line_each_to_the_jetson_end(self):
++        link, stdin, command = self.link()
++        self.assertEqual(command[:5], ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8'])
++        self.assertIn('python3 -u -c ', command[-1])
++        self.assertIn(mission.PERMIT_PATH, command[-1])
++        link.send(True, 0.4)
++        link.send(False, -1.0)                        # a negative age never goes out
++        self.assertEqual([json.loads(line) for line in stdin.lines],
++                         [{'allow': True, 'age': 0.4}, {'allow': False, 'age': 0.0}])
++        self.assertFalse(link.allowed)
++        link.close()
++        self.assertTrue(stdin.closed)                 # the Jetson end then denies
++
++    def test_only_a_fresh_ready_pose_is_kept(self):
++        good = json.dumps({'t': 10.0, 'ready': True, 'stamp': 9.9, 'pose': [1, 2, 0.5]})
++        stale = json.dumps({'t': 10.0, 'ready': True, 'stamp': 7.0, 'pose': [5, 5, 0]})
++        lost = json.dumps({'t': 10.0, 'ready': False, 'error': 'no file'})
++        link, _, _ = self.link([stale + '\n', lost + '\n', 'junk\n', good + '\n'])
++        self.wait_for_pose(link)
++        self.assertEqual(link.pose_now(), (1.0, 2.0, 0.5))
++        link, _, _ = self.link([stale + '\n'])
++        self.assertIsNone(link.pose_now())
++
++    def test_a_lost_link_stops_the_mission(self):
++        link, _, _ = self.link(broken=True)
++        with self.assertRaises(mission.MissionError):
++            link.send(True, 0.3)
++
++
+ class RoomTests(unittest.TestCase):
+     def test_backs_out_then_a_step_more_up_to_the_limit(self):
+         backs = []
+         room = mission.Room('host', back=lambda host, m: backs.append(round(m, 3)))
++        self.assertFalse(room.make())                 # the start: back into the field by hand
+         room.leave()
+         self.assertTrue(room.make())
+         self.assertFalse(room.make())                 # 0.20 + 0.10 = 0.30 m in all
+         self.assertEqual(backs, [0.2, 0.1])
+         room.reset()
+-        self.assertEqual([room.make() for _ in range(4)], [True, True, True, False])
++        self.assertFalse(room.make())
+ 
+ 
+ class StateTests(unittest.TestCase):
+@@ -278,6 +535,31 @@ class SearchTests(unittest.TestCase):
+         self.assertTrue(found)
+         self.assertEqual(turned, [mission.SEARCH_STEP_RAD] * 2)
+ 
++    def test_a_receiver_just_started_gets_its_first_frame_first(self):
++        # 2026-10-20 review: the look-around failed at once, 'rear camera stream lost'.
++        clock, turned = [100.0], []
++
++        class Starting(ClockReader):
++            def __init__(reader):
++                super().__init__(clock)
++                reader.calls = 0
++
++            def latest(reader):
++                reader.calls += 1
++                if reader.calls <= 5:
++                    clock[0] += 0.1
++                    return None, 0.0
++                return super().latest()
++
++        class Watcher:
++            def look(self, frame):
++                return (1.5, 0.2), False
++        with patch('builtins.print'), patch.object(mission.time, 'sleep'):
++            self.assertTrue(mission.search_placement(
++                'host', Starting(), Watcher(), turn=lambda host, r: turned.append(r),
++                now=lambda: clock[0]))
++        self.assertEqual(turned, [])
++
+     def test_gives_up_after_about_a_full_circle(self):
+         found, turned = self.search(99)
+         self.assertFalse(found)
+@@ -315,6 +597,9 @@ class StageTests(unittest.TestCase):
+                          ['1.200', '-0.300'])
+         self.assertEqual(self.calls[0][2], 'grasp_3.log')
+ 
++    def test_a_miss_with_the_robot_at_the_box_says_so(self):
++        self.assertEqual(self.fetch(mission.runner.AT_BOX_EXIT, 'empty'), 'missed_at_box')
++
+     def test_a_clean_miss_stows_and_patrols_on(self):
+         self.assertEqual(self.fetch(2, 'empty'), 'missed')
+         self.assertEqual(self.calls[-1], 'travel')
+@@ -359,8 +644,8 @@ class StageTests(unittest.TestCase):
+ class MissionTests(unittest.TestCase):
+     """The patrol loop's order, with every stage faked."""
+ 
+-    def run_mission(self, sightings, grasps, argv=(), place_error=None):
+-        order = []
++    def run_mission(self, sightings, grasps, argv=(), place_error=None, at_pose=None):
++        order, links, self.guards = [], [], []
+         sightings, grasps = iter(sightings), iter(grasps)
+         args = mission.argparse.Namespace(host='10.0.0.1', scene='scene', homography=Path('h'),
+                                           gstreamer=None, wall_m=None, max_deliveries=None)
+@@ -377,8 +662,12 @@ class MissionTests(unittest.TestCase):
+             def reset(self):
+                 order.append('reset')
+ 
+-        def patrol(host, scene, reader, watcher, box, skip=(), make_room=None):
++        def patrol(host, scene, reader, watcher, link, box, skip=(), guard=(), make_room=None,
++                   walls=None):
++            self.assertEqual(walls, [(-1, -1), (3, -1), (3, 3), (-1, 3)])
+             order.append(('patrol', len(skip)))
++            self.guards.append([tuple(round(v, 6) for v in g) for g in guard])
++            links.append(link)
+             return next(sightings)
+ 
+         def place(*a):
+@@ -394,10 +683,13 @@ class MissionTests(unittest.TestCase):
+              patch.object(mission, 'fetch_sugarbox',
+                           side_effect=lambda *a: order.append('grasp') or next(grasps)), \
+              patch.object(mission, 'place_held', side_effect=place), \
++             patch.object(mission, 'box_left_at', side_effect=lambda host: at_pose), \
+              patch.object(mission.runner, 'stop') as stopping, patch('builtins.print'):
+-            code = mission.patrol_mission(args, '10.0.0.2', Path(folder), room=FakeRoom())
++            code = mission.patrol_mission(args, '10.0.0.2', Path(folder), room=FakeRoom(),
++                                          new_link=lambda host: FakeLink())
+             copied = json.loads((Path(folder) / 'scene_layout.json').read_text(encoding='utf-8'))
+         stopping.assert_called_once()
++        self.assertTrue(links and all(link.closed for link in links))
+         self.assertEqual(copied, LAYOUT)               # what this run turned by, kept
+         return code, order
+ 
+@@ -417,11 +709,28 @@ class MissionTests(unittest.TestCase):
+                                  ('patrol', 0), 'reset', 'grasp', 'leave',
+                                  ('patrol', 2)])
+ 
++    def test_a_miss_at_the_box_guards_it_where_the_approach_left_it(self):
++        # Backed out 0.20 m it is ~0.48 m ahead, inside the gripper's blind zone.
++        spot = {'point': (1.0, 0.0), 'map': (0.5, 0.5)}
++        code, order = self.run_mission([spot, None], ['missed_at_box'], at_pose=(0.62, 0.48))
++        self.assertEqual(code, 0)
++        self.assertEqual(self.guards, [[], [(0.62, 0.48)]])
++        code, order = self.run_mission([spot, None], ['missed'])
++        self.assertEqual(self.guards, [[], []])         # one miss far off: the camera sees it
++
+     def test_max_deliveries_stops_after_the_last_one(self):
+         spot = {'point': (1.0, 0.0), 'map': None}
+         code, order = self.run_mission([spot], ['held'], argv=[('max_deliveries', 1)])
+         self.assertEqual((code, order[-1], order.count('place')), (0, 'leave', 1))
+ 
++    def test_no_room_walls_no_patrol(self):
++        layout = {k: v for k, v in LAYOUT.items() if k != 'room_polygon'}
++        args = mission.argparse.Namespace(host='10.0.0.1', scene='scene', homography=Path('h'),
++                                          gstreamer=None, wall_m=None, max_deliveries=None)
++        with tempfile.TemporaryDirectory() as folder,              patch.object(mission.dock, 'fetch_layout', return_value=layout),              patch.object(mission, 'patrol_until_sugarbox') as patrolling,              patch.object(mission.runner, 'stop'), patch('builtins.print'):
++            self.assertEqual(mission.patrol_mission(args, '10.0.0.2', Path(folder)), 2)
++        patrolling.assert_not_called()
++
+     def test_a_doubtful_stage_stops_the_loop_where_it_is(self):
+         spot = {'point': (1.0, 0.0), 'map': None}
+         code, order = self.run_mission([spot], ['held'],
+@@ -472,6 +781,7 @@ class MainTests(unittest.TestCase):
+              patch.object(mission.dock, 'read_localization', return_value={
+                  'ready': True, 'age': 0.1, 'state': {'pose': [0, 0, 0]}}), \
+              patch.object(mission, 'ensure_arm_camera', return_value=None), \
++             patch.object(mission, 'patrol_supports_permit', return_value=True), \
+              patch('builtins.print'):
+             with patch.object(mission.dock, 'fetch_box',
+                               return_value={'x': 1, 'y': 1, 'verified': False}) as fetching:
+@@ -479,6 +789,10 @@ class MainTests(unittest.TestCase):
+             fetching.assert_called_once_with('10.0.0.1', 'scene')
+             with patch.object(mission.dock, 'fetch_box', side_effect=ValueError('no layout')):
+                 self.assertEqual(mission.preflight(args), ['placement box position: no layout'])
++            with patch.object(mission.dock, 'fetch_box', return_value={'x': 1, 'y': 1,
++                                                                       'verified': True}), \
++                 patch.object(mission, 'patrol_supports_permit', return_value=False):
++                self.assertIn('--vision-permit', mission.preflight(args)[0])
+ 
+ 
+ class NoPatrolTests(unittest.TestCase):
+diff --git a/tests/test_placement_dock.py b/tests/test_placement_dock.py
+index 0b7d834..8c3193b 100644
+--- a/tests/test_placement_dock.py
++++ b/tests/test_placement_dock.py
+@@ -82,6 +82,25 @@ class SceneLayoutTests(unittest.TestCase):
+             with self.subTest(layout=layout), self.assertRaises(ValueError):
+                 dock.box_from_layout(layout)
+ 
++    def test_the_room_walls_come_from_the_layout(self):
++        layout = dict(self.layout(), room_polygon=[[0, 0], [2, 0], [2, 2], [0, 2]])
++        self.assertEqual(dock.walls_from_layout(layout), [(0, 0), (2, 0), (2, 2), (0, 2)])
++        for broken in ({}, dict(layout, room_polygon=[[0, 0], [1, 1]]),
++                       dict(layout, room_polygon=[[0, 0], [2, 0], [2, 'x']])):
++            with self.subTest(broken=broken):
++                self.assertIsNone(dock.walls_from_layout(broken))
++
++    def test_near_a_wall_or_beyond_it(self):
++        room = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
++        for point, near in (((1.0, 1.0), False), ((0.2, 1.0), False), ((0.1, 1.0), True),
++                            ((1.95, 1.95), True), ((-0.3, 1.0), True), ((1.0, 2.5), True)):
++            with self.subTest(point=point):
++                self.assertEqual(dock.near_wall(point, room, 0.15), near)
++        # ncu's room is turned 26 deg in the map
++        tilted = [(-0.70, 0.03), (1.08, -0.83), (1.96, 0.99), (0.18, 1.85)]
++        self.assertFalse(dock.near_wall((0.63, 0.51), tilted, 0.15))     # the middle
++        self.assertTrue(dock.near_wall((0.19, -0.37), tilted, 0.15))     # on a wall
++
+     def test_a_local_copy_reads_the_same(self):
+         with tempfile.TemporaryDirectory() as folder:
+             path = Path(folder) / 'scene_layout.json'
+@@ -150,11 +169,19 @@ class LidarTests(unittest.TestCase):
+         ranges = scan(wall(0.60) + [(0.30, 0.25), (0.30, -0.25)])
+         self.assertAlmostEqual(dock.corridor_distance(ranges, ANGLE_MIN, STEP), 0.50, delta=0.005)
+ 
+-    def test_rear_clearance_skips_the_robot_itself(self):
+-        echoes = [(-0.12, y / 100) for y in range(-10, 11)]          # mast and wiring
+-        ranges = scan(wall(-0.55) + echoes)
+-        self.assertAlmostEqual(dock.rear_clearance(ranges, ANGLE_MIN, STEP), 0.40, delta=0.005)
+-        self.assertEqual(dock.rear_clearance(scan(echoes), ANGLE_MIN, STEP), float('inf'))
++    def test_backing_is_checked_against_the_walls_on_the_map(self):
++        room = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]
++        facing_east = (1.0, 1.0, 0.0)                 # backing goes west
++        self.assertIsNone(dock.back_path_problem(facing_east, 0.20, room))
++        # rear edge 1.0 - 0.23 - 0.60 = 0.17 m off the west wall: still fine
++        self.assertIsNone(dock.back_path_problem(facing_east, 0.60, room))
++        # 1.0 - 0.23 - 0.70 = 0.07 m: inside the 0.08 m margin
++        self.assertIn('within', dock.back_path_problem(facing_east, 0.70, room))
++        # the right-side cables: facing north, the robot's right is east
++        self.assertIn('within', dock.back_path_problem((1.75, 1.0, math.pi / 2), 0.10, room))
++        x, y = dock.to_map((1.0, 1.0, math.pi / 2), (1.0, 0.5))
++        self.assertAlmostEqual(x, 0.5)
++        self.assertAlmostEqual(y, 2.0)
+ 
+     def test_wall_correction_moves_only_small_known_errors(self):
+         self.assertEqual(dock.wall_correction(0.480, 0.470), 0.0)
+diff --git a/tests/test_sugarbox_approach_grasp.py b/tests/test_sugarbox_approach_grasp.py
+index bf4ff03..6aaca36 100644
+--- a/tests/test_sugarbox_approach_grasp.py
++++ b/tests/test_sugarbox_approach_grasp.py
+@@ -12,6 +12,46 @@ spec = importlib.util.spec_from_file_location('runner', Path(__file__).resolve()
+                                         'integration/sugarbox_approach_grasp.py')
+ runner = importlib.util.module_from_spec(spec)
+ spec.loader.exec_module(runner)
++# A 4 m square room around the origin, as ncu's scene layout gives room_polygon.
++ROOM = [(-1.0, -1.0), (3.0, -1.0), (3.0, 3.0), (-1.0, 3.0)]
++
++
++class FakeEngine:
++    """The approach engine started early (start_engine): its environment, the go
++    line it was sent, and how it ends once started."""
++
++    def __init__(self, env, returncode=0, on_go=None, ended=None):
++        self.env, self.exit_code, self.on_go = env, returncode, on_go
++        self.stdin, self.lines, self.returncode = self, [], ended
++
++    def write(self, text):
++        self.lines.append(text)
++
++    def close(self):
++        pass
++
++    def poll(self):
++        return self.returncode
++
++    def wait(self, timeout=None):
++        message = json.loads(self.lines[-1])
++        if self.on_go is not None:
++            self.on_go(self.env, message)
++        self.returncode = self.exit_code
++        return self.returncode
++
++    def go_seed(self):
++        return json.loads(self.lines[-1])['seed']
++
++
++def engines(returncode=0, on_go=None, ended=None):
++    """(patch kwargs for runner.start_engine, the list of engines it started)."""
++    started = []
++
++    def start(env):
++        started.append(FakeEngine(env, returncode, on_go, ended))
++        return started[-1]
++    return dict(side_effect=start), started
+ 
+ 
+ class HandoffTests(unittest.TestCase):
+@@ -258,8 +298,7 @@ class HandoffTests(unittest.TestCase):
+              patch.object(runner, 'ctl', side_effect=read), \
+              patch.object(runner, 'stop') as stopping, \
+              patch.object(runner.time, 'sleep'), \
+-             patch.object(runner.subprocess, 'run') as process:
+-            process.return_value.returncode = 3
++             patch.object(runner, 'start_engine', **engines(3)[0]):
+             self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 2)
+             self.assertNotIn('home', commands)
+             self.assertNotIn('grasp', commands)
+@@ -277,9 +316,8 @@ class HandoffTests(unittest.TestCase):
+              patch.object(runner, 'ctl', side_effect=read), \
+              patch.object(runner, 'stop'), \
+              patch.object(runner.time, 'sleep'), \
+-             patch.object(runner.subprocess, 'run') as process, \
++             patch.object(runner, 'start_engine', **engines(4)[0]), \
+              patch('builtins.print') as printed:
+-            process.return_value.returncode = 4
+             self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 2)
+             self.assertNotIn('home', commands)
+             self.assertNotIn('grasp', commands)
+@@ -369,10 +407,10 @@ class HandoffTests(unittest.TestCase):
+         snapshot = copy.deepcopy(self.snapshot)
+         snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
+         snapshot['chassis']['arm_pose'] = 'travel'
+-        with patch.dict(runner.os.environ, {}, clear=True),              patch.object(runner, 'preflight', return_value=({}, [])),              patch.object(runner, 'ctl', return_value=snapshot),              patch.object(runner, 'stop'),              patch.object(runner.time, 'sleep'),              patch.object(runner, 'handoff', return_value={'confirmed': True}) as grasp,              patch.object(runner.subprocess, 'run') as process:
+-            process.return_value.returncode = 0
++        fake = engines(0)
++        with patch.dict(runner.os.environ, {}, clear=True),              patch.object(runner, 'preflight', return_value=({}, [])),              patch.object(runner, 'ctl', return_value=snapshot),              patch.object(runner, 'stop'),              patch.object(runner.time, 'sleep'),              patch.object(runner, 'handoff', return_value={'confirmed': True}) as grasp,              patch.object(runner, 'start_engine', **fake[0]):
+             self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']), 0)
+-            env = process.call_args.kwargs['env']
++            env = fake[1][0].env
+             self.assertEqual(env['SUGARBOX_CONTRACT_ALLOW_DRIVE'], '1')
+             self.assertEqual(env['SUGARBOX_RUN_MODE'], 'DRIVE')
+             grasp.assert_called_once()
+@@ -383,6 +421,68 @@ class HandoffTests(unittest.TestCase):
+                                           '--approach', 'legacy']), 0)
+             self.assertEqual(grasp.call_args.kwargs, {})     # legacy may not reverse
+ 
++    def test_the_engine_loads_while_the_robot_gets_ready_and_waits_for_go(self):
++        # 2026-10-19: ~25 s per stage to the first usable frame, all of it in series.
++        with patch.object(runner.subprocess, 'Popen') as popen:
++            runner.start_engine({'SUGARBOX_RUN_MODE': 'DRIVE'})
++        kwargs = popen.call_args.kwargs
++        self.assertEqual(kwargs['env']['SUGARBOX_WAIT_GO'], '1')
++        self.assertEqual(kwargs['env']['SUGARBOX_RUN_MODE'], 'DRIVE')
++        self.assertIs(kwargs['stdin'], runner.subprocess.PIPE)
++        engine = FakeEngine({})
++        runner.go(engine, (1.13251, -0.0004))
++        self.assertEqual(json.loads(engine.lines[0]), {'go': True, 'seed': [1.1325, -0.0004]})
++
++    def real_run(self, fake, stow_ok=True):
++        snapshot = copy.deepcopy(self.snapshot)
++        snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
++        snapshot['chassis']['arm_pose'] = 'travel' if stow_ok else 'e1'
++        commands = []
++        def read(host, cmd):
++            commands.append(cmd)
++            return snapshot if cmd == 'status' else {'ok': True}
++        with patch.object(runner, 'preflight', return_value=({}, [])), \
++             patch.object(runner, 'ctl', side_effect=read), \
++             patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'), \
++             patch.object(runner, 'handoff', return_value={'confirmed': True}) as grasp, \
++             patch.object(runner, 'start_engine', **fake[0]), \
++             patch.object(runner, 'kill_tree') as killed, patch('builtins.print'):
++            code = runner.main(['--real', '--i-am-beside-the-robot'])
++        return code, grasp, killed, commands
++
++    def test_a_miss_after_the_approach_reached_the_box_has_its_own_exit(self):
++        # mission_loop guards that box: backed out, it is in the gripper's blind zone.
++        fake = engines(0)
++        with patch.object(runner, 'handoff', side_effect=RuntimeError('grasp was not confirmed')):
++            snapshot = copy.deepcopy(self.snapshot)
++            snapshot['servo_deg'] = [90, 139, 0, 0, 90, 30]
++            snapshot['chassis']['arm_pose'] = 'travel'
++            with patch.object(runner, 'preflight', return_value=({}, [])),                  patch.object(runner, 'ctl', return_value=snapshot),                  patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'),                  patch.object(runner, 'start_engine', **fake[0]), patch('builtins.print'):
++                self.assertEqual(runner.main(['--real', '--i-am-beside-the-robot']),
++                                 runner.AT_BOX_EXIT)
++                # Stopped short of the box: an ordinary failure.
++                self.assertEqual(runner.main.__wrapped__ if False else 0, 0)
++        code, grasp, _, _ = self.real_run(engines(4))
++        self.assertEqual(code, 2)
++        grasp.assert_not_called()
++
++    def test_an_engine_that_died_loading_is_never_started_or_handed_over(self):
++        fake = engines(0, ended=1)
++        code, grasp, killed, _ = self.real_run(fake)
++        self.assertEqual(code, 2)
++        self.assertEqual(fake[1][0].lines, [])          # never told to go
++        grasp.assert_not_called()
++        killed.assert_not_called()                      # it had already ended
++
++    def test_a_stage_that_fails_before_go_ends_the_waiting_engine(self):
++        fake = engines(0)
++        code, grasp, killed, commands = self.real_run(fake, stow_ok=False)
++        self.assertEqual(code, 2)
++        self.assertIn('stow', commands)
++        self.assertEqual(fake[1][0].lines, [])
++        killed.assert_called_once_with(fake[1][0])      # with its camera receiver
++        grasp.assert_not_called()
++
+     def test_enoch_hands_over_at_1m_and_stops_the_box_at_28cm_by_default(self):
+         env = self.launched_env([])
+         self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
+@@ -625,24 +725,24 @@ class PlacementTests(unittest.TestCase):
+     def run_real(self, argv=(), box=None, report=None, pose=(0.0, 0.0, 0.0), backs=None):
+         report = self.report if report is None else report
+         backs = [] if backs is None else backs
+-        def approach(command, env, timeout):
++        def approach(env, message):
+             if 'SUGARBOX_ARRIVAL_REPORT' in env:
+                 Path(env['SUGARBOX_ARRIVAL_REPORT']).write_text(json.dumps(report))
+-            return runner.subprocess.CompletedProcess(command, 0)
++        fake = engines(0, on_go=approach)
+         with patch.dict(runner.os.environ, {}, clear=True), \
+              patch.object(runner, 'preflight', return_value=({}, [])), \
+              patch.object(runner, 'ctl', side_effect=self.read), \
+              patch.object(runner, 'stop'), patch.object(runner.time, 'sleep'), \
+              patch.object(runner, 'face_box', return_value=pose) as facing, \
+-             patch.object(runner, 'placement_box', return_value=box), \
+-             patch.object(runner, 'back_straight', side_effect=lambda h, m, **kw: backs.append(
+-                 (round(m, 3), kw))), \
++             patch.object(runner, 'placement_layout', return_value=(box, ROOM)), \
++             patch.object(runner, 'back_straight', side_effect=lambda h, m, walls, **kw: backs.append(
++                 (round(m, 3), kw.get('speed'), walls, kw.get('margin')))), \
+              patch.object(runner, 'place', return_value={'ok': True}) as placing, \
+              patch.object(runner, 'handoff') as grasp, \
+-             patch.object(runner.subprocess, 'run', side_effect=approach) as process:
++             patch.object(runner, 'start_engine', **fake[0]):
+             code = runner.main(['--real', '--i-am-beside-the-robot', '--target', 'placement']
+                                + list(argv))
+-            return code, process, placing, facing, grasp
++            return code, fake[1][0], placing, facing, grasp
+ 
+     def test_real_placement_reads_the_arrival_report_and_never_grasps(self):
+         code, process, placing, facing, grasp = self.run_real()
+@@ -657,17 +757,21 @@ class PlacementTests(unittest.TestCase):
+         code, process, _, facing, _ = self.run_real(['--turn-to-box'], box=verified)
+         self.assertEqual(code, 0)
+         facing.assert_called_once()
+-        self.assertEqual(process.call_args.kwargs['env']['SUGARBOX_SEED_TARGET'], '1.1325,0.0000')
++        # Known only after the turn: it goes with the start, not in the environment.
++        self.assertEqual(process.go_seed(), [1.1325, 0.0])
++        self.assertNotIn('SUGARBOX_SEED_TARGET', process.env)
+         code, process, _, _, _ = self.run_real(['--turn-to-box'], box=dict(verified, verified=False))
+         self.assertEqual(code, 0)
+-        self.assertNotIn('SUGARBOX_SEED_TARGET', process.call_args.kwargs['env'])
++        self.assertIsNone(process.go_seed())
+ 
+     def test_a_box_too_near_to_measure_is_backed_away_from_first(self):
+         backs = []
+         near = {'x': 0.60, 'y': 0.0, 'verified': True}
+         code, process, _, facing, _ = self.run_real(['--turn-to-box'], box=near, backs=backs)
+         self.assertEqual(code, 0)
+-        self.assertEqual(backs, [(0.40, {'margin': 0.25, 'speed': 0.06})])   # capped
++        # Capped, slow, checked on the map with the user's 0.25 m left behind.
++        self.assertEqual(backs, [(0.40, 0.06, ROOM, runner.PLACEMENT_BACKOFF_MARGIN_M)])
++        self.assertEqual(runner.PLACEMENT_BACKOFF_MARGIN_M, 0.25)
+         self.assertEqual(facing.call_count, 2)          # faced again from the new spot
+         backs.clear()
+         code, _, _, facing, _ = self.run_real(['--turn-to-box'], box={'x': 1.2, 'y': 0.0,
+@@ -695,21 +799,33 @@ class PlacementTests(unittest.TestCase):
+                             back=lambda host, m: backs.append(m))
+         self.assertEqual(backs, [0.10] * 3)             # 0.30 m in all, then stop
+ 
+-    def test_backing_goes_in_checked_steps(self):
+-        moves = []
+-        scans = lambda host: [{'ranges': [None], 'angle_min': 0.0, 'angle_increment': 0.01}] * 3
++    def test_backing_goes_in_steps_each_checked_on_the_map(self):
++        # Nothing sees behind the robot (the LiDAR's rear half is blocked by the
++        # body): the AMCL pose and the room's walls decide.
++        moves, poses = [], iter([(1.0, 1.0, 0.0), (0.8, 1.0, 0.0)])
++        localize = lambda host: {'ready': True, 'age': 0.1, 'state': {'pose': list(next(poses))}}
+         drive = lambda host, m, limit, speed: moves.append((round(m, 3), limit, speed))
+-        with patch.object(runner.dock, 'rear_clearance', return_value=0.80):
+-            runner.back_straight('host', 0.40, margin=0.25, speed=0.06, scans=scans, drive=drive)
++        runner.back_straight('host', 0.40, ROOM, speed=0.06, localize=localize, drive=drive)
+         self.assertEqual(moves, [(-0.2, 0.2, 0.06), (-0.2, 0.2, 0.06)])
+         moves.clear()
+-        with patch.object(runner.dock, 'rear_clearance', return_value=0.25), \
+-             self.assertRaises(RuntimeError):
+-            runner.back_straight('host', 0.20, scans=scans, drive=drive)  # 0.20 + 0.10 needed
++        near_wall = lambda host: {'ready': True, 'age': 0.1, 'state': {'pose': [-0.6, 1.0, 0.0]}}
++        # 0.10 m from the west wall after 0.20 m: fine at 0.08, refused at 0.25.
++        room_left = lambda host: {'ready': True, 'age': 0.1, 'state': {'pose': [-0.47, 1.0, 0.0]}}
++        runner.back_straight('host', 0.20, ROOM, localize=room_left, drive=drive)
++        self.assertEqual(len(moves), 1)
++        moves.clear()
++        with self.assertRaises(RuntimeError):
++            runner.back_straight('host', 0.20, ROOM, localize=room_left, drive=drive, margin=0.25)
++        self.assertEqual(moves, [])
++        with self.assertRaises(RuntimeError):         # the rear edge would reach the wall
++            runner.back_straight('host', 0.20, ROOM, localize=near_wall, drive=drive)
++        for walls, localize in ((ROOM, lambda host: None), (None, near_wall)):
++            with self.subTest(walls=walls), self.assertRaises(RuntimeError):
++                runner.back_straight('host', 0.20, walls, localize=localize, drive=drive)
+         self.assertEqual(moves, [])
+         for metres in (0.0, -0.1, 0.7, float('nan')):
+             with self.subTest(metres=metres), self.assertRaises(ValueError):
+-                runner.back_straight('host', metres, scans=scans, drive=drive)
++                runner.back_straight('host', metres, ROOM, localize=near_wall, drive=drive)
+ 
+     def test_placement_needs_a_held_object_and_an_unlocked_service(self):
+         for change in ('empty', 'locked'):
+diff --git a/tests/test_sugarbox_blind_finish.py b/tests/test_sugarbox_blind_finish.py
+index 37157f8..cd2f0b3 100644
+--- a/tests/test_sugarbox_blind_finish.py
++++ b/tests/test_sugarbox_blind_finish.py
+@@ -485,6 +485,7 @@ class NoProgressTests(unittest.TestCase):
+                      blocked_latched=False, blocked_reason='', should_stop=False,
+                      safety_reason='', last_safety_reason='FWD_BLOCK_HOLD front=0.290m',
+                      now=50.0, NO_PROGRESS_WINDOW_S=self.window, NO_PROGRESS_MIN_GAIN_M=.03,
++                     camera_age=0.1, math=math,
+                      target=SimpleNamespace(has_memory=lambda: True, dist=.6),
+                      progress=SimpleNamespace(update=lambda d, t: calls.append('update') or True,
+                                               reset=lambda: calls.append('reset')))
+@@ -508,6 +509,13 @@ class NoProgressTests(unittest.TestCase):
+         scope, calls = self.run_block(target=SimpleNamespace(has_memory=lambda: False, dist=.6))
+         self.assertEqual(calls, ['reset'])
+ 
++    def test_the_clock_waits_for_the_cameras_first_frame(self):
++        # 2026-10-19: a patrol seed is a target from the start, and the first
++        # YOLO+SAM2 pass took ~11 s; the run stopped before it saw anything.
++        scope, calls = self.run_block(camera_age=float('inf'))
++        self.assertFalse(scope['blocked_latched'])
++        self.assertEqual(calls, ['reset'])
++
+     def test_a_blocked_run_exits_with_its_own_code(self):
+         exits = [n for n in ast.walk(self.main) if isinstance(n, ast.If)
+                  and ast.unparse(n.test) == 'EXIT_ON_ARRIVAL and (blocked_latched or arrived_latched)']
+@@ -653,7 +661,7 @@ class ContractModeTests(unittest.TestCase):
+                     if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == name)
+ 
+     def handoff(self, contract=True, dist=0.99, stop=False, active=False,
+-                block_m=float('inf'), blocked_ticks=0, seeded=False):
++                block_m=float('inf'), blocked_ticks=0, seeded=False, look='FREE'):
+         # The whole if/elif chain: seed give-up, handoff, handback.
+         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
+                      and 'SEED_GIVE_UP_CENTER_M' in ast.unparse(n.test))
+@@ -669,6 +677,8 @@ class ContractModeTests(unittest.TestCase):
+                      path_block_m=block_m, handoff_deferred=False,
+                      path_blocked_ticks=blocked_ticks, CONTRACT_HANDBACK_TICKS=2,
+                      blocked_latched=False, blocked_reason='', SEED_GIVE_UP_CENTER_M=0.80,
++                     seed_look_state=look,
++                     seed_look=SimpleNamespace(results=6, last_reason='NO_YOLO'),
+                      print=lambda *args, **kwargs: None)
+         exec(compile(ast.Module(body=[block], type_ignores=[]), str(SOURCE), 'exec'), scope)
+         scope['started'], scope['resets'] = started, resets
+@@ -716,6 +726,16 @@ class ContractModeTests(unittest.TestCase):
+         self.assertTrue(scope['blocked_latched'] and scope['should_stop'])
+         self.assertTrue(scope['blocked_reason'].startswith('SEED_NOT_CONFIRMED'))
+ 
++    def test_an_estimate_is_looked_at_before_it_is_given_up_on(self):
++        # 2026-10-19 run 3: patrol seeds 0.93-0.98 m away reached 0.80 m before the
++        # first inference finished. Standing still to look, the distance never decides.
++        scope = self.handoff(seeded=True, dist=0.70, look='HOLD')
++        self.assertFalse(scope['blocked_latched'] or scope['should_stop'])
++        self.assertEqual(scope['started'], [])
++        scope = self.handoff(seeded=True, dist=0.95, look='GIVE_UP')
++        self.assertTrue(scope['blocked_latched'] and scope['should_stop'])
++        self.assertIn('standing still (6 results, last NO_YOLO)', scope['blocked_reason'])
++
+     def test_after_arrival_it_never_returns_to_the_policy(self):
+         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
+                      and ast.unparse(n.test) == 'TRAINING_CONTRACT and arrived_latched')
+diff --git a/tests/test_sugarbox_seed_target.py b/tests/test_sugarbox_seed_target.py
+index 7db4477..7d86c3b 100644
+--- a/tests/test_sugarbox_seed_target.py
++++ b/tests/test_sugarbox_seed_target.py
+@@ -12,6 +12,7 @@ import tempfile
+ from types import SimpleNamespace
+ import sys
+ import unittest
++import unittest.mock
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ sys.path.insert(0, str(ROOT))
+@@ -25,7 +26,7 @@ SETTINGS = {'RUN_MODE', 'CONTRACT_HANDOFF_CENTER_M', 'TARGET_KIND', 'CONTRACT_FI
+             'CONTRACT_AIM_Y_M', 'SEED_MIN_M', 'FAR_SEED', 'FAR_SEED_FRAMES',
+             'FAR_SEED_MAX_ERROR_M', 'SEED_GIVE_UP_CENTER_M', 'TRAINING_CONTRACT'}
+ FUNCTIONS = {'get_age', 'arrival_record', 'write_arrival_report', 'coarse_ground'}
+-CLASSES = {'TargetState', 'FarSighting', 'SeedFacing'}
++CLASSES = {'TargetState', 'FarSighting', 'SeedFacing', 'SeedLook'}
+ 
+ 
+ def engine(env=None):
+@@ -184,6 +185,81 @@ class SeedFacingTests(unittest.TestCase):
+         self.assertIn('policy_predict', ast.unparse(branch.orelse))     # the policy is the else
+ 
+ 
++class SeedLookTests(unittest.TestCase):
++    """2026-10-19 run 3: four patrol-seeded approaches drove at the estimate before
++    the first inference had finished and gave up at 0.80 m, having measured nothing.
++    An estimate is now looked at from standing still first."""
++
++    def setUp(self):
++        self.rt = engine({'SUGARBOX_TRAINING_CONTRACT': '1', 'SUGARBOX_FAR_SEED': '1'})
++        self.look = self.rt['SeedLook']()
++        self.target = self.rt['TargetState']()
++        self.target.seed(0.94, -0.07, 0.0, source='patrol_seed')
++        self.sequence = 0
++
++    def tick(self, now, frame_time=None, turning=False, reason='NO_YOLO'):
++        """One control tick; frame_time: a new result from a frame that arrived then."""
++        if frame_time is not None:
++            self.sequence += 1
++        with unittest.mock.patch('builtins.print'):
++            return self.look.update(now, self.target, turning, self.sequence,
++                                    frame_time or 0.0, reason)
++
++    def test_it_stands_still_until_six_results_from_frames_taken_at_rest(self):
++        self.assertEqual(self.tick(0.0), 'HOLD')                  # at rest from here
++        self.assertEqual(self.tick(2.4, frame_time=0.1), 'HOLD')  # the frame predates the settle
++        self.assertEqual(self.look.results, 0)
++        for i in range(5):
++            self.assertEqual(self.tick(2.8 + 0.45 * i, frame_time=2.7 + 0.45 * i), 'HOLD')
++        self.assertEqual(self.tick(5.1, frame_time=5.0), 'GIVE_UP')
++        self.assertEqual((self.look.results, self.look.last_reason), (6, 'NO_YOLO'))
++
++    def test_turning_starts_the_count_again_but_not_the_clock(self):
++        self.tick(0.0)
++        self.tick(1.0, frame_time=0.9)
++        self.assertEqual(self.look.results, 1)
++        self.assertEqual(self.tick(1.2, turning=True), 'HOLD')
++        self.assertEqual(self.look.results, 0)
++        self.assertEqual(self.tick(1.5, frame_time=1.4), 'HOLD')   # still turning? no: rest
++        self.assertEqual(self.look.results, 0)                     # 1.4 < 1.5 + settle
++        self.assertEqual(self.tick(10.0), 'GIVE_UP')               # the clock ran on
++
++    def test_a_box_the_camera_measured_or_saw_far_is_free_to_drive(self):
++        self.tick(0.0)
++        for i in range(3):
++            self.target.consider_measurement(sighting(0.93, -0.06), 1.0 + 0.4 * i)
++        self.assertFalse(self.target.seeded)
++        self.assertEqual(self.tick(2.0), 'FREE')
++        self.target.seed(1.6, 0.4, 3.0, source='far_sighting')
++        self.assertEqual(self.tick(3.1), 'FREE')
++
++    def test_a_map_estimate_is_driven_at_after_the_look(self):
++        # The user, 2026-10-19: a verified placement box position may be driven at.
++        self.target.seed(1.13, 0.0, 0.0, source='map_seed')
++        self.tick(0.0)
++        for i in range(6):
++            state = self.tick(1.0 + 0.45 * i, frame_time=0.9 + 0.45 * i)
++        self.assertEqual(state, 'FREE')
++        self.assertEqual(self.tick(5.0), 'FREE')                    # looked once only
++
++    def test_frames_from_before_the_rest_are_not_looked_at(self):
++        self.assertFalse(self.look.counts(5.0))                     # never at rest yet
++        self.tick(1.0)
++        self.assertFalse(self.look.counts(1.5))
++        self.assertTrue(self.look.counts(1.0 + self.rt['SEED_LOOK_SETTLE_S']))
++
++    def test_hold_branch_stands_still_after_facing_and_before_the_policy(self):
++        branch = next(n for n in ast.walk(TREE) if isinstance(n, ast.If)
++                      and ast.unparse(n.test) == "TRAINING_CONTRACT and seed_look_state == 'HOLD'")
++        body = ast.unparse(branch.body)
++        self.assertIn('motor.send_velocity(0.0, 0.0)', body)
++        self.assertIn('progress.reset()', body)
++        self.assertIn('policy_predict', ast.unparse(branch.orelse))
++        facing = next(n for n in ast.walk(TREE) if isinstance(n, ast.If)
++                      and 'seed_facing.command(target)' in ast.unparse(n.test))
++        self.assertIs(facing.orelse[0], branch)                     # turning comes first
++
++
+ class SettingsTests(unittest.TestCase):
+     def test_sugarbox_defaults_are_unchanged(self):
+         rt = engine()

@@ -1,0 +1,16 @@
+{"label": "p02", "ok": true, "x_wheel": 0.55, "y": 0.0, "u": 308.0, "v": 388.0, "u_spread": 0.0, "v_spread": 1.0, "yolo_bottom_v": 389.2, "conf": 0.98, "frames": 8, "misses": 0}
+{"label": "p03", "ok": true, "x_wheel": 0.7, "y": 0.0, "u": 306.0, "v": 339.0, "u_spread": 0.5, "v_spread": 0.0, "yolo_bottom_v": 339.8, "conf": 0.95, "frames": 8, "misses": 0}
+{"label": "p04", "ok": true, "x_wheel": 0.85, "y": 0.0, "u": 302.0, "v": 303.0, "u_spread": 0.0, "v_spread": 1.0, "yolo_bottom_v": 302.8, "conf": 0.96, "frames": 8, "misses": 0}
+{"label": "p05", "ok": true, "x_wheel": 1.0, "y": 0.0, "u": 310.0, "v": 273.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 273.8, "conf": 0.96, "frames": 8, "misses": 0}
+{"label": "p06", "ok": true, "x_wheel": 1.2, "y": 0.0, "u": 310.0, "v": 244.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 243.7, "conf": 0.86, "frames": 8, "misses": 0}
+{"label": "p07", "ok": true, "x_wheel": 1.4, "y": 0.0, "u": 310.0, "v": 222.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 221.9, "conf": 0.82, "frames": 8, "misses": 0}
+{"label": "p09", "ok": true, "x_wheel": 0.55, "y": 0.2, "u": 154.0, "v": 391.0, "u_spread": 0.5, "v_spread": 0.0, "yolo_bottom_v": 390.8, "conf": 0.95, "frames": 8, "misses": 0}
+{"label": "p10", "ok": true, "x_wheel": 0.85, "y": 0.2, "u": 196.0, "v": 304.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 305.8, "conf": 0.95, "frames": 8, "misses": 0}
+{"label": "p11", "ok": true, "x_wheel": 1.2, "y": 0.2, "u": 226.0, "v": 243.0, "u_spread": 0.5, "v_spread": 0.0, "yolo_bottom_v": 244.0, "conf": 0.93, "frames": 8, "misses": 0}
+{"label": "p12", "ok": true, "x_wheel": 1.4, "y": 0.2, "u": 239.0, "v": 221.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 220.9, "conf": 0.93, "frames": 8, "misses": 0}
+{"label": "p13", "ok": true, "x_wheel": 0.55, "y": -0.2, "u": 445.0, "v": 380.0, "u_spread": 0.5, "v_spread": 0.0, "yolo_bottom_v": 381.3, "conf": 0.96, "frames": 8, "misses": 0}
+{"label": "p14", "ok": true, "x_wheel": 0.85, "y": -0.2, "u": 404.0, "v": 298.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 299.0, "conf": 0.95, "frames": 8, "misses": 0}
+{"label": "p15", "ok": true, "x_wheel": 1.2, "y": -0.2, "u": 384.0, "v": 241.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 241.2, "conf": 0.39, "frames": 8, "misses": 1}
+{"label": "p16", "ok": true, "x_wheel": 1.4, "y": -0.2, "u": 376.0, "v": 219.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 219.3, "conf": 0.82, "frames": 8, "misses": 0}
+{"label": "v17", "ok": true, "x_wheel": 0.7, "y": -0.1, "u": 364.0, "v": 331.0, "u_spread": 0.0, "v_spread": 1.0, "yolo_bottom_v": 334.1, "conf": 0.96, "frames": 8, "misses": 0}
+{"label": "v18", "ok": true, "x_wheel": 1.1, "y": -0.1, "u": 351.0, "v": 256.0, "u_spread": 0.0, "v_spread": 0.0, "yolo_bottom_v": 258.1, "conf": 0.92, "frames": 8, "misses": 0}

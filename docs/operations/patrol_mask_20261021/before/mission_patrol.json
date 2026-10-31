@@ -1,0 +1,268 @@
+{
+  "real": true, 
+  "destination": "patrol-cycle", 
+  "trace": [], 
+  "waypoints": [
+    [
+      0.23446500351220656, 
+      0.35483557658698084
+    ], 
+    [
+      0.7550527652787818, 
+      0.1034878326420336
+    ], 
+    [
+      1.0255803634102147, 
+      0.6638006271669645
+    ], 
+    [
+      0.5049926016436393, 
+      0.9151483711119117
+    ]
+  ], 
+  "recoveries": [], 
+  "primary_patrol_point": "opposite paper-box corner", 
+  "pulses": 0, 
+  "final_health": {
+    "service_pid": 26244, 
+    "rss_mb": 512.1, 
+    "uptime_s": 10091.2, 
+    "ok": true, 
+    "startup_pose": {
+      "ok": true, 
+      "reason": "travel_verified", 
+      "servo_deg": [
+        90.0, 
+        140.0, 
+        0.0, 
+        0.0, 
+        90.0, 
+        30.0
+      ], 
+      "enabled": true
+    }, 
+    "capabilities": {
+      "owner_restart": false, 
+      "independent_health": true, 
+      "serial_transport_diagnostics": false
+    }, 
+    "stack_version": "v23", 
+    "chassis": {
+      "board_rx_age_s": 0.01, 
+      "arm_pose": "travel", 
+      "stopped_for_s": 7.27, 
+      "rx_blocked_total": 0, 
+      "motors": [
+        0, 
+        0, 
+        0, 
+        0
+      ], 
+      "refused_total": 0, 
+      "client": null, 
+      "moving": false, 
+      "maintenance": true, 
+      "pose_blocked_total": 0, 
+      "dropped_total": 0, 
+      "arm_busy": false
+    }, 
+    "model_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip", 
+    "holding": false, 
+    "chassis_tcp_ready": true, 
+    "serial": null, 
+    "vecnorm_path": "/home/jetson/Documents/deploy_jetson2/grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl", 
+    "odom": {
+      "pose": [
+        -0.7014, 
+        1.1615, 
+        -2.3292
+      ], 
+      "rosbridge": true, 
+      "skipped_invalid": 1, 
+      "twist": [
+        0.0, 
+        0.0, 
+        0.0
+      ], 
+      "reason": "", 
+      "valid": true, 
+      "published": 200555, 
+      "failures": 0, 
+      "skipped_board_silent": 0
+    }
+  }, 
+  "preflight_paths": [
+    {
+      "points": [
+        [
+          1.1693715418558626, 
+          0.4592572957499115
+        ], 
+        [
+          1.0954415398857493, 
+          0.46350230959676086
+        ]
+      ], 
+      "label": "outer_ccw_2"
+    }, 
+    {
+      "points": [
+        [
+          1.0954415398857493, 
+          0.46350230959676086
+        ], 
+        [
+          1.0255803634102147, 
+          0.6638006271669645
+        ]
+      ], 
+      "label": "outer_ccw_3"
+    }, 
+    {
+      "points": [
+        [
+          1.0255803634102147, 
+          0.6638006271669645
+        ], 
+        [
+          0.9557191869346799, 
+          0.8640989447371681
+        ]
+      ], 
+      "label": "outer_ccw_4"
+    }, 
+    {
+      "points": [
+        [
+          0.9557191869346799, 
+          0.8640989447371681
+        ], 
+        [
+          0.43513142516810466, 
+          1.1154466886821153
+        ]
+      ], 
+      "label": "outer_ccw_5"
+    }, 
+    {
+      "points": [
+        [
+          0.43513142516810466, 
+          1.1154466886821153
+        ], 
+        [
+          0.03416668594200291, 
+          0.2849744001114462
+        ]
+      ], 
+      "label": "outer_ccw_0"
+    }, 
+    {
+      "points": [
+        [
+          0.03416668594200291, 
+          0.2849744001114462
+        ], 
+        [
+          0.8249139417543165, 
+          -0.09681048492817002
+        ]
+      ], 
+      "label": "outer_ccw_1"
+    }, 
+    {
+      "points": [
+        [
+          0.8249139417543165, 
+          -0.09681048492817002
+        ], 
+        [
+          1.0954415398857493, 
+          0.46350230959676086
+        ]
+      ], 
+      "label": "outer_ccw_2"
+    }
+  ], 
+  "ok": false, 
+  "min_available_mb": 1373.1484375, 
+  "patrol_inset_m": 0.7, 
+  "requested_goals": [
+    {
+      "name": "outer_ccw_2", 
+      "point": [
+        1.0954415398857493, 
+        0.46350230959676086
+      ]
+    }, 
+    {
+      "name": "outer_ccw_3", 
+      "point": [
+        1.0255803634102147, 
+        0.6638006271669645
+      ]
+    }, 
+    {
+      "name": "outer_ccw_4", 
+      "point": [
+        0.9557191869346799, 
+        0.8640989447371681
+      ]
+    }, 
+    {
+      "name": "outer_ccw_5", 
+      "point": [
+        0.43513142516810466, 
+        1.1154466886821153
+      ]
+    }, 
+    {
+      "name": "outer_ccw_0", 
+      "point": [
+        0.03416668594200291, 
+        0.2849744001114462
+      ]
+    }, 
+    {
+      "name": "outer_ccw_1", 
+      "point": [
+        0.8249139417543165, 
+        -0.09681048492817002
+      ]
+    }, 
+    {
+      "name": "outer_ccw_2", 
+      "point": [
+        1.0954415398857493, 
+        0.46350230959676086
+      ]
+    }
+  ], 
+  "initial": {
+    "tf_age": -0.32587409019470215, 
+    "front": 0.768622808043522, 
+    "odom_stamp": 1792591399.5210288, 
+    "odom": [
+      -0.7014169662624016, 
+      1.161501851401423, 
+      -2.3292263391632018
+    ], 
+    "scan_age": 0.17412590980529785, 
+    "vx": 0.0, 
+    "pose": [
+      1.1693715418558626, 
+      0.4592572957499115, 
+      0.7799332543002317
+    ], 
+    "wz": 0.0, 
+    "cov": [
+      2.600836632995253e-05, 
+      3.030945403684494e-05, 
+      2.0916245260341256e-05
+    ]
+  }, 
+  "arrivals": [], 
+  "output_path": "/tmp/mission_patrol.json", 
+  "error": "cannot enter turn reserve", 
+  "boundary_micro": true
+}

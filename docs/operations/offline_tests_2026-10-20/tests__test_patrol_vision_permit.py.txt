@@ -1,0 +1,136 @@
+E..EE.
+======================================================================
+ERROR: test_a_patrol_is_alive_until_it_exits_or_turns_zombie (__main__.PermitTests.test_a_patrol_is_alive_until_it_exits_or_turns_zombie)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_patrol_vision_permit.py", line 58, in test_a_patrol_is_alive_until_it_exits_or_turns_zombie
+    (Path(proc) / str(pid)).mkdir()
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1311, in mkdir
+    os.mkdir(self, mode)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3j56a_ov\\10'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 637, in _rmtree_unsafe
+    os.rmdir(path)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3j56a_ov'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_patrol_vision_permit.py", line 56, in test_a_patrol_is_alive_until_it_exits_or_turns_zombie
+    with tempfile.TemporaryDirectory() as proc:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 950, in __exit__
+    self.cleanup()
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 954, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 934, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 639, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 906, in onexc
+    _resetperms(path)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 286, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 277, in _dont_follow_symlinks
+    func(path, *args)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmp3j56a_ov'
+
+======================================================================
+ERROR: test_poses_come_from_the_localization_health_file (__main__.PermitTests.test_poses_come_from_the_localization_health_file)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_patrol_vision_permit.py", line 40, in test_poses_come_from_the_localization_health_file
+    health.write_text(json.dumps({'ready': True, 'stamp': 99.9,
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1047, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmpof8fauoj\\health.json'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 637, in _rmtree_unsafe
+    os.rmdir(path)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmpof8fauoj'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_patrol_vision_permit.py", line 38, in test_poses_come_from_the_localization_health_file
+    with tempfile.TemporaryDirectory() as folder:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 950, in __exit__
+    self.cleanup()
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 954, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 934, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 639, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 906, in onexc
+    _resetperms(path)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 286, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 277, in _dont_follow_symlinks
+    func(path, *args)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmpof8fauoj'
+
+======================================================================
+ERROR: test_the_permit_file_is_what_the_patrol_reads (__main__.PermitTests.test_the_permit_file_is_what_the_patrol_reads)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_patrol_vision_permit.py", line 31, in test_the_permit_file_is_what_the_patrol_reads
+    permit.write_permit(path, 4443, 'boot-1', True, 99.6)
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\patrol_vision_permit_jetson.py", line 45, in write_permit
+    with open(tmp, 'w') as f:
+         ^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmpozw5wb2a\\permit.json.tmp'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 637, in _rmtree_unsafe
+    os.rmdir(path)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmpozw5wb2a'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_patrol_vision_permit.py", line 29, in test_the_permit_file_is_what_the_patrol_reads
+    with tempfile.TemporaryDirectory() as folder:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 950, in __exit__
+    self.cleanup()
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 954, in cleanup
+    self._rmtree(self.name, ignore_errors=self._ignore_cleanup_errors)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 934, in _rmtree
+    _shutil.rmtree(name, onexc=onexc)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\shutil.py", line 639, in _rmtree_unsafe
+    onexc(os.rmdir, path, err)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 906, in onexc
+    _resetperms(path)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 286, in _resetperms
+    _dont_follow_symlinks(_os.chmod, path, 0o700)
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\tempfile.py", line 277, in _dont_follow_symlinks
+    func(path, *args)
+PermissionError: [WinError 5] 存取被拒。: 'C:\\Users\\user\\AppData\\Local\\Packages\\sandbox.{adcd0efd-7e6f-46af-b891-6fbb38086e30}\\AC\\Temp\\tmpozw5wb2a'
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.029s
+
+FAILED (errors=3)

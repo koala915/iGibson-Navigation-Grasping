@@ -615,10 +615,15 @@ class FKComputer:
             if not Path(urdf_abs).exists():
                 raise FileNotFoundError(f"URDF not found: {urdf_abs}")
 
+            # IGNORE_VISUAL_SHAPES: the .obj visual meshes are ~88 MB and nothing
+            # here renders (DIRECT mode, no getCameraImage). Halves loadURDF with
+            # the FK geometry unchanged. NOT the collision flag -- that one does not
+            # raise, it silently shifts the reported pad geometry.
             self.body_id = p.loadURDF(
                 urdf_abs,
                 basePosition=[0, 0, 0],
                 useFixedBase=True,
+                flags=p.URDF_IGNORE_VISUAL_SHAPES,
                 physicsClientId=self.physics_client,
             )
 

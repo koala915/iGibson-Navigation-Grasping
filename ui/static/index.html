@@ -49,7 +49,7 @@
         <div class="specs">
           <div><div class="v">5</div><div class="k">機械臂自由度</div></div>
           <div><div class="v">4</div><div class="k">麥克納姆輪</div></div>
-          <div><div class="v">117</div><div class="k">巡航路徑點</div></div>
+          <div><div class="v" id="wpCount">83</div><div class="k">巡航航點</div></div>
           <div><div class="v">21</div><div class="k">任務狀態</div></div>
         </div>
       </div>
@@ -116,7 +116,7 @@
                 <rect width="29" height="29" fill="#fff"/><g fill="#0F1B2A" id="qrCells"></g>
               </svg>
               <div>
-                <div style="font-size:.86rem; font-weight:620">掃描後直接進入操作台</div>
+                <div style="font-size:.86rem; font-weight:620">掃描後直接進入操作台<span class="tok" style="margin-left:6px">示意圖</span></div>
                 <p class="hint" style="margin:5px 0 0">
                   內容是 <code class="mono">http://&lt;目前 IP&gt;:8080</code>，開機時由
                   <code class="mono">ui/make_qr.py</code> 重新產生。IP 變了圖也跟著變。
@@ -186,6 +186,26 @@
                 <div class="stage" data-s="idle"><span class="n">1</span><div class="t">閉合夾爪</div></div>
                 <div class="stage" data-s="idle"><span class="n">2</span><div class="t">抬升並收回</div></div>
               </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <header><h2>定點夾取</h2><div class="spacer"></div><span class="tok" id="armTok">待命</span></header>
+            <div class="body" style="display:grid; gap:11px">
+              <p class="human" style="margin:0">把物體放在車子正前方手臂相機看得到的位置，按「夾取前方物體」：手臂升到 E1 姿態、確認物體、夾起後收回。</p>
+              <label class="toggle">
+                <input type="checkbox" id="armConfirm"><span class="sw"></span>
+                <span style="font-size:.85rem; font-weight:600">我在車旁，手放在電源開關上</span>
+              </label>
+              <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:8px">
+                <button class="go" id="armGrasp" data-arm="grasp">夾取前方物體</button>
+                <button class="go ghost" id="armRelease" data-arm="release">放開物體</button>
+                <button class="go ghost" id="armHome" data-arm="home">手臂回原位</button>
+                <button class="go ghost" id="armStow" data-arm="stow">收臂</button>
+              </div>
+              <div class="note warn" id="armBlock" hidden></div>
+              <div class="note" id="armNote" hidden></div>
+              <div class="tl" id="armSteps"></div>
             </div>
           </div>
         </div>

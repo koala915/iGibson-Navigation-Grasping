@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1256B8">
+<title>X3Plus 決賽操作台</title>
+<link rel="stylesheet" href="/static/base.css">
+<link rel="stylesheet" href="/static/loop.css">
+</head>
+<body>
+
+<div class="masthead">
+  <div class="wrap row">
+    <div class="wordmark">
+      <span class="mk">X3</span>
+      <b>X3Plus 決賽操作台</b>
+      <span>巡航 · 夾取 · 放置</span>
+    </div>
+    <div class="spacer"></div>
+    <span class="conn" id="connPill" title="定位串流"><span class="dot" id="connDot"></span><span class="mono" id="connTxt">—</span></span>
+    <button class="iconbtn" id="themeBtn">深色</button>
+    <button class="estop" id="estopBtn" title="結束任務、停止巡航與輪子。真正的急停是電源開關">■ 停止</button>
+  </div>
+</div>
+<div class="hazard" id="hazBar" aria-hidden="true" hidden></div>
+<div class="banner" id="banner" hidden></div>
+
+<main class="wrap loop-grid">
+  <section class="card map-card">
+    <header><h2>場地</h2><div class="spacer"></div><span class="tok" id="mapTok">—</span>
+      <button class="iconbtn small" id="mapReload" title="重新讀取車上的地圖檔">重新載入</button></header>
+    <div class="body">
+      <div class="map-box"><canvas id="map" aria-label="場地地圖：牆、巡航允許帶、放置盒、標記、機器人位置與看到的糖果盒"></canvas></div>
+      <div class="map-foot">
+        <span class="mono" id="poseTxt">位置 —</span>
+        <span class="legend"><i class="lg band"></i>巡航允許帶</span>
+        <span class="legend"><i class="lg seen"></i>糖果盒</span>
+        <span class="legend"><i class="lg rough"></i>粗估範圍</span>
+        <span class="legend"><i class="lg fail"></i>失敗</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="side">
+    <section class="card">
+      <header><h2>操作</h2></header>
+      <div class="body">
+        <div class="actions">
+          <button class="go ghost" id="relocBtn">重新定位</button>
+          <button class="go" id="startBtn">開始 loop</button>
+        </div>
+        <p class="hint" id="actionHint">重新定位時車子不會動。開始 loop 前會先確認人在車旁。</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <header><h2>目前狀態</h2><div class="spacer"></div><span class="chip mute" id="stageChip">待命</span></header>
+      <div class="body">
+        <div class="metrics">
+          <div><div class="k">已送達</div><div class="v num" id="mDelivered">0</div></div>
+          <div><div class="k">失敗</div><div class="v num" id="mFailures">0</div></div>
+          <div><div class="k">巡航圈</div><div class="v num" id="mLap">—</div></div>
+          <div><div class="k">用時</div><div class="v num" id="mTime">—</div></div>
+        </div>
+        <p class="detail" id="stageDetail"></p>
+        <div class="eta" id="stageEta" hidden>
+          <div class="bar"><i id="stageEtaBar"></i></div>
+          <span class="num" id="stageEtaTxt"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <header><h2>裝置自檢</h2><div class="spacer"></div><span class="tok" id="checkTok">—</span>
+        <button class="iconbtn small" id="checkBtn">重新檢查</button></header>
+      <ul class="checks" id="checks"><li class="empty">檢查中…</li></ul>
+    </section>
+  </div>
+
+  <section class="card log-card">
+    <header><h2>剛剛發生什麼</h2><div class="spacer"></div><span class="tok">最新在上</span></header>
+    <ol class="log" id="log"></ol>
+  </section>
+</main>
+
+<div class="scrim" id="modal" hidden>
+  <div class="dialog card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <header><h2 id="modalTitle">開始 loop</h2></header>
+    <div class="body">
+      <p id="modalText">車子會開始巡航、夾取與放置。</p>
+      <div id="startOpts">
+        <label class="opt"><input type="checkbox" id="optReloc"> 先重新定位（約 1 分鐘；只看到一面牆的標記會原地轉動）</label>
+        <div class="field"><label for="optMax">送達上限（空白＝連續 2 圈沒看到才結束）</label>
+          <input type="number" id="optMax" min="1" step="1" placeholder="例如 3"></div>
+      </div>
+      <label class="opt confirm"><input type="checkbox" id="optBeside"> 我在車旁，手放在電源開關上</label>
+      <p class="err" id="modalErr" hidden></p>
+      <div class="actions">
+        <button class="go ghost" id="modalCancel">取消</button>
+        <button class="go" id="modalOk">開始</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

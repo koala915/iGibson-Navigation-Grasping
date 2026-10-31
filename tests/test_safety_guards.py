@@ -47,6 +47,8 @@ from integration.nav_rl import (
     NavRLConfig,
     RosLaserScanSource,
     describe_scan,
+    front_min_raw,
+    front_min_brake,
     laser_scan_to_points,
     make_lidar,
     scan_to_rays,
@@ -54,6 +56,7 @@ from integration.nav_rl import (
 )
 from integration import vision_grasp_pipeline as vgp
 from integration import nav_rl_grasp_pipeline as nrgp
+from integration import ros_io
 from startup_device_check import camera_identity
 from stream_cam import CameraState
 
@@ -198,12 +201,141 @@ class SafetyGuardTests(unittest.TestCase):
                 "ranges": [1.0],
             })
 
+    def test_all_nan_scan_is_rejected_but_all_positive_inf_is_valid(self):
+        base = {
+            "angle_min": -math.pi,
+            "angle_increment": 0.01,
+            "range_min": 0.05,
+            "range_max": 12.0,
+        }
+        with self.assertRaisesRegex(ValueError, "no usable ranges"):
+            laser_scan_to_points(dict(base, ranges=[math.nan] * 20))
+        self.assertEqual(laser_scan_to_points(dict(base, ranges=[math.inf] * 20)), [])
+
+    def test_amcl_rejects_wrong_frame_bad_quaternion_and_negative_covariance(self):
+        q = ros_io.yaw_to_quaternion(0.2)
+        cov = [0.0] * 36
+        cov[0] = cov[7] = cov[35] = 0.01
+        msg = {
+            "header": {"frame_id": "map", "stamp": {"secs": 1, "nsecs": 0}},
+            "pose": {"pose": {
+                "position": {"x": 1.0, "y": 2.0},
+                "orientation": dict(zip(("x", "y", "z", "w"), q)),
+            }, "covariance": cov},
+        }
+        ros_io.parse_amcl_pose(msg)
+        wrong_frame = json.loads(json.dumps(msg))
+        wrong_frame["header"]["frame_id"] = "odom"
+        with self.assertRaisesRegex(ValueError, "frame"):
+            ros_io.parse_amcl_pose(wrong_frame)
+        zero_q = json.loads(json.dumps(msg))
+        zero_q["pose"]["pose"]["orientation"] = {k: 0.0 for k in ("x", "y", "z", "w")}
+        with self.assertRaisesRegex(ValueError, "quaternion"):
+            ros_io.parse_amcl_pose(zero_q)
+        negative_cov = json.loads(json.dumps(msg))
+        negative_cov["pose"]["covariance"][35] = -0.01
+        with self.assertRaisesRegex(ValueError, "covariance"):
+            ros_io.parse_amcl_pose(negative_cov)
+
+    def test_fine_alignment_speed_never_exceeds_declared_si_limits(self):
+        near_speed = vgp.choose_arm_forward_speed("ARM_NEAR")
+        vx, _vy, _wz = vgp.action_to_vxyz("forward", near_speed)
+        self.assertLessEqual(vx, vgp.ARM_NEAR_VX_MPS)
+        turn_speed = vgp.speed_from_wz(vgp.ARM_MAX_WZ,
+                                       vgp.ARM_MIN_TURN_SPEED,
+                                       vgp.ARM_MAX_SPEED)
+        _vx, _vy, wz = vgp.action_to_vxyz("turn_left", turn_speed)
+        self.assertLessEqual(wz, vgp.ARM_MAX_WZ)
+
+    def test_grasp_verification_is_unknown_without_usable_frames(self):
+        nav = vgp.Navigator.__new__(vgp.Navigator)
+        nav.open_cameras = lambda: None
+        nav.cam_to_base_x = nav.cam_to_base_y = 0.0
+        nav.sign_y = 1.0
+        nav._detect_arm = lambda: (False, -1.0, 0.0, 0.0, None)
+        with mock.patch.object(vgp.time, "sleep", return_value=None):
+            self.assertIsNone(nav.verify_grasp([0.24, 0.0, 0.02]))
+
+    def test_controller_close_releases_serial_even_if_another_cleanup_fails(self):
+        class Part:
+            def __init__(self, fail=False):
+                self.closed, self.fail = False, fail
+            def close(self):
+                self.closed = True
+                if self.fail:
+                    raise RuntimeError("cleanup failed")
+            def _close_device(self):
+                self.closed = True
+
+        controller = GraspController.__new__(GraspController)
+        controller.detection = Part(fail=True)
+        controller.servo = Part()
+        controller.fk = Part()
+        with contextlib.redirect_stdout(io.StringIO()):
+            controller.close()
+        self.assertTrue(controller.servo.closed)
+        self.assertTrue(controller.fk.closed)
+
     def test_ros_scan_left_right_mapping_is_not_mirrored(self):
         cfg = NavRLConfig(lidar_angle_dir=1.0)
         right = scan_to_rays([(-85.0, 1.0)], cfg)
         left = scan_to_rays([(85.0, 1.0)], cfg)
         self.assertLessEqual(int(np.argmin(right)), 3)
         self.assertGreaterEqual(int(np.argmin(left)), 44)
+
+    def test_forward_brake_uses_fixed_width_swept_corridor(self):
+        cfg = NavRLConfig(
+            lidar_forward_offset_m=0.10,
+            safety_brake_dist=0.38,
+            safety_corridor_half_width_m=0.22,
+        )
+
+        # Raw point 0.25 m ahead of the forward-mounted lidar is 0.35 m ahead
+        # of the robot centre and lies inside the swept footprint.
+        self.assertAlmostEqual(front_min_raw([(0.0, 0.25)], cfg), 0.35)
+
+        # The real TG30 sees the robot platform behind its forward-mounted
+        # origin. After the 180-degree mount correction those returns fall at
+        # or behind the robot's front plane and must not latch the brake.
+        self.assertEqual(front_min_raw([(180.0, 0.10)], cfg), float("inf"))
+
+        # A nearby wall point can have a short radial range while remaining
+        # outside the robot's 0.22 m half-width corridor. It must not stop a
+        # straight drive.
+        wall_angle = math.degrees(math.atan2(0.23, 0.20 - 0.10))
+        wall_range = math.hypot(0.20 - 0.10, 0.23)
+        self.assertEqual(front_min_raw([(wall_angle, wall_range)], cfg),
+                         float("inf"))
+
+        # Moving the same obstacle 2 cm inward places it inside the corridor.
+        obstacle_angle = math.degrees(math.atan2(0.21, 0.20 - 0.10))
+        obstacle_range = math.hypot(0.20 - 0.10, 0.21)
+        self.assertAlmostEqual(
+            front_min_raw([(obstacle_angle, obstacle_range)], cfg), 0.20,
+            places=6,
+        )
+
+    def test_forward_brake_rejects_one_or_two_normal_zone_speckles(self):
+        cfg = NavRLConfig(lidar_forward_offset_m=0.10)
+        self.assertEqual(front_min_brake([(0.0, 0.25)], cfg), float("inf"))
+        self.assertEqual(
+            front_min_brake([(-0.2, 0.25), (0.2, 0.25)], cfg),
+            float("inf"),
+        )
+
+    def test_forward_brake_accepts_three_point_obstacle_cluster(self):
+        cfg = NavRLConfig(lidar_forward_offset_m=0.10)
+        points = [(-0.2, 0.25), (0.0, 0.25), (0.2, 0.25)]
+        self.assertAlmostEqual(front_min_brake(points, cfg), 0.35, places=4)
+
+    def test_forward_brake_does_not_join_separated_speckles(self):
+        cfg = NavRLConfig(lidar_forward_offset_m=0.10)
+        points = [(-8.0, 0.25), (0.0, 0.25), (8.0, 0.25)]
+        self.assertEqual(front_min_brake(points, cfg), float("inf"))
+
+    def test_forward_brake_keeps_single_point_emergency_stop(self):
+        cfg = NavRLConfig(lidar_forward_offset_m=0.10)
+        self.assertAlmostEqual(front_min_brake([(0.0, 0.14)], cfg), 0.24)
 
     def test_scan_coverage_wraps_for_a_full_scan_and_is_not_orientation_proof(self):
         cfg = NavRLConfig(lidar_yaw_offset_deg=180.0)

@@ -28,8 +28,6 @@ Run it at boot so the QR is correct before anyone reaches for a phone:
 Needs `pip3 install qrcode pillow`.
 """
 
-from __future__ import annotations
-
 import argparse
 import socket
 import sys
@@ -70,10 +68,26 @@ def console_url(ip: str, port: int) -> str:
     return "http://{ip}:{port}/?connect=1".format(ip=ip, port=port)
 
 
-def render(url: str, ip: str, out: Path, port: int = DEFAULT_PORT) -> None:
+def load_font(size: int):
+    from PIL import ImageFont
+    for path in ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
+                 "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                 "C:/Windows/Fonts/msjhbd.ttc",
+                 "C:/Windows/Fonts/msjh.ttc",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"):
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def render(url: str, ip: str, out: Path, port: int = DEFAULT_PORT,
+           caption: str = CAPTION, hint: str = HINT) -> None:
     try:
         import qrcode
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw
     except ImportError:
         sys.exit("缺少相依套件。請先執行：pip3 install qrcode pillow")
 
@@ -83,24 +97,11 @@ def render(url: str, ip: str, out: Path, port: int = DEFAULT_PORT) -> None:
     qr.make(fit=True)
     code = qr.make_image(fill_color="#0F1B2A", back_color="white").convert("RGB")
 
-    pad, footer = 28, 96
+    pad, footer = 28, 112
     card = Image.new("RGB", (code.width + pad * 2, code.height + pad + footer), "white")
     card.paste(code, (pad, pad))
 
     draw = ImageDraw.Draw(card)
-
-    def font(size: int):
-        for path in ("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc",
-                     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-                     "C:/Windows/Fonts/msjhbd.ttc",
-                     "C:/Windows/Fonts/msjh.ttc",
-                     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"):
-            try:
-                return ImageFont.truetype(path, size)
-            except OSError:
-                continue
-        return ImageFont.load_default()
 
     def centered(text: str, y: int, f, fill: str) -> None:
         # textbbox is the only width call present across the Pillow versions
@@ -113,9 +114,9 @@ def render(url: str, ip: str, out: Path, port: int = DEFAULT_PORT) -> None:
         draw.text(((card.width - w) / 2, y), text, font=f, fill=fill)
 
     top = pad + code.height + 4
-    centered(CAPTION, top, font(26), "#0F1B2A")
-    centered("{}:{}".format(ip, port), top + 34, font(30), "#1256B8")
-    centered(HINT, top + 72, font(17), "#71849A")
+    centered(caption, top, load_font(26), "#0F1B2A")
+    centered("{}:{}".format(ip, port), top + 34, load_font(30), "#1256B8")
+    centered(hint, top + 72, load_font(17), "#71849A")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     card.save(out)

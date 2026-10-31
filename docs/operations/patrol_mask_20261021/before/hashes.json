@@ -1,0 +1,18 @@
+{
+  "deploy/ros/g2_map_patrol.py": "0563fa68a268defc8a7802fb6e74f5394253a13347ff207a82cc7e6e8ad21748",
+  "integration/g2_patrol_policy.py": "b1a661d1eada9919ee2f84f4ebd7e99f0c3c3292c463c443b6426c2a35408ee1",
+  "integration/g2_geometry.py": "da7caf2abc9fa3f5e06678516acd45fa1c70d82c9424dba5c4c79aa4f37980f0",
+  "integration/g2_navigation_goals.py": "a341b5fe63524f09f13c522c970a0878fe5ff8e5718d8b70d07409f2849534f9",
+  "maps/demo_box_20261018_patrol/aruco_corner_landmarks.json.before_v3_20261021": "6b1ba893a13d16dfc7f336fc4146060cf2ee8ce8029d196b7b2e2367019e53f2",
+  "maps/demo_box_20261018_patrol/navigation_test_goals.json": "682f0253030e86354314abaa8fbad9d09d05b4d5601b8e734e1cc19a168a5082",
+  "maps/demo_box_20261018_patrol/last_pose_seed.json": "bd322ece4b5a712852b454a89749f7970cdfd8222de3b5c276b2bad4e10c0ccc",
+  "maps/demo_box_20261018_patrol/navigation_center_mask.pgm": "23566c869736384cf68afd5aecea23a288b8e62dcc76cba0cb936c5338096a47",
+  "maps/demo_box_20261018_patrol/scene_layout.json": "1fef38873bfe539a9e73dfd3e685051547014a59594af79e9ecf895f114958f7",
+  "maps/demo_box_20261018_patrol/navigation_center_mask.yaml": "cbf20573351cf0687f6a84046015eed6abcb578c8a4e6f059a821b699faef0cf",
+  "maps/demo_box_20261018_patrol/demo_box.yaml": "85cd474ca17d7e57acd541f3651612efc5b3a9f1bb21808523c45d605807ef3e",
+  "maps/demo_box_20261018_patrol/demo_box.pgm": "00d5ec32b01ffd299b5626eb4ccfeb93af7c62a70bc43e986e7bded6dd6b269b",
+  "maps/demo_box_20261018_patrol/outer_patrol_goals.json": "a04162cd6391c347e110148dbc6b576f43eb9406a440df1b026bad204493e69a",
+  "maps/demo_box_20261018_patrol/aruco_corner_landmarks.json.v1_before_20261019": "159611ee37248ecd7b4811c238f897815ca44c7dd0f9215c2a6b71e037c1ceae",
+  "maps/demo_box_20261018_patrol/aruco_corner_landmarks.json": "3934d5357209a18fa48d8b2280e4e66be3d0b492d49f192a82f9d0ea25900f00",
+  "mission_patrol.json": "452b7e717c6e84a5d9bfb07cb3270887fd93c7905e5b06527c52341d5e385f50"
+}

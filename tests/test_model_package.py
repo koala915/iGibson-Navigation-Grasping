@@ -34,6 +34,7 @@ def make_manifest(model_sha, vec_sha, model_id="grasp-test-v1"):
         "contract": {
             "observation_dim": 28,
             "action_dim": 6,
+            "arm_action_mode": "absolute",
             "grasp_home_sim_rad": [0, -0.4, -1.4, -1.4, 0],
             "grasp_home_api_deg": [90, 67.08, 9.79, 9.79, 90, 30],
             "arm_hw_invert": [False, False, False, False, False],
@@ -87,6 +88,32 @@ class ModelPackageTests(unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
             with self.assertRaisesRegex(ModelPackageError, "must be 28"):
                 verify_package_directory(package)
+
+    def test_grasp_package_requires_explicit_action_semantics(self):
+        with tempfile.TemporaryDirectory() as temp:
+            package = self._package_dir(Path(temp))
+            manifest_path = package / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            del manifest["contract"]["arm_action_mode"]
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ModelPackageError, "arm_action_mode"):
+                verify_package_directory(package)
+
+    def test_legacy_wrapper_refuses_incremental_package(self):
+        with tempfile.TemporaryDirectory() as temp:
+            package = self._package_dir(Path(temp))
+            manifest_path = package / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["contract"]["arm_action_mode"] = "incremental"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            wrapper = ROOT / "model_tools" / "run_grasp_package.py"
+            result = subprocess.run(
+                [sys.executable, str(wrapper), str(package)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                universal_newlines=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("legacy absolute-action runtime", result.stdout)
 
     def test_hardware_approved_requires_all_gates(self):
         with tempfile.TemporaryDirectory() as temp:

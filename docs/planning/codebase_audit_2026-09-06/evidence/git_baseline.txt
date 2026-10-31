@@ -1,0 +1,23 @@
+ M CLAUDE.md
+ M docs/images/ui/03_mobile_connection.png
+ M docs/images/ui/04_mobile_console.png
+ M docs/images/ui/05_mobile_setup_top.png
+ M docs/images/ui/06_mobile_setup_actions.png
+ M docs/images/ui/07_mobile_map.png
+ M integration/vision_grasp_bridge.py
+ M progress.md
+ M tests/test_vision_grasp_bridge_pose.py
+ M ui/server.py
+ M ui/static/app.js
+ M ui/static/index.html
+ M ui/static/style.css
+?? SUMMER_MEETING_PPT.md
+?? SUMMER_RESULTS_REPORT.md
+?? docs/planning/PROJECT_EXECUTION_ROADMAP_2026-08-31.md
+?? docs/planning/codebase_audit_2026-09-06/
+?? grasp/deploy_v23/
+
+STDERR:
+warning: unable to access 'C:\Users\user/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\user/.config/git/ignore': Permission denied
+warning: could not open directory '.pytest_cache/': Permission denied

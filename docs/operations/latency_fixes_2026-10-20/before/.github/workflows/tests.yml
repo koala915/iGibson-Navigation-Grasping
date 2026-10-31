@@ -1,0 +1,137 @@
+name: tests
+
+# Every suite below runs without a robot: no serial port, no camera, no ROS.
+# That is deliberate -- the hardware-dependent behaviour is covered by fakes and
+# recorded fixtures, so a regression in the safety guards or the mission machine
+# is caught here rather than next to a moving robot.
+
+on:
+  push:
+    branches: [main, 'merge-**']
+  pull_request:
+    branches: [main, v23-grasp-test]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          # The deployment requirements live under grasp/ and detection/ and are
+          # pinned for the Jetson's Python 3.8, so they are neither at a path
+          # setup-python discovers by default nor installable here.
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # CPU torch only, and from PyTorch's index rather than PyPI, whose
+          # default wheel is the CUDA build. The Jetson runs an NVIDIA-built
+          # wheel that is not installable here, and no test touches a GPU.
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-ci.txt
+
+      - name: Grasp deployment controller (138 checks)
+        run: python grasp/v21/test_deploy_controller.py
+
+      - name: Servo reads over the half-duplex bus (37 checks)
+        run: python grasp/v21/test_servo_read.py
+
+      - name: Preventive floor guard (641 checks)
+        run: python grasp/v21/test_deploy_floor_guard.py
+
+      - name: V24 candidate artifact and release identity
+        run: python grasp/v24/test_candidate_package.py
+
+      - name: Safety guards
+        run: python tests/test_safety_guards.py
+
+      - name: Mission layer, end to end
+        run: python tests/test_mission_end_to_end.py
+
+      - name: Model packaging
+        run: python tests/test_model_package.py
+
+      - name: Grasp-home homography
+        run: python tests/test_grasp_home_homography.py
+
+      - name: Camera capture recovery
+        run: python tests/test_stream_cam_capture.py
+
+      - name: Sugarbox approach to E1 handoff
+        run: python tests/test_sugarbox_approach_grasp.py
+
+      - name: Patrol, grasp and placement mission loop
+        run: python tests/test_mission_loop.py
+
+      - name: Cross-stage safety and resident protocol contracts
+        run: python tests/test_flow_contracts.py
+
+      - name: Patrol seed confirmation before approach
+        run: python tests/test_sugarbox_seed_target.py
+
+      - name: Placement geometry and release guards
+        run: python tests/test_placement_dock.py
+
+      - name: Patrol vision permission and process ownership
+        run: python tests/test_patrol_vision_permit.py
+
+      - name: Sugarbox approach runtime (blind finish, turn safety, reverse, no progress, enoch's mode)
+        run: python tests/test_sugarbox_blind_finish.py
+
+      - name: Sugarbox training-matched PPO inputs and shaping
+        run: python tests/test_sugarbox_training_contract.py
+
+      - name: Vision bridge pose
+        run: python tests/test_vision_grasp_bridge_pose.py
+
+      - name: Offboard SAM2 target adapter (sign convention)
+        run: python tests/test_trash_target.py
+
+      - name: Offboard final target approach
+        run: python tests/test_target_approach.py
+
+      - name: Navigation raw-LiDAR safety layer
+        run: python tests/test_nav_safety.py
+
+      - name: Rear-camera ground homography
+        run: python tests/test_rear_ground_homography.py
+
+      - name: Sugarbox runtime ground calibration
+        run: python tests/test_sugarbox_ground_calibration.py
+
+      - name: Sugarbox ROS LiDAR geometry
+        run: python tests/test_sugarbox_lidar_geometry.py
+
+      - name: Resident arm transitions and encoder initialization
+        run: python grasp/v23/test_travel_pose.py
+
+      - name: Resident chassis ownership and arm interlock
+        run: python grasp/v23/test_chassis_server.py
+
+      - name: Operator console
+        run: python ui/test_server.py
+
+      - name: Dynamic ROS IP and serial-owner helpers
+        run: bash deploy/systemd/test_helpers.sh
+
+      # The three pure-logic selftests. They need neither hardware nor torch,
+      # and they are the fastest thing that will tell you the FSM wiring broke.
+      - name: Mission FSM selftest
+        run: python integration/mission_fsm.py --selftest
+
+      - name: Mission pipeline selftest
+        run: python integration/mission_pipeline.py --selftest
+
+      - name: G2 navigation TCP safety client
+        run: python tests/test_g2_nav_client.py
+
+      - name: Vision grasp pipeline selftest
+        run: python integration/vision_grasp_pipeline.py --selftest

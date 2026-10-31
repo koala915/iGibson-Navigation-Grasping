@@ -1,0 +1,19 @@
+{
+  "query": {
+    "project": "C-Users-user-Documents-repo-iGibson-Navigation-Grasping",
+    "file_pattern": "integration/*",
+    "name_pattern": ".*",
+    "limit": 3
+  },
+  "result": {
+    "status": "fulfilled",
+    "value": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"total\":0,\"results\":[],\"has_more\":false,\"hint\":\"No nodes match this pattern. Check spelling or try a broader regex.\"}"
+        }
+      ]
+    }
+  }
+}

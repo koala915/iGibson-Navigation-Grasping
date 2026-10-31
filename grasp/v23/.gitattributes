@@ -1,0 +1,4 @@
+# This stack is authored on Windows (core.autocrlf=true) and executed on the Jetson.
+# A shell script checked out with CRLF fails there with a "\r: command not found" /
+# "bad interpreter" error that points nowhere near the real cause, so pin LF.
+*.sh text eol=lf

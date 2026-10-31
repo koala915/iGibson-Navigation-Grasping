@@ -240,7 +240,7 @@ python3 integration/vision_grasp_pipeline.py --real --show \
 | `v21/x3plus_real_grasp.py` | ★**現行**主部署腳本（模式 A/C 匯入的就是這支）。incremental action、`gripper_center` TCP、接觸偵測夾持、預防式 FloorGuard。 |
 | `v21/models/` | ★現行 PPO 權重 + VecNormalize。**不可與 v17 混搭**（incremental vs absolute，shape 檢查抓不到）。 |
 | `v21/manifest.json` | 權重 sha256、契約、硬體 gate、變更紀錄（單一事實來源）。 |
-| `v21/jetson_verify.sh` | 上機前一鍵前置檢查（119/37/641、`wrist_z_offset=0.0564`、安全閘 exit 3）。 |
+| `v21/jetson_verify.sh` | 上機前一鍵前置檢查（135/37/641、`wrist_z_offset=0.0564`、安全閘 exit 3）。 |
 | `v21/bus_probe.py` / `pose_check.py` | 唯讀診斷：半雙工伺服匯流排、姿態/FK 核對。 |
 | `x3plus_real_grasp.py`（根目錄） | v17 舊版，**保留備援**。有 `--width-grip` / `--latch-obj`。模式 B 自 2026-08-01 起兩邊都能接（橋接送 superset payload），文件中的模式 B 指令用的是 v21。 |
 | `trained_6d_models_v17/` | v17 的 PPO 模型 `.zip` + VecNormalize `.pkl`。 |

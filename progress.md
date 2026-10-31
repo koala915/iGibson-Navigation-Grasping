@@ -1,5 +1,802 @@
 # X3Plus 專題進度記錄
 
+## 2026-10-22 — 三項交接核對、定位提示測試完成
+
+已核對 `cannot enter turn reserve` 的補退再請求流程及額外0.20m預算，新增明確順序與
+預算回歸案例。完成 `relocalize.py` 相機ID回填與AMBIGUOUS提示的測試銜接，定位8項
+通過並加入CI。R7 `grasp/v23/chassis_server.py` 及其測試保留未提交草稿，本次未修改。
+
+第21趟實測紀錄：補退約11.8cm後成功進入巡航；後續第二次夾取成功，但投放前因等待新
+scan與模型worker不可用結束，exit=2。因此尚不能宣告完整投放後連續loop實車通過。
+本次SSH無法連線，沒有送新動作。細節 `docs/operations/patrol_mask_20261021/HANDOFF_20261022.md`。
+13組離線回歸全數通過，包含任務循環96項與定位8項；R7檔案前後hash一致，未暫存或提交。
+
+## 2026-10-21 — 第20趟起步拒絕與投放後退出餘量補強
+
+使用者確認在車旁後，唯讀預檢通過，標記3重新定位成功；啟動第20趟，因轉彎外圈不足
+起步拒絕，脈衝數0、輪里程未變、車保持停止。使用者補充這就是第19趟投放後的停車點，
+兩趟輪里程一致；不是使用者重新擺了一個不適合的起點。
+
+進一步查出新版規劃保留5cm餘量，實際驗收卻只驗證外圈，後退不足時可能提前接受。
+已統一規劃與驗收條件，新增「少退3cm」與第19→20趟重新定位回放案例；沒有再縮地圖。
+原投放後後退起點以直線／停止朝向反推，在兩種定位基準約需退0.34或0.36m，舊實際退
+0.297m。這是離線估算，尚未實車重跑投放退出。
+詳見 `docs/operations/patrol_mask_20261021/RUN20.md`。後方淨空尚未獲使用者確認，
+手動輔助短退與第21趟均未執行。
+使用者明確指出要修同一任務投放後接下一個 loop，沒有要求投放後重定位。已加入同一
+`patrol_mission` 連續兩次投放／三次巡航入口的測試，每次首退模擬少退3cm，必須確認
+完整退出餘量且 `relocalize` 呼叫0次；通過。生產流程未加入重定位或任務重啟步驟。
+最終12組離線回歸全過，任務循環95項、退出／地圖／連續loop10項；記錄在
+`docs/operations/patrol_mask_20261021/postplace_verification/summary.json`。
+
+## 2026-10-21 — 第 19 趟投放後續巡：縮減巡航禁航區
+
+- 第 19 趟已送達 1 顆，後退約 0.30 m 後因 `cannot enter turn reserve` 安全停止；
+  起點中心在可用格內，但外圈 6 cm 有三個巡航採樣點落在舊地圖障礙的 40 cm 預留內。
+- 依使用者要求，把牆面／地圖障礙預留改成 **35 cm**，量測盒體包絡與轉彎外圈維持。
+  保守重建增加 204 格（0.0816 m²，可用面積 +6.67%）；車身含突出線材最遠約 30.81 cm，
+  所以沒有直接縮成 20–30 cm。
+- 新增可重建腳本、現行車上策略來源、地圖、7 項幾何／run19 回放測試及 CI。
+  11 組離線檢查全過，包含 138／37／641／48 與 FSM selftest、任務循環 83 項。
+  對齊既有兩次額外後退處理的一項過時測試；未另改行車後退邏輯。
+- 22:16（台北）備份後僅更新車上三個檔案，SHA256 相符；PID 26244，maintenance=true、
+  motors 全 0，未啟動任務／未重啟服務。車上第 19 趟位置重播通過，**尚未實車驗證下一趟**。
+- 詳細修改、驗證與備份路徑：`docs/operations/patrol_mask_20261021/CHANGELOG.md`。
+
+### 同日後續：統一投放後退出與巡航轉彎檢查
+
+使用者詢問能否避免「後退後仍在禁航區、無法續巡」。已在 PC 總控加入 16 點／6 cm
+轉彎外圈的退出規劃、實際停車定位複查與最多兩次補退；維持原有 0.60 m 距離預算並以
+里程實際行進量計算。缺地圖／定位或安全範圍內無出口時停止，不再固定退 20 cm 試運氣。
+第 19 趟舊 40 cm 遮罩回放算出該停車位置再退 0.07 m 可通過轉彎檢查；沒有實際執行。
+牆／放置盒逐步掃掠防撞與車上 35 cm 遮罩維持。詳見
+`docs/operations/patrol_mask_20261021/EXIT_FIX.md`；12 組離線回歸全過，尚待下一次旁站實車驗證。
+
+再複查發現巡航清理後 maintenance 鎖定未在補退前解除、補退重試沿用舊 clear 次數、
+cleanup_error 仍可能被分類為可恢復，以及未知里程／轉向前後退滑行未正確扣帳等問題，
+已修正並增加負向案例。`Room.make` 一併改為規劃與驗證退出。靜態地圖全部合法格與
+巡航目標確認同屬一個四鄰接連通區。見 `docs/operations/patrol_mask_20261021/AUDIT.md`。
+本輪也未動車，待下一次新啟動任務後旁站驗證。
+12 組回歸全過，任務循環 94、接近／夾取／投放 62、地圖／退出幾何 8；pyflakes 與
+diff 檢查通過。完整結果 `docs/operations/patrol_mask_20261021/audit_verification/summary.json`。
+
+## 2026-10-20 — 完整循環首次實車成功：巡航 → 夾取 → 放置 → 續巡，連續 2 顆
+
+分支 `codex/approach-lidar-frame`（未 commit）。總控 `integration/mission_loop.py`（常駐模式），
+紀錄在 `docs/operations/patrol_20261020/runs/`，決策與修正見
+`docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md` 的 10-20 各節。
+
+### 結果
+
+- 一次任務送進放置盒 **2 顆**：每顆都是 巡航停車 3 張確認 → 原地轉正 → **停著看**（SeedLook）
+  → 1.00–1.04 m 鎖定 → 慢速對準 → E1 夾取確認（手臂 7.8 s）→ 依 AMCL 轉向放置盒
+  → 相機找到盒子 → 到位 → 放開（rim 6 cm、餘裕 3 cm）。沒有撞盒。
+- 第 2 顆放完後退被新加的「後退避開放置盒」檢查拒絕而停住（車角正好在未驗證盒位中心前 1 cm，
+  退時先靠近不到 1 mm），任務安全停下；已改成靠近超過 2 cm 才拒絕，用當時位姿重放驗證。
+- 時間（`timings.jsonl`）：模型暖機 **15–17.5 s，一次**；各段切換不再重載。接近 11–26 s，
+  夾取段 28–45 s，放置段 33–39 s。常駐 ssh 指令每筆約 0.03 s（舊方式每筆 1–2 s）；
+  第一次辨識 0.14 s（10-19 是 2.1–2.4 s）。
+- 定位：角落 ArUco 工具重定位一次（第一次取像時間戳不穩、重試成功），之後 20 分鐘 240 筆
+  全部 ready，包含整趟任務；10-19 每 2–3 分鐘出錯的狀況沒有出現。
+
+### 盲區實測（車子不動）
+
+- 盒子在**車頭前緣 0.48 m**（中心 0.60 m）仍看得到（信心 0.96），但在校正範圍外，只能粗估
+  （0.63 m）；**前緣 0.61 m**（中心 0.73 m）在校正範圍內、量得準。車頭前緣約在中心前 0.12 m。
+  校正範圍近端約中心 0.675 m。夾爪盲區防護因此設 0.62 m；夾空後退 0.45 m 維持（盒子回到 0.73 m）。
+  畫面在 `docs/operations/patrol_20261020/blind_zone_048.jpg`、`blind_zone_061.jpg`。
+- 遠處牆夾信心只有 0.30–0.37，低於 0.70 門檻。
+
+### 待查
+
+- 第 2 顆接近時 LiDAR 一直報「往盒子路上 2–3 cm 有障礙」，交接被延後，盒子最後在相機看不到的情況下
+  被開到中心前 0.16 m（目標 0.28 m），E1 仍夾到。可能是牆或車身回波，要看 `grasp_2.log`。
+- 第 2 圈途中一次停車確認失敗（遠處粗估，一張誤判），屬預期。
+
+## 2026-10-04 — 避障接近：後相機看得到 1 m、夾爪擋住最後一段、原地轉不動
+
+分支 `codex/approach-lidar-frame`（PR #9）。程式 `integration/sugarbox_rl_approach_final2.py`，
+總指揮 `integration/sugarbox_approach_grasp.py`。細節與 Codex 的各輪紀錄見
+`docs/operations/SHORT_APPROACH_2026-10-04.md`。
+
+### 後相機辨識
+
+- 同一張後相機畫面（盒子在車前約 1 m，約 25×50 px）：YOLO 輸入 640 **沒有任何框**
+  （最高 0.07）；960 認到盒子 0.76，但把畫面下方固定的黑色零件（夾爪）認成 0.97；
+  **1280 認到盒子 0.94、沒有誤認**，RTX 3050 上 56 ms。信心門檻 0.30 與後續校正閘不變，
+  只開放輸入解析度：`--yolo-imgsz 1280`（預設仍 640）。
+- 1280 的 dry-run 連續 644 次 VALID，目標 (0.629, +0.057) m 完全不跳。
+- 相機暖機約 16 s 才有第一張畫面；之前兩次 dry-run 判成 CAMERA_STALE 是太早看。
+
+### 第一次實車接近（17:30 前後，1280）
+
+- 0.63 → 0.44 m（odom 前進 18 cm）。前進的 1.5 s 裡左右輪指令每 0.17 s 在「左轉到底」
+  與「右轉到底」間切換（30/7、22/30、30/6、7/30）：**dry-run 看到的 ±0.78 轉向跳動是真的**，
+  長距離會蛇行。避障策略輸出沒有平滑，屬 enoch 的部分，尚未處理。
+- 0.44 m 開始置中，**盒子滑進夾爪後面**（行駛姿態的夾爪就在後相機畫面正下方），
+  YOLO 失去目標 → 搜尋 8 s → 逾時 → 120 s 總時限，沒有交接、沒有夾取。
+- 置中與搜尋送的轉向換算成輪速 ±20，**原地完全轉不動**，輪子出力卡了 8 s；
+  9/28 的 ±25 轉得動（2 s 約 45°）。
+- 同一位置手臂相機（行駛姿態）看得到盒子：imgsz 320 為 0.38、480 為 0.81、640 為 0.95。
+  後相機只露出盒頂，0.12 的框是滅火器。
+- 使用者用 E1 校正點的同一基準尺量盒子中心約 **0.43 m**，程式記憶為 0.435 m：
+  **後相機的前方距離與 E1 座標同一原點**（誤差 ~1 cm）。
+
+### Codex 的實車紀錄（摘要，原文見 operations 文件）
+
+- 原程式（640）鎖定 (0.510, +0.039) m、置中完成後 `FINAL_FORWARD` 0.08 m/s 走到 11.2 cm 時
+  盒子消失，搜尋分支把 final 重設，**永遠不會宣告到達**。
+- 它改成「final 進行中不交給搜尋」後實車到達並退出：指令 15 cm，含煞停 odom 淨前移約
+  **19 cm**（多約 4 cm）；期間曾有一次 0.5 s 看門狗停車後恢復（迴圈延遲約 0.5 s）。
+- **但這個修改沒有留在檔案裡**，它的 18 項測試有 10 項在測不存在的版本。
+
+### 本次修改（已重做並驗證）
+
+1. **最後 15 cm 不被遮擋打斷**：`target_searching` 排除 `final_approach.active`
+   （Codex 的修法，實車到達過）。
+2. **盲走收尾**（`--blind-stop-x`）：盒子在 0.60 m 內、±10° 內被擋住時，沿里程計推算的
+   記憶直走（0.08 m/s、前方光達照常），記憶距離到停車點才算到達，**之後 E1 手臂相機
+   一定要在窗口內看到盒子才夾**。不能以盲走取代辨識：需走超過 0.35 m、記憶非有限值、
+   感測過期／急停／已到達時都不啟動；每次接近只盲走一次；預算走完而盒子仍在前方、
+   逾時、里程計異常都不算到達。
+3. **原地轉向至少 wz 1.0**（輪速 25），轉向中的前進指令不受影響。
+4. 停車點：E1 窗口中心 0.264 m ＋ 實測多滑約 4 cm → 首次用 **0.30 m**，以 E1 實際量到的
+   位置再修。
+
+測試：`tests/test_sugarbox_blind_finish.py` 20（含 Codex 合理的部分、主迴圈安全閘行為、
+final 不被搜尋接手）、`test_sugarbox_approach_grasp.py` 12（新參數傳遞、殼層殘留設定
+不外洩、越界拒絕）、LiDAR 幾何 13、地面校正 21、目標記憶自測，全過；已加入 CI。
+
+**尚未做**：修改後的實車測試；左右擺的平滑；手臂相機近距離交接（行駛姿態校正點）。
+
+## 2026-09-28 — G2 相容導航端第一階段（112303577ncu）
+
+新增 `integration/g2_nav_client.py`：Jetson Python 3.8 從 rosbridge 訂閱
+`/scan`、`/odom_setmotor`，底盤只對常駐 `grasp-service` 的 TCP 7000
+送速度／停車，**自己不開 `/dev/myserial`**。目前提供唯讀 `--probe` 和
+有額外人工確認旗標的受控短直線 `--real`（速度 30、20 Hz、10–25 cm）；
+內建 0.42 m LiDAR 幾何煞車、掃描／odom 逾時、odom 跳躍／無進展、
+直線偏離、時間／位移硬上限與 finally 停車。僅允許 travel 姿態，
+且序列埠唯一持有 PID 必須等於 `grasp-service` 的 MainPID。
+
+本機 6 項新測試全過，整體 `integration/preflight.py --offline` 為
+**24 pass、1 warn、0 fail**；warn 是 Windows 本機找不到 Jetson 才有的
+`route.yaml`。已在 Jetson 直接驗證
+`/home/jetson/x3plus/route_package/config/routes/route.yaml` 為 `route VALID`
+（117 → 83 waypoints），不能將 Windows 警告解讀為 Jetson 缺檔。
+Jetson `--selftest` 和**不移動**的 `--probe` 通過：
+`scan_frame=laser`、前方紙板 x 約 0.322–0.325 m、
+`brake=lidar_brake`，odom 速度零，唯一 serial owner 為服務 PID 4324。
+**新程式的 `--real` 尚未執行**；先前的 LiDAR 停車 3/3 是獨立測試程式，
+不能冒充新控制端的實車驗收。
+
+probe 時發現 TG30 2020 束由 float32 角度算出的掃描跨度是
+359.9999964°，舊 `nav_rl.describe_scan` 用 360°−1e-6 判斷整圈，
+因此誤報前方覆蓋率只有 50%。改成容忍不大於一束的缺口後，
+Jetson 自測與再 probe 均不再誤報；真正的部分視野仍會被攔截。
+Jetson `integration/nav_rl.py` 的原檔已另存
+`nav_rl.py.bak_20260928_g2_probe`，再部署此次修正；
+`grasp-service` 未重啟，機器人未移動。操作方法及限制見
+`docs/operations/G2_NAV_CLIENT_2026-09-28.md`。
+
+## 2026-09-28 — 導航端速度 30 短脈衝與 odom 尺量（112303577ncu）
+
+Jetson `172.20.10.2`，`grasp-service` 單獨持有 `/dev/myserial`，手臂在 travel pose；
+`/scan` 約 10.1 Hz、`/odom_setmotor` 約 19.9 Hz，點動前前方走廊最近回波 1.77 m。
+操作員確認淨空、在電源旁待命。使用 TCP 7000 `velocity vx=0.15, wz=0`（四輪輸出 30），
+每次均送 `stop`，等車停穩才尺量：
+
+| 脈衝 | odom 位移 | 尺量 | 結果 |
+|------|-----------|------|------|
+| 標準發送 0.30 s | 6.0 cm | 約 6 cm | 無碰撞、無打滑 |
+| 標準發送 0.60 s | 11.7 cm | 約 12 cm | 無碰撞、無打滑 |
+| 0.50 s 並以約 25 Hz 輪詢 `graspctl status` | 0 cm | 0 cm；輪子未轉 | 服務記錄四輪 30 約 0.50 s；**不可作為滑行或 odom 校正資料** |
+| 標準發送 0.50 s | 9.7 cm | 約 10 cm | 無碰撞、無打滑 |
+| 標準 0.50 s、只訂閱 ROS odom | 9.0 cm | 約 9 cm | 無碰撞、無打滑；停車後滑行約 4.3 cm |
+| ROS odom 定距 15 cm、10 Hz 控制、10 cm 門檻 | 17.1 cm | 約 17 cm | 無碰撞、無打滑；送停時約 11.4 cm，後滑約 5.7 cm |
+| ROS odom 定距 15 cm、20 Hz 控制、9 cm 門檻 | 14.9 cm | 約 15 cm | 無碰撞、無打滑；送停時約 9.8 cm，後滑約 5.0 cm |
+| 同條件重複第 2 次 | 15.4 cm | 約 15 cm | 無碰撞、無打滑；送停時約 9.6 cm，後滑約 5.8 cm |
+| 同條件重複第 3 次 | 15.4 cm | 約 15 cm | 無碰撞、無打滑；送停時約 9.8 cm，後滑約 5.7 cm |
+
+`graspctl status` 每次都會讀六顆手臂伺服角度、共用控制板序列埠；高頻輪詢與「
+已記錄馬達命令、實車卻不動」高度相關，但尚未證明因果。**行駛中不要用它高頻取樣**；
+下次用 ROS `/odom_setmotor` 訂閱量測送出 `stop` 前後的位移，不碰伺服匯流排。
+已用 ROS 訂閱完成首次停車剖面：送 `stop` 前 odom 4.7 cm，後續再滑行 4.3 cm，
+總位移 9.0 cm（尺量約 9 cm）；約 0.5 秒後接近靜止、1 秒後速度 0。
+15 cm 定距首輪採 10 cm 提早停車門檻，因 10 Hz 跨門檻與穩速後滑行約 5.7 cm，
+落在 17.1 cm（尺量約 17 cm）。因此不應把 4.3 cm 當固定常數；第二輪改用 20 Hz、
+9 cm 門檻，三輪分別落在 14.9、15.4、15.4 cm（尺量均約 15 cm），**速度 30、
+15 cm 直線定距在目前地面與姿態下 3/3 通過**。這是短距離單項驗收；不代表其他速度、
+轉彎、負載、避障或完整自主導航通過。
+`g2_flow_test.py` 在行駛迴圈仍呼叫
+`status()`，不應直接重跑，須與 G2 負責人一起改成不讀伺服角度的 odom 來源。
+
+### LiDAR 紙板停車：受控三次通過，正式導航尚未驗收
+
+操作員將寬 ≥20 cm、高 ≥15 cm 的紙板直立放在 LiDAR 前方約 55 cm。
+`/scan` 連續 10 幀的車體中心前向 x 為 0.651–0.654 m，每幀有約 160–172 個
+近距離支撐回波，非孤立雜訊。以 TCP 7000 速度 30 前進、ROS `/scan` 與 odom
+訂閱控制；設定 x ≤0.38 m 時停車，另設 0.28 m odom 位移硬上限。
+實際先命中 **`hard_limit`**：送停時位移 0.291 m、掃描 x 約 0.360 m；
+停後 odom 總位移 0.356 m、掃描 x 約 0.281 m，扣除車體最前端 0.17 m 後
+推估淨空約 0.11 m。操作員確認沒有碰撞；尺量紙板到車體最前端約 **19 cm**、
+到巡航姿態夾爪最前端約 **12 cm**，與掃描推估的夾爪淨空相符。
+**此輪不能宣稱 LiDAR 觸發了停車**；夾爪只比要求的 10 cm 多約 2 cm，
+不能當成可靠安全裕度；
+測試上限與煞車門檻太接近，而且掃描／控制延遲及停後滑行讓最終距離更近。
+此輪的 0.38 m 門檻未驗收通過。
+
+操作員只把紙板移遠、未移動車子；再次靜態掃描的車體中心前向 x 為
+0.645–0.650 m，約 171 個支撐回波。經操作員重新確認紙板自行直立、路徑無人、
+有人守在電源旁後，以同一套獨立 ROS `/scan`／odom 受控測試程式、速度 30，
+將候選停車門檻改為 x ≤ **0.42 m**，保留 0.28 m 位移硬上限。
+這次先命中 **`lidar_brake`**：送停時 odom 位移 0.2497 m、掃描 x 約 0.406 m；
+停後 odom 總位移 0.3160 m（後滑 0.0663 m），掃描 x 約 0.316–0.318 m，
+前方支撐回波約 322 個。依 0.17 m 巡航姿態前伸量推算淨空約 14.6 cm；
+操作員確認未碰撞，尺量夾爪最前端至紙板約 **14–15 cm**。
+操作員再次只移動紙板；預檢 10 幀的車體中心前向 x 為 0.664–0.669 m，
+每幀約 222–225 個近距離支撐回波，odom 速度為零。經現場再次確認安全後，
+以相同 0.42 m 停車門檻、0.28 m 位移硬上限、速度 30 重測。再次先命中
+**`lidar_brake`**：送停時 odom 位移 0.2599 m、掃描 x 約 0.418 m；
+停後總位移 0.3180 m（後滑 0.0581 m）、掃描 x 約 0.341 m、支撐回波 322 個；
+推算夾爪淨空約 17.1 cm，操作員尺量約 **15 cm**。停後 `grasp-service`
+回報未行駛，odom 線速度及角速度均為零。操作員確認紙板未被碰到。
+
+操作員確認第二次紙板未碰到，再只移動紙板重新擺位。第三次預檢 10 幀的
+車體中心前向 x 為 0.648–0.652 m，約 226–234 個支撐回波，odom 速度零。
+唯讀預檢腳本第一次因 tuple 資料格式錯誤中止，**未送出移動指令**；修正並取得
+`preflight=PASS` 後才執行第三次。相同速度 30、0.42 m 門檻、0.28 m 硬上限下，
+第三次仍先命中 **`lidar_brake`**：送停時 odom 位移 0.2555 m、掃描 x 約 0.409 m；
+停後總位移 0.3152 m（後滑 0.0597 m）、掃描 x 約 0.325 m、支撐回波 354 個；
+推算夾爪淨空約 15.5 cm。服務狀態未行駛、odom 線速度與角速度均為零；
+操作員尺量夾爪淨空約 **15 cm**，確認紙板未被碰到、傾倒或移動。
+
+因此 0.42 m 候選門檻在這**三次**條件下實際由 LiDAR 觸發，尺量分別約
+14–15、15、15 cm，皆超過 10 cm 夾爪淨空，未碰撞。此結果**只有三輪、
+使用獨立測試程式**；並非正式 `mission_pipeline.py`
+或 `nav_rl_grasp_pipeline.py` 的現場驗收，也不能推廣至不同速度、地面、障礙物形狀、
+手臂姿態或轉彎。後續需在安全空間重複測試並驗證正式流程；目前不再向紙板前進。
+
+## 2026-09-28 — G2 第 2、3 步：常駐夾取服務接手輪子與里程計
+
+架構見 `docs/planning/G2_ARCHITECTURE_2026-09-28.md`。PR #4（導航 4 個 commit）已合併，
+G2 直接 import 它的 `velocity_to_motor_values`。常駐服務用兩個環境變數開啟新功能
+（`deploy/systemd/grasp-service.service.d/g2-chassis.conf`）；兩個都不設時，行為與
+2026-09-25 驗過的純手臂服務相同。
+
+### 第 2 步：TCP 7000 底盤（`grasp/v23/chassis_server.py`），輪子離地實測
+
+| 項目 | 結果 |
+|------|------|
+| 前進 `vx=0.10` 2 秒 | 四輪 20 → 2.01 秒後 0；操作員確認四輪都往前轉、停得乾脆 |
+| 看門狗 | 只送一次指令，0.53 秒後自動停輪 |
+| R1 行駛中下 `home` | 拒絕 `chassis_moving`；停後 0.15 秒仍拒絕；約 1 秒後放行（0.82 s 到位） |
+| R2 手臂工作中送速度 | `grasp` 等辨識的 2.2 秒內 22 個速度指令全丟，輪子不動；結束後才轉 |
+| 客戶端斷線 | 斷線同一毫秒歸零 |
+| `systemctl restart` 行駛中 | 修正後 3/3：收到 SIGTERM 2–3 ms 內歸零，之後不再寫回 |
+
+實測抓到兩個問題，都已修：
+
+- **systemd 停服務送 SIGTERM，Python 預設直接結束、不跑 finally**。沒處理的話輪子會
+  照最後的速度一直轉。現在 SIGTERM 走 Ctrl+C 的關機路徑（只在底盤開啟時安裝）。
+- 修上一條後第一次實測：歸零 66 ms 後，一個已從 socket 讀進來的指令把輪子**重新寫回 20**，
+  2 ms 後才又歸零。`Chassis.shutdown()` 改成關機後只准寫零。
+- 另外：5 分鐘內重啟超過 3 次會撞到 unit 的 `StartLimitBurst=3`，服務停在
+  `start-limit-hit`。這是 9/20 刻意設的，復原指令寫進 `deploy/systemd/README.md`。
+
+單元測試 `test_chassis_server.py` 48/48（Jetson；Windows 跳過 2 項 POSIX 限定）。
+
+### 第 3 步：里程計經 rosbridge（`grasp/v23/odom_bridge.py`）
+
+- 沿用 `FeedbackOdomReader` 與 `ros_io` 的訊息組法（frame、covariance、odom/TF 同一個
+  stamp），連線自己管：roslibpy 2.0.1 的 `terminate()` 會停掉整個 process 的 twisted
+  reactor 且無法重啟，而 `RosBridgeIO` 連線失敗時正好呼叫它；服務開機時 ROS 通常還沒起，
+  照搬就永遠連不上。另外 roslibpy 在未連線時 `publish()` 會排隊，所以只在已連線時才發，
+  避免 rosbridge 一起來就灌一批舊 odom 給 AMCL。重連間隔上限從預設 1 小時壓到 5 秒。
+- ncu 驗收文件（`docs/operations/G2_ODOM_TF_AMCL_ACCEPTANCE_2026-09-28.md`）第 1、2 節，
+  車架起、ROS 全套（ncu 的 `deploy/ros/x3plus_tg30_navigation.launch`、map_server、AMCL、
+  rosbridge）在同一台 Jetson：
+
+| 項目 | 標準 | 實測 |
+|------|------|------|
+| `/odom_setmotor` 頻率（200 筆） | 18–22 Hz、空窗 < 0.15 s | 19.92 Hz、最大 0.059 s |
+| `rostopic delay`（200 筆） | 平均 ≤ 50 ms、最大 ≤ 100 ms | 平均 7 ms、最大 12 ms |
+| stamp | 單調、odom 與 TF 同 stamp | 119/119 相符、單調 |
+| `odom→base_footprint` 發布者 | 只有一個 | 30 秒 597 則全來自 `/rosbridge_websocket`；無多父框架 |
+
+  `tf_monitor` 把 rosbridge 與舊式 `tf` 靜態發布器都標成 `unknown_publisher`，分不出來源，
+  所以改用 rospy 讀每則 `/tf` 的 `callerid` 判定。
+- 輪子離地：前進 2 秒 odom x +0.29 m、左轉 2 秒 yaw +1.39 rad（逆時針為正），`home`
+  期間照常 20 Hz 發布、姿態不歸零。空轉無負載，**不能當校正數據**；證明的是控制板速度回報
+  有開、方向正確、手臂動作不中斷 odom。
+- 記憶體：服務 503 MB（+17 MB）、辨識 298 MB、ROS 全套 561 MB，剩 1.67 GB。
+- 第 3 節（AMCL）落地做，見下一段。
+
+### 第 3 步驗收第 3 節：AMCL 落地，3/3 通過（已驗證）
+
+機器人不能裝 RViz，改在 Windows 裝 **Lichtblick 1.29.1**（Foxglove Studio 的開源分支，
+GitHub 官方 release，sha256 與 release digest 相符；安裝檔無程式碼簽章）。連線要選
+**Rosbridge**（預設的 Foxglove WebSocket 會報 protocol version 錯誤），`ws://<Jetson IP>:9090`，
+匯入 `deploy/ros/lichtblick_g2_amcl.json`（地圖、光達、粒子、AMCL 共變異數，2D Pose
+Estimate 預設 0.15 m／7°）。ROS 用 `deploy/ros/start_g2_test_stack.sh` 以暫時性 systemd
+單元啟動；量測用 `deploy/ros/amcl_probe.py`（每筆先呼叫 `/request_nomotion_update` 再取
+**下一筆** `/amcl_pose`）、`scan_match.py`（光達落在地圖牆上的比例）、`drive7000.py`。
+
+- 靜止 30 秒：位置 variance 0.022 → 0.011、yaw 43 → 13 deg²，單調收斂；這段 AMCL 位置
+  往 x 修了約 15 cm（從手點的初始位置收斂到光達最吻合處，每 4 秒修正量 3.1 → 1.5 cm）。
+- 三輪「直行（輪速 30、1.5 秒）→ 尺量 → 原地轉（輪速 25、2 秒）」：
+
+| 輪 | 尺量 | odom | AMCL | 轉向 odom | 轉向 AMCL | 光達吻合 |
+|----|------|------|------|-----------|-----------|----------|
+| 1 | 31 cm | 30.6 | 31.8 | 左 +47.2° | +47.7° | — |
+| 2 | 31 cm | 31.2 | 29.9 | 右 −42.7° | −42.6° | 77 → 87% |
+| 3 | 31 cm | 31.5 | 31.2 | 左 +43.5° | +43.4° | 88 → 90% |
+
+- 全程位置 variance 最大 0.022（門檻 0.0625）、yaw 最大 47 deg²（門檻約 400）；沒有任何
+  一次跳超過 0.25 m 或 20°；移動方向與車頭一致（直行偏差 0–3°）。
+- 轉向 odom 與 AMCL 差 0.1–0.5°，證實 2026-09-24 的 angular 0.986 正確；舊的 0.501 會
+  只算出一半角度。
+- 第 1、2 輪之間操作員用手擺車，odom 與 AMCL 都沒變；`scan_match.py --sweep` 顯示最吻合
+  的方向正好是 AMCL 的方向（83%，±10° 掉到 62%），所以定位仍正確。**covariance 小不代表
+  位置對**：手動搬車後要用吻合度確認，不對就重設 2D Pose Estimate。一次 53% 是有人站在
+  光達旁，下一幀回到 88%。
+- 服務全程 RSS 503 → 505 MB，odom 發了 50,072 筆、失敗 0；證據 bag 在 Jetson
+  `~/g2_bags/g2_odom_acceptance_20260928_161613.bag`（第 1 輪）與 `..._162412.bag`（第 2、3 輪）。
+- 這次沒驗：長距離、AMCL 對 rosbridge 延遲的敏感度在高速下是否仍成立（本次最高 0.15 m/s）。
+
+### 機器上的里程計校正比 repo 新（已收進 repo）
+
+Jetson 的 `integration/feedback_odom.py` 是 2026-09-24 在這台車上重新量的版本：前後
+`linear_scale=0.966309414`（正向 0.3678→0.355 m、反向 0.3597→0.348 m），左右另給
+`lateral_scale=0.65`，轉向 `0.985704578／0.985467450`（貼地標轉兩整圈，IMU 交叉比對
+720° 誤差 < 1.1°）。repo 還是 9/22 的 0.98／0.501，**轉向差了將近一倍**。G2 第 3 步就是用
+機器上這份跑的，所以原樣收進 repo；自測與 mission／safety 測試全過。誰量的沒有留下紀錄，
+請量的人補一段證據到這裡。
+
+### 第 4 步（進行中）：行駛姿態 ↔ E1，以及第一次整段流程暴露的兩個漏洞
+
+**E1 定點夾取＋放下，服務全程不重啟：跑過一次。** 盒子由人放進 E1 窗口 (0.272, −0.021)：
+夾取 6.59 s 確認、放下 4.79 s；RSS 505 → 511 MB（首輪 +5–6 MB 後持平，同 9/20）。
+車子沒動，所以「停車 → 開始夾取」沒量到。
+
+**接近時手臂在行駛姿態 `(90,140,0,0,90,30)`，夾取在 E1（操作員確認）。** 兩者之間的轉場
+從沒驗過：`DeployConfig.home_deg` 註解要求照 `validate_nav_to_grasp_transition.py` 的中繼點走，
+但那支程式不存在。已補上並模擬（完整 URDF 碰撞外形、實車 TG30 位置替身、7 cm 盒子）：
+
+- 控制器每步**各關節各自**最多 8°，S3/S4 兩步就轉完、S2 還沒抬起 → 夾著盒子直接從 E1 收回，
+  盒子掃到 TG30 **10.6 mm**（兩端 25.4 mm）、指尖 22.5 mm。
+- 經中繼點 `(90,115,8.6,8.6,90)`（先只轉 S2，再讓 S3/S4 歸零）：四種情況都沒有任何零件在
+  中途比兩端更靠近；S2 = 100–135 都安全，140 讓 arm_link3 陷進車身外殼 0.6 mm。
+- 實機 `stow`（E1 → 行駛姿態）3.44 s 到 `(90,140,0,0,90,30)`，操作員確認就是接近用的姿態。
+
+服務新增（`grasp_service.py`、`chassis_server.py`）：
+
+- `stow`；`home`／`release` 可從行駛姿態下，會先夾著經中繼點回 E1 再動作；`grasp` 只從 E1。
+  其他姿態出發一律拒絕、不動。
+- **R7** 輪子看手臂姿態：行駛姿態全速、E1 只准挪（0.10 m/s、0.5 rad/s）、其他姿態不准動。
+- 夾取前等新畫面：鎖定座標只看「1 秒內收到」，而辨識端連續讀相機，V4L2 佇列可能給它約 1 秒前
+  的畫面。手臂或輪子最後一次動作後至少等 **2.5 s**、且採用 **1.5 s** 之後才收到的辨識結果。
+
+**第一次整段流程（行駛 → 回 E1 → 挪 → 夾 → 搬 → 放）失敗，暴露兩個漏洞，都已修：**
+
+1. 操作員搬車時手臂相機 USB 斷線（error −71）。它和控制板的 CH340 在**同一個集線器**
+   （1-2.4），重插相機時核心記錄 `ch341-uart ttyUSB1: urb stopped: -32` —— **序列埠只剩
+   寫、讀的那一邊死了**。結果：輪子照指令轉，伺服機全部讀不到，`get_motion_data()` 一直回傳
+   最後的快取值，里程計把它當「靜止」照發。測試程式相信里程計，以輪速 30 脈衝式地送了
+   8 秒（每次約 0.5 s 被看門狗切掉、下一個指令又打開，共 10 次）。
+   → **R8**：包住 `ser.read` 記下最後收到資料的時間，0.5 s 沒回報就停輪、拒絕速度指令、
+   里程計不發。實測控制板連續回報，5 秒內最大空檔 < 1 ms。測試程式也加上「送了 1 s
+   里程計沒動就停」。
+2. 同一次裡 `home` 從行駛姿態**一步跳到 E1**：限速是從「上一個指令」算，服務重啟後那個值
+   預設是 E1，不是手臂實際位置。空爪、且是模擬判定安全的方向，所以沒事。
+   → 每個手臂指令先讀編碼器、把限速起點（S1–S5）對到實際位置；讀不到就拒絕動作。
+
+測試（Jetson）：`test_travel_pose.py` 28、`test_chassis_server.py` 60、`test_odom_bridge.py` 22，
+`jetson_verify.sh` 已更新。**完整流程還沒成功跑完。**
+
+**那次失控有撞到盒子**（操作員確認，之後把車拿起來）。盒子 6.5 cm 高、比 TG30 掃描面（9.5 cm）
+低，光達本來就看不到它；而整段路徑上沒有任何一層會在「讀取端死掉」時停車 —— 看門狗只管
+「用戶端有沒有在送指令」，測試程式只看里程計。現在 R8 會在 0.5 s 內停輪，測試程式也會在 1 s
+內發現里程計不動。**矮於 9.5 cm 的障礙物仍然只能靠視覺與操作員**，這一點 R8 沒有改變。
+
+下一次：`grasp-service` 重啟後跑 `deploy/ros/g2_flow_test.py 0.15 0.12 0.25`（盒子在車頭前
+25–30 cm、車後留 40 cm）。「停車 → 開始夾取」因為姿態轉換（3.4 s）加等新畫面（2.5 s）會約
+6 s，G3 原訂的 1 s 要改。另外辨識服務 `grasp-vision` 在相機斷線時會用光重啟次數，相機回來後要
+`systemctl reset-failed grasp-vision` 再啟動。
+
+## 2026-09-27 — TG30 實機幾何、直行安全走廊與孤立回波濾波
+
+- 實測 LiDAR 掃描面離地約 9.5 cm；LiDAR 位於車體中心前方約 10 cm。導航／搬運姿態下，
+  車體中心至最前端約 17 cm、左右半寬約 12 cm。
+- 速度 30（TCP `vx=0.15 m/s`）的 0.5 秒點動，里程計 11.94 cm；先前停止後滑行實測
+  約 5.55 cm。據此使用車體中心前方 0.38 m 的停止面與 `|y| <= 0.22 m` 固定寬走廊：
+  約等於車頭前保留 21 cm、左右各保留 10 cm，不再讓走廊外的側牆觸發直行煞車。
+- 左側實物測試確認 TG30 driver 的 `inverted=false` 會鏡射左右；正式 launch 改為
+  `inverted=true`，令 `/scan` 符合 ROS REP-103（逆時針／左為正）。
+- 一般警戒區新增空間群聚：至少 3 個相鄰點、角度間隔 <=1 度且點距 <=4 cm 才煞車；
+  1--2 個孤立回波不會中斷前進。車體中心 x<0.25 m（約車頭前 8 cm）仍保留單點急停，
+  只抑制當下前進速度，不把整個任務判成失敗。
+- TG30 現場 `/scan` 的 `angle_increment=0.00309669 rad`（約 0.177 度）。10 cm 寬障礙在
+  0.38 m 停止面理論上約跨 85 點，遠大於 3 點門檻。
+- 紙板移到側向約 31--33 cm 後，20 幀 live shadow check：舊 raw 與新 clustered brake
+  均為 0/20；走廊內最近點 1.968 m、最大連續群聚 35 點。部署後再由 Python 3.8
+  `RosLaserScanSource` 直接使用正式 `front_min_brake()` 做 guarded motor 點動：10 幀預檢
+  raw/cluster 最近點均 1.965 m，速度 30 持續 0.5 秒未誤煞，移動中最近點 1.952 m，
+  odom 12.78 cm，最後速度歸零。
+- 走廊內紙板攔停亦通過：紙板群聚位於車體中心 x=0.308--0.313 m，10/10 幀均低於
+  0.38 m 停止面。模擬 `vx=0.15 m/s` 前進請求時，安全層實際送給 TCP 7000 的是 `stop`，
+  odom 位移 0.0000 m，最終線速度與角速度皆為 0。
+- 開發機回歸：`nav_rl.py`、`nav_rl_grasp_pipeline.py`、`mission_pipeline.py` 自測全過；
+  safety guards 73/73、mission end-to-end 28/28。更新檔已同步到 Jetson，三支自測全過。
+
+## 2026-09-25 — 開機自動啟動修好並經重開機驗證、PR #3 部署上機
+
+### v23 常駐服務：開機時視覺服務一直沒起來（已修）
+
+- 症狀：`grasp-service` active，`grasp-vision` inactive 且**這次開機零筆日誌**。
+- 原因：2026-09-20 寫的 `grasp-service.service` 同時有 `After=multi-user.target` 與
+  `WantedBy=multi-user.target`；target 會自動排在它 Wants 的單元之後，形成循環。systemd
+  每次開機都以刪掉 `grasp-vision` 的啟動工作來解開（日誌：`Job grasp-vision.service/start
+  deleted to break ordering cycle`）。9/20 是手動啟動，所以沒被發現。
+- 修正：`After=` 只留 `dev-myserial.device`。兩個單元檔首次納入 repo（`deploy/systemd/`）。
+- **重開機驗證通過**：兩個服務開機自行 active，該次開機日誌無 `ordering cycle`，
+  序列埠只有一個持有者。
+
+### PR #3（組員 `112303577ncu`）審閱、合併、部署上機
+
+- 本機跑完整 CI 清單 16 支 + v23 三支 + odom 自測，20 支全過後合併。
+- 機器上原本裝的是較舊版本：drop-in 只有 `Conflicts=`，缺 `Before=` 與啟動前的序列埠檢查；
+  導航單元**寫死 `ROS_IP=192.168.0.201`**（Jetson 當時實際是 10.16.224.252）。
+  已換成 repo 版，舊檔備份在 `~/systemd_backup_20260925/`。
+- 實測：重啟夾取服務時 `check-serial-owner.sh` 印 `serial device is free` 後放行；
+  服務完全就緒後再跑回 `exit=3`（already owned）；ROS_IP 自動偵測得到 `10.16.224.252`。
+- 注意時間差：夾取服務重啟後約 20 秒載入模型期間，序列埠確實還是空的。
+- **尚未實測**：夾取 ↔ 導航的實際模式切換（需要先起 roscore）。
+
+### 機器上的 v23 自測（`jetson_verify.sh`）全過
+
+- 148 / 37 / 641 / 50 / 89、`wrist_z_offset = 0.0564`、安全閘 exit 3、dry-run exit 0。
+- 原本 launcher 與三姿態兩項 FAIL，原因是**測試檔比程式早約 1.5 小時複製上機**
+  （程式是 `3386fb0`/`a7143bc`，測試是 `8e8bc0f` 與一個不在 git 裡的版本）。
+  換成同一個 commit（`a7143bc`）的測試檔後全過，舊檔留作 `*.bak_stale_0830`。
+- ⚠ 這證明的是**機器上那份 8/30 快照**，不是 repo HEAD 的 v23，所以 manifest 的
+  `jetson_self_tests` 沒有改成 true。
+
+### 夾取 ↔ 導航模式切換（roscore 以 `x3plus-roscore` 暫時單元啟動，測完停掉）
+
+- 第一次切到導航**失敗**：`start-navigation.sh` 在 `set -u` 下 source ROS 的 setup.bash，
+  死在 `ROS_DISTRO: unbound variable`，每 5 秒重啟直到 start limit。fail closed：序列埠
+  全程空著、沒有任何東西動。這支腳本在此之前沒上過機（9/22 用的是舊的 inline 單元），
+  helper 測試也只測到 IP 偵測。修正：source 期間關閉 nounset，並補一個端到端測試
+  （拿掉修正後該測試會失敗）。
+- 修正後兩個方向都通過：
+  - 夾取 → 導航：夾取與視覺服務停完才啟動導航；序列埠只剩 `ai_motor_server_P0.py`；
+    TCP 7000 在聽、`/odom_setmotor` 在發；ROS_IP 自動偵測為 `10.16.224.252`。
+  - 導航 → 夾取：導航在 767.66 s 停完，夾取同一刻才開始啟動，0.24 s 後序列埠檢查放行。
+    **從下指令到 `graspctl` 可用 23.1 秒** —— 冷啟動成本實測仍在，要靠 G2 消除。
+- 切換前確認 `/odom_setmotor` 線速度、角速度皆為 0。
+
+### 放置（丟垃圾桶）實機驗證
+
+- 開始前 `graspctl status` 伺服讀值為 `None`：手臂在強制斷電時塌到模型範圍外
+  （S2 157°、S3 超界、S4 0°），讀值無效所以控制器拒絕動作 —— 保護正確。操作員手動扶回後
+  讀值全部正常。
+- **握物放下：通過。** 夾取 8.92 s（夾爪停在 149°）→ release：確認握著東西 → FK 判定
+  往前方向 → 6 步伸手全到位 → 在 x = 24.3 cm（前伸 1.3 cm）開爪，**指墊離地 11.6 cm**
+  （實際桶緣 4 cm）→ 開爪確認 → 回 home 確認，共 8.07 s。程式感測不到落點，但視覺隨後
+  看到盒子落在 x = 0.283（比夾取時的 0.261 往前約 2 cm），證實確實放下了。
+- **⚠ 搬運途中掉落：證實偵測不到。** 夾起後由操作員把盒子從夾爪抽走，夾爪只從 153° 閉到
+  155°；`grasp check: CONFIRMED — jaw stalled at 155.0deg (16.7% short of closed)`，
+  照跑整套放下並回報 `released`。原因：保持指令只比接觸角多 1°（hold bias），少了物體
+  夾爪也只多閉一兩度，仍符合「停在未全閉」。9/20 修的上界只擋得住夾爪完全張開。
+  **任務層後果：路上掉了的垃圾會被記成已投遞。**
+- `_scripted_release()` 的 docstring 已寫明真正的檢查方式：放下前讓夾爪再閉一小段，若能
+  自由閉合就代表是空的。當初為了讓動作精簡刻意沒做。
+- **決定：不處理。** 操作員實際抽出盒子後判斷夾持力夠大，搬運中掉落的機率低，接受這個
+  風險，不為它增加每次放下約 1 秒與一次額外夾持。若之後實際任務出現掉落，再回頭補。
+
+### 精簡 URDF（deploy）上機：冷啟動減半、記憶體減半
+
+- 在 Jetson 上用它自己的 `yahboomcar.urdf` 重新產生 `yahboomcar_deploy.urdf`，與 repo 版
+  逐位元組相同；`make_deploy_urdf.py --verify` 在 Nano 上 402 姿態差異 0 m。
+- 另外驗證**這次實際的前後差異**（機器原本連外觀模型一起載入，新載法跳過外觀）：300 個
+  隨機姿態、15 個可動關節，連桿座標與夾爪 AABB 差異皆 **0 m**。
+- Nano 上 `loadURDF`：冷 9.37 → **1.68 s**，暖 8.19 → **0.53 s**（開發機的 3.66 → 0.14 s
+  不能直接套用，Nano 慢約 2.5 倍但省下的比例相近）。
+- 把 repo 的載入邏輯（有 deploy 版就優先、`URDF_IGNORE_VISUAL_SHAPES`，刻意不跳過碰撞
+  模型）補到機器上 v21 與 v23 兩支控制器，備份 `*.bak_deployurdf_20260925`。機器上的
+  v23 自測 148／37／50／89／641、dry-run，v21 的 119／641 全過。
+- 結果：服務重啟到 `graspctl` 可用 **23.1 → 11.5 s（暖）**，冷（清檔案快取）20.0 s；
+  **夾取服務 RSS 985 → 486 MB**。省下的比單算 URDF 還多，因為原本連約 88 MB 的外觀模型
+  也一起載入。
+- **換上後實機確認通過**：夾取 8.80 s（先前 8.92 s），接觸判定 slipping、停在 151°、hold +1°，抬升 6/6、回 home 後仍夾著；放下在 x = 24.1 cm、指墊離地 10.9 cm，開爪與回 home 確認，放下後視覺看到盒子到了新位置。RSS 491 MB。與換 URDF 前的同一流程一致。
+
+### repo 版 v23 在 Jetson 上的自測 → 三個 gate 改為 true
+
+- 把 repo `d7f9c0e` 的 `grasp/v23` 與 `integration` 放到 Jetson 暫存目錄，URDF／網格／驅動
+  連到機器現有的（URDF sha256 相符），跑 repo 自己的 `jetson_verify.sh`：163／37／641／
+  62／89、`wrist_z_offset = 0.0564`、dry-run exit 0、安全閘 exit 3 且 sha256／契約相符。
+  跑完即刪除暫存目錄，機器上正在跑的那份沒動。
+- 因此 `jetson_self_tests`、`jetson_dry_run_ok` 改為 true（證據針對 repo 版，不只是機器上
+  的快照）；`object_heights_measured` 依 2026-09-20 的尺量（6.5 cm）改為 true。
+  manifest 仍為 false 的 gate 剩 7 個：LEFT／RIGHT 動作與映射（4）、`e1_fov_ruler_check`、
+  `e1_real_reach_envelope`、`guard_margin_8mm_validated_on_hardware`。
+- manifest 的 gate 只會被印出，放行與否看 `status`（仍是 `candidate`），所以這個改動不影響
+  任何執行行為。
+
+### 時序 A/B：repo 的新時序在實機上可用，每次夾取＋放下省約 4.7 秒
+
+做法：兩組都跑 **repo 版 v23 控制器**（Jetson 暫存目錄，精簡 URDF），只用環境變數切換
+時序，其他程式完全相同；正式服務先停，測完還原並刪除暫存目錄。每輪都是夾取 → 放下。
+
+| | A（機器現用，已驗證） | B（repo 預設，首次上機） |
+|---|---|---|
+| 閉合／開爪 | 300 ms / 0.30 s | 120 ms / 0.14 s |
+| 抬升／放下伸手 | 250 ms / 0.28 s | 150 ms / 0.17 s |
+| 回 home | 400 ms / 0.35 s | 200 ms / 0.22 s |
+| 懸停後備 | 30 步 | 15 步 |
+| **夾取** | 8.56 / 8.50 / 8.58 s（平均 8.55） | 7.22 / 7.31 s（平均 7.27，**−1.3 s**） |
+| 　起始回 home／policy／抬升／回 home | 0.57 / 4.35 / 1.89 / 1.90 s | 0.44 / 4.21 / 1.23 / 1.50 s |
+| **放下** | 8.06 / 7.70 s，另 1 次中止 | 4.52 / 4.48 / 4.50 s（**−3.4 s**） |
+| 　伸手／開爪／回 home | 1.90 / 4.92 / 0.88 s | 1.23 / 2.54 / 0.75 s |
+
+- **接觸判定沒有變差。** 走 S6 停滯捷徑的每一輪（A、B 都是）都是 slipping 2 步、149–152°、
+  hold +1°；那條路本來就不受這些時序控制，policy 階段兩組都約 4.2–4.4 s。
+- B 第 3 輪走了另一條路：幾何閘通過（xy 9.4/10 mm）進 stage 1，用**新的 120 ms／0.14 s
+  閉合**，10 步內以「slower than commanded」判定接觸在 149°、保持 150°，**沒有**
+  2026-09-20 自製模擬時看到的多壓抖動。repo 版多了 `close_settle_s >= close_run_time`
+  的啟動檢查，正好擋住那次的問題（沉澱比行程短，會在夾爪還在動時讀值）。僅一個樣本。
+- 排除一輪：B 第 2 輪夾取 42.07 s，其中 **34.8 s 是回 home 後等新鮮偵測才能鎖定**
+  （盒子仍在調整），鎖定後動作 4.3 s，與其他輪相同，與時序無關。
+- **放下開爪卡住 1 次，發生在 A（舊時序）**：開到約 102° 後 7 步無進展，控制器判定
+  「未確認張開」→ 拒絕收回、原地凍結（設計中的保護），下一輪 `home` 收回。B 三輪皆正常。
+  操作員確認該組 3 輪中實際夾取 2 次（另 1 次因手臂凍結在外、偵測失效而被擋下）。
+- **懸停後備（30 → 15 步）一次都沒觸發**，這項沒有被驗到。
+- 這也是 repo 版控制器第一次上實機：7 次夾取＋放下，除上述兩件與時序無關的事件外全部正常。
+- 限制：每組只有 2–3 個有效樣本。結論是「新時序沒有看到退化、明顯更快」，不是統計上的保證。
+
+### 機器上的 v23 同步成 repo 版
+
+- 逐檔比對（忽略 CRLF／LF）後，真正不同的只有 **v23 的 7 個檔**（控制器、一鍵啟動器、
+  verify 腳本、manifest、README、兩支測試）與 **`integration/vision_grasp_bridge.py`**。
+  E1 校正檔與 homography 解算程式與 repo 完全相同，未更動。
+- 橋接檔的改動是純新增（選用的 `--wait-for-go`），不帶該旗標時行為不變，所以正式視覺服務
+  與 v21 不受影響；repo 版的一鍵啟動器需要它。
+- 只換這 8 個檔，其餘（v21、任務程式、校正檔）一律不動。換前整份備份在
+  `~/sync_backup_20260925.tar.gz`。
+- 驗證：v23 `jetson_verify.sh` 163／37／641／62／89、`wrist_z_offset = 0.0564`、dry-run、
+  安全閘全過；v21 的 29／119 照舊通過。兩支一鍵啟動器 `--check` 的 FATAL（相機被常駐服務
+  佔用、v21 缺 C3 homography）換回舊橋接檔重跑結果相同，與同步無關。
+- 正式服務重啟 11.6 s 就緒，安全設定不變（hold +1°、打滑偵測 0.5、TCP +20 mm、閉合閘
+  10 mm），採用新時序與精簡 URDF，RSS 487 MB。**實機確認：夾取 7.21 s、放下 4.58 s**，
+  與 A/B 的 B 組一致。
+- ⚠ 機器的 `integration/` 裡有 4 支**不在 repo 的檔**：`calibrate_feedback_odom_linear.py`、
+  `calibrate_feedback_odom_yaw.py`、`remote_vision_source.py`、`sugarbox_rl_motor_server.py`。
+  看起來是導航端（WP2）的工作，目前沒有版本控制。
+
+### 附帶觀察
+
+- 手動扶回手臂後的第一個 `home` 只用 2 次迭代、0.76 s 就走完約 30° 的距離。限速是從
+  **上一次的指令值**起算（CLAUDE.md 注意事項已記載），手動改動姿勢後第一個動作等於不限速。
+  這次安全抵達，但值得知道。
+- Jetson 軟體重開機會卡在關機階段、需要手動斷電重開；暫不處理。
+
+## 2026-09-22 — WP2 底盤／LiDAR 實機點動與線性 odom 校正
+
+### 導航硬體資料鏈與互斥服務
+
+- Jetson 的 `x3plus-navigation` 為唯一 `/dev/myserial` owner；測試期間
+  `grasp-service` / `grasp-vision` 維持停止，未發現序列埠競爭。
+- `ai_motor_server_P0.py` 經 TCP 7000 接收速度命令，具 0.5 秒 watchdog；每次點動後的
+  log 都確認 `action=stop` 與四輪 `m1=m2=m3=m4=0`，`/odom_setmotor` 的線速度與角速度
+  亦回到 0。
+- TG30 `/scan` 約 10 Hz。實物方向測試確認 raw 180° 是車頭，raw +90°／-90° 分別對應
+  車體左右；正式 mainline 仍須把 yaw offset 與 angle direction 一起寫入、通過方向 gate，
+  不能只靠本次人工點動推定完整自主導航已驗收。
+- 直線點動以車身中心左右各 20--25 cm 的投影走廊判定正前方淨空；現場操作員確認兩側
+  近距離回波是預期障礙，不在直線 swept path。沒有永久關閉或放寬緊急煞停。
+
+### 線性 odom 尺量校正
+
+低輸出 18 會受靜摩擦影響，因此正式校正使用既有慣用的四輪輸出 30
+（TCP `vx=0.15 m/s, wz=0`），相同約 0.8 秒短脈衝並以尺量同一輪位置：
+
+| 線性係數 | odom 位移 | 尺量實際位移 | 結果 |
+|----------|-----------|--------------|------|
+| `0.65` | 14.6 cm | 約 22 cm | 少算約 34% |
+| `0.98` | 20.9 cm | 約 21--22 cm | 誤差約 0.1--1.1 cm |
+
+- `0.98 = 0.65 × 22 / 14.6`（四捨五入）已在 Jetson 的部署腳本
+  `/home/jetson/ROS/X3/yahboomcar_ws/src/yahboomcar_bringup/scripts/ai_motor_server_P0.py`
+  實測；原 `0.65` 檔案保留為 `*.bak_odom065_20260922`。
+- 本次把 repo 主線 `integration/feedback_odom.py` 的預設線性係數同步為 `0.98`。
+  角速度係數 `0.501` **未重測、未更動**。
+- 目前數據是短距離人工尺量，足以淘汰 `0.65`，但 `0.98` 仍是暫定值；WP2 下一步要做
+  較長直線重複量測、左右 90° 轉向校正，再驗證 TF／AMCL，而不是直接宣稱導航全流程通過。
+
+### 安全收尾
+
+- 最後一輪停止後確認 odom 速度為 0、四輪命令為 0；停止導航服務、釋放
+  `/dev/myserial`、執行 `sync` 後安全關機。SSH 與 TCP 22 隨即中斷，ping 無回應。
+- Jetson 的 `ai_motor_server_P0.py` 本體目前不在此 repo；本提交只同步可版本控制的係數、
+  自測期望值與實機證據，沒有假稱部署腳本已納管。
+
+## 2026-09-20 — 常駐夾取服務（42.3 s → 8.5 s）、LEFT 首次真機夾取
+
+### 新系統碟（128 GB）開機檢查：全項通過
+
+- 裝置對應正確：`/dev/myserial`→`ttyUSB0`（ch341 Rosmaster）、`/dev/ydlidar`→`ttyUSB1`
+  （CP2102 TG30）、`arm_cam`→`video0`、`rear_cam`→`video1`（SN0001）；兩顆相機都取得
+  640×480 畫面，`startup_device_check.py` PASS。
+- 根目錄在 `/dev/sda1`（114 GB，用 42 GB），**swap 6 GB 已寫進 `/etc/fstab`**。
+- venv 是 Python 3.8.0：torch 2.4.1（**CPU-only**，JetPack 4.6 沒有對應的 CUDA wheel）、
+  SB3 2.3.2、gymnasium 0.29.1、cv2 4.13.0、ultralytics 8.4.83、pyserial 3.5。
+- v23 權重 sha256 與 manifest 一致；`detection/models/best.pt` = `ca42c3f4…`。
+- 匯流排：45 輪讀取 **0 錯位、0 逾時**。過程中 S3 一度連續回報 raw 3664（有效區間
+  900–3100），那是**關節被扳到模型範圍外**，不是伺服機故障 —— 讀值穩定到 ±1 才是判斷關鍵，
+  壞掉的伺服機會回亂數。扳回範圍後六顆全正常。
+- S1 ±5° 實機寫入驗證通過，其他五顆數字一格未動。
+
+### 一次完整夾取的耗時拆解（`jetson_one_command_grasp.py`，42.3 s）
+
+| 階段 | 秒 |
+|------|----|
+| 程序啟動與模型載入（PyBullet 載 URDF 就佔 11.5 s / 670 MB） | 23.3 |
+| 視覺（YOLO 載入、開相機 1.6 s、冷啟動推論 1.5 s） | 10.5 |
+| policy 對位 4.3 + 抬升 1.9 + 回 home 1.9 | 8.1 |
+
+**夾爪不是瓶頸。** 正式流程的閉合發生在 stage 0 的 S6 停滯捷徑裡
+（`--s6-stall-grasp-steps 2` 會一併把 `jaw_hold_bias_deg` 設成 **1**），
+`attempt_close()` 那條 stage-1 路徑根本不會被呼叫。
+
+曾實驗把 stage-1 close 的 `run_time_ms/settle_s` 由 300/0.30 改成 100/0.15
+（空夾 5.6 s → 3.06 s，且全程無誤判接觸），但**已還原**：那條路徑不在正式流程上，
+而且在真實物體上會讓接觸判定多花 6 步才成立，指令多壓進去 7°。
+附帶量到伺服機的真實速度上限：8° 一步最快約 90 ms，300 ms 是我們自己叫它慢的。
+
+### 新增：常駐服務（本次主要成果）
+
+- `grasp/v23/grasp_service.py` — 呼叫 launcher 自己的 `parse_args_from()` 與
+  `build_ctrl_cmd()` 取得**完全相同的 argv**，再把 `GraspController.run` 換成 serve
+  loop 後呼叫 controller 的 `main()`。因此 sha256、契約、homography、candidate 解鎖
+  等每一道閘照跑，**已驗證檔案零修改**；`run()` 本身的 docstring 就寫明可重複呼叫。
+- `grasp/v23/graspctl.py` — unix socket 用戶端，系統 python 3.6.9 可直接跑
+  （`grasp` / `status` / `quit`）。
+- `grasp/v23/graspscan.sh` — 三姿態後備：停服務 → 跑 launcher 掃描流程 →
+  `trap EXIT` 把服務拉回來。掃描器設計上獨占相機與序列埠且在 PPO 啟動前就退出，
+  無法與常駐服務並存，所以後備會付完整啟動成本。
+- systemd：`grasp-service.service`（`Wants/After=dev-myserial.device`，避免搶在 udev
+  之前啟動）、`grasp-vision.service`（`BindsTo` 夾取服務），兩者 `enabled`。
+  視覺端維持原檔，只是拿掉 `--once`、加上 `--imgsz 320 --rate 1.0`。
+- 實測 **單次夾取 8.52 s（confirmed）**。RSS：夾取 985 MB、視覺 301 MB；ROS 全套
+  569 MB；三者同時在仍餘約 1 GB，不碰 swap。閒置時 CPU 幾乎是 0（負載 1.09 / 4 核）。
+- **E1 優先**：沒有新鮮偵測時 3.2 s 內拒絕且**手臂完全不動**（原本會走到 home 然後
+  空等 `--latch-wait` 120 s）。
+
+### imgsz 320 可以直接用
+
+同一場景比較 640／480／320：座標差 **0.4 mm**（640 自身抖動就有 0.2 mm，homography
+RMSE 是 3.9 mm），320 的重複性反而更好；推論 1.37 s → 0.62 s（暖機後 0.65 → 0.25 s）。
+
+### LEFT 姿態首次真機夾取成功（單視角，**非驗證**）
+
+- `graspscan.sh --accept-single-rotated-view`：LEFT 取得 `(+0.2569, +0.0388)`，
+  5 樣本散布 0.1 mm；E1／RIGHT 未見；回 E1 編碼器確認後釋出目標。PPO 41 步收斂到
+  `target_dist = 0.019 m`，S6 判定 slipping 停在 151°（hold bias 1°），抬升 6 段、
+  回 home 後仍夾著。
+- 逼近過程 S1 由 90° 降到 **71–74°**，方向與物體在左側一致 →
+  **yaw 正負號在真機上沒有反向**。方向錯的話 S1 會往 110° 去夾空氣。
+- **但這不是 gate 要的驗證**：沒有尺量點、沒有 ≤1 cm 誤差數據，
+  `hardware_validated` / `yaw_mapping_validated` 維持 `false`。
+- 擦邊觀察：`Gate 25` 時 `pad_after_close = 62.9 mm` 對 `object_top = 65.0 mm`，
+  **只差 2.1 mm**（E1 正面那次是 41.6 mm）。LEFT 的落點明顯偏高、夾得較淺，
+  這是之後補驗證時要盯的數字。
+
+### 設計意圖釐清
+
+三視角的目的是**擴大可見範圍**，不是讓視角互相驗算。**只要有一個視角看到就允許夾取**
+是刻意的設計，因為單視角覆蓋太小。`--accept-single-rotated-view` 因此是常態用法，
+不是繞過檢查的捷徑。
+
+### E1 homography 的實際可用窗口只有約 3 cm 縱深
+
+7 個校正點的像素凸包換算回 base 約 `x = 0.249–0.279 m`。今天三次掃描失敗全部卡在這裡：
+左緣裁切 ×2、凸包外 ×1。物體必須放進這個窄帶，這是目前整套視覺夾取真正的範圍限制，
+與三姿態無關；要擴大就得在更廣的位置補校正點重新擬合。
+
+### 常駐服務：補上 `home` / `release`，連續 6 輪確認不漏記憶體
+
+- 背靠背 6 輪：成功 3 次，**8.05 / 8.34 / 8.53 s**，RSS 三次都是 **986.1 MB**
+  （服務啟動 980.7 MB，第一輪後 +5.4 MB 就固定，之後完全走平）。另外 3 輪因為
+  `home` 放下的盒子落點跑掉而被拒，每次 3.2 s 且**手臂不動**。
+- `home`：原地張爪並回 E1（在 home 時 0.4 s，抬起後 6.1 s）。沒有它，要把物體放回桌上
+  得停服務、跑 `move_arm.py`、再啟動 —— 一分鐘的 PyBullet 重載只為了張開夾爪。
+- `release`：呼叫 `run_release_only()`，就是任務到垃圾桶後的那段。
+
+### 修正：`_grasp_looks_real()` 把「完全張開的夾爪」判成握著東西
+
+- 實測發現：**空爪**呼叫 release，印出
+  `grasp check: CONFIRMED — jaw stalled at 30.0deg (100.0% short of closed)`，
+  然後跑完整套伸手、開爪、回 home。
+- 原因：這個檢查**只有下界**（離全閉停點多遠），沒有上界。夾爪完全張開時 frac = 1.0，
+  分數最高，於是「離全閉越遠 = 越像握著東西」。
+- 影響不只在這條路：`mission_pipeline` 把 `"released"` 當成投遞完成，所以**在路上掉了的
+  物體會被記成已投遞** —— 正是 `run_release_only()` 不先回 home、宣稱要抓住的那個情況。
+- 修法：補上 `closed_frac >= timeout_close_min_grip_frac`（0.5），用的是 stage-0 捷徑
+  既有的門檻，兩條路現在對「夠閉合」的定義一致。**v21 與 v23 都修**（該函式逐位元組
+  相同，而任務流程跑的是 v21）；Jetson 上只打這個補丁，沒有整檔覆蓋。
+- 驗證：同樣的空爪 release **0.04 s 被拒、手臂沒動**。控制器測試 135 → **138**、
+  160 → **163**，`jetson_verify.sh` 兩支與 CLAUDE.md 的硬編碼期望值同步更新；
+  其餘套件不變（37 / 641 / 29、launcher 62、three-pose 89、safety guards 68）。
+- **尚未完成：握著物體的正向 release 測試。** 盒子幾次落在 E1 校正窗口外（下緣裁切），
+  今天沒測到。下次接續時把盒子放在機器人正前方 25–28 cm，先 `grasp` 再 `release`。
+
+### 注意：樹上已有一批同目標的未提交工作（2026-09-09）
+
+今天的加速是在不知道這批工作的情況下做的，兩者互補而非重複：
+
+- `grasp/x3plus/make_deploy_urdf.py` + `yahboomcar_deploy.urdf`（未追蹤）：只保留六個
+  夾爪連桿的碰撞網格，**URDF 載入 3.66 s → 0.14 s**。今天量到的 23.3 s 啟動裡有
+  11.5 s 正是它。
+- v23 controller 的 scripted-move 時序欄位（`close_run_time_ms` 等）、`--jaw-step-deg`
+  （夾爪步距 8° → 12°）；launcher 的 `--wait-for-go`：bridge 先啟動載 YOLO，與
+  controller 載 torch **並行**。
+- 關係：那批縮短「單次啟動要多久」，常駐服務讓啟動「只付一次」。兩個都在的話，連
+  `graspscan.sh` 這條必須付完整啟動成本的後備路徑也會跟著變快。
+- `grasp/deploy_v23/` 是 **205 MB** 的交付包，不該進 git。
+
+---
+
+## 2026-08-30 — v23 三姿態改為 LEFT/E1/RIGHT S1 剛體旋轉
+
+- 新增 `grasp/v23/three_pose_scan.py` + `three_pose_scan.json`；原先 E1／F3／F6 的
+  近中遠設計改為 LEFT／E1／RIGHT（S1=70°／90°／110°），因主要缺口在橫向。
+  掃描器不載 PPO、S6 永遠保持 30° 張開，所有
+  移動直接借用 controller 的 `move_guarded_and_verified`。
+- 三姿態 S2–S5 完全相同，只用 E1 homography；映射後繞 training-frame S1 軸心
+  `(0.118146,-0.003359)` 旋轉，yaw sign=-1。URDF/FK 在 S1=60–120° 最大平面殘差
+  `1.3e-8 m`，但這不取代真機驗證。5 筆有效偵測取中位數且散布 ≤8 mm，多姿態同時看見時
+  base XY 須在 1 cm 內一致。三個都看不到、不同姿態疑似選到不同物體、任一 move 未確認，
+  都不會產生夾取 target。
+- 掃描器只有在 guarded move 回 E1 且編碼器確認後才印 `[scan][result]`，隨即退出並釋放
+  相機與 `/dev/myserial`；launcher 之後才啟動原 v23 PPO，以固定 `--obj-x/y/z` 夾取，
+  不存在 scanner/controller 同時搶硬體或拿過去姿態的 pose stamp 冒充 E1。
+- 純邏輯 `test_three_pose_scan.py` **40/40** 通過，涵蓋 yaw 方向／半徑不變、軸心／方向
+  防竄改、角度上限、禁止
+  S2–S5 共用 homography、中斷、掃描錯誤與 E1
+  回程未確認時不得釋出目標，且 Ctrl+C 只送掃描器一次 SIGINT、保留 45 秒
+  guarded E1 回程窗口；既有 launcher **45/45** 不變。
+- **尚不能正式三姿態實抓**：LEFT/RIGHT 尚未實際走過，也還沒各用至少 2 個分散尺量點
+  確認 `predicted_x/y` 每軸誤差 ≤1 cm；兩個 `hardware_validated` 與
+  `yaw_mapping_validated` 目前故意是 false。下一步依序跑
+  `--scan-calibrate-pose LEFT`、`RIGHT`，不需要也不應重做兩份 homography。
+
+---
+
+## 2026-08-29 — v23/E1 grasp-home homography 實測完成
+
+- 使用 `sugarbox`、每點 20 幀中位數，在 v23 的 E1 grasp home 收到 10 筆有效
+  undistorted `(u,v)`；另有 3 筆因 bbox 碰到上／下／左影像邊界而依安全規則捨棄。
+- base 座標以 E1 張爪 `gripper_center` 地面投影 `(0.2287, -0.0035)` 為量尺基準：
+  `x = 0.2287 + forward`、`y = -0.0035 + left`。
+- 第 1 筆回報為「左 4 cm」，但其 `u=400.311` 與所有其他左右樣本相反；照原標註擬合
+  RMSE 會升到 **5.206 cm**，視為疑似左右抄反並排除，沒有把推測寫進正式外參。
+- 正式檔用 7 點擬合：RMSE **0.388 cm**、最大擬合誤差 **0.680 cm**。另保留第 4、10
+  兩個凸包內點驗證，最大單軸誤差 **0.448 cm**、最大歐氏誤差 **0.603 cm**，均通過
+  1 cm gate。
+- 原始整理與排除理由在 `docs/calibration/e1_grasp_home_points_20260829.json`；runtime
+  校正檔為 `integration/grasp_home_homography_e1.json`。`e1_homography_measured` 已改為
+  true；這只解除視覺映射 gate，不代表 dry-run、可達範圍或實抓已通過。
+- 同日實抓 log 顯示前 4 cm／正中的 sugarbox 只碰影像**上緣**。新增 opt-in
+  `jetson_one_command_grasp.py --allow-top-clipped`：只在 E1 實測 homography 下接受 top-only
+  clipping，因底邊中心與左右邊仍可量；左／右／下緣、**目標中心**在凸包外與 calibration
+  mode 一律維持 fail closed。後續前 4 cm／右 3 cm 的實抓 log 又證實 bbox 右側輪廓會比
+  已校正的中心凸包多伸出約 3 mm base-space；左右端點已改成只做受 6 cm 夾爪開口約束的
+  寬度估算，絕不作為目標位置。沒有採用「先移手臂置中」，因為相機隨 `arm_link4` 移動，離開 E1 後同一份
+  homography 立即失效。
+
+---
+
 ## 2026-08-03 — v21 Jetson 單機辨識＋夾取實機成功
 
 ### 啟動姿態小幅回差恢復
@@ -1358,3 +2155,50 @@ URDF 掃 12 萬組關節組合，**夾爪中心（訓練定義）**在部署區�
 3. **`object_z` 慣例** — 仍是 UNRESOLVED。應統一為「物體幾何中心的真實高度」並寫進 manifest。
 4. **PR #13（draft）暫不可 merge** — 它啟用 v18/C3，但在 TCP 修好前 v18 一樣夾不到，
    merge 會給人「可以上機」的錯誤印象。
+
+## 2026-08-30 — v23 E1 夾取目標前移補償
+
+- 實機已能穩定夾取，但落點系統性偏物體近側；沒有改寫 7 點實測
+  `integration/grasp_home_homography_e1.json`，而是在 homography／S1 視角旋轉完成後、
+  policy envelope 檢查前，加可稽核的 base `+X` runtime correction。
+- `grasp/v23/jetson_one_command_grasp.py` 預設 `--grasp-forward-offset-mm 5`；可用 `0`
+  完全停用，硬限制 `0–15 mm`。修正同時作用於 bbox 中心與兩個寬度端點，因此不改變
+  估計寬度；超出 v23 `x=0.205–0.280 m` 的修正後目標仍 fail closed。
+- 單 E1 bridge 與 LEFT／E1／RIGHT scanner 使用同一修正；scan 在旋轉回最終 base frame
+  後才沿 `+X` 平移。校正模式不帶補償，保證量測資料仍是原始幾何。
+- 第二次實抓 log 證明前述 +5 mm 已套用：bridge 送 `x=0.2728`，故 raw homography
+  `x=0.2678`，只比「前 4 cm」尺量 `x≈0.2687` 少 0.9 mm。繼續把物體座標加 1 cm
+  會成為 `x=0.2828`，越過 v23 `0.280` envelope；因此新增 controller-side
+  `--tcp-forward-error-mm 10`。它只把 policy／close gate 使用的 FK TCP X 減 10 mm，
+  讓手臂實際再往 base +X 走 1 cm；camera/object 座標與 floor/collision FK 均不變。
+- 後續實抓仍落在機器人側，因此以 5 mm 小步幅把 launcher 的預設
+  `--tcp-forward-error-mm` 從 10 提高到 15；視覺座標仍維持 +5 mm，合計約 +20 mm，
+  controller 硬上限仍為 20 mm。
+- 同日成功夾到後仍聽見喀喀聲。完整 log 證明 S6 在 Stage 0 從 117° 被 policy 推到
+  179°；147–152° 的物體滑動／回彈讓舊的「完全不動」計數反覆歸零。當時雖帶
+  `--jaw-track-fraction 0.5`，該比例判定其實只接到 scripted Stage 1，沒有保護 Stage 0。
+- Stage 0 現在也比較上一筆 S6 命令的未完成角度與下一筆 encoder 進度；連續兩筆低於
+  0.5 時，以 `slipping` 接觸鎖定接觸角 +1°，直接進 scripted lift。正常追蹤、單筆慢速、
+  ineligible 動作與 `fraction=0` 均不觸發；controller 回歸新增 6 項，合計 148 全過。
+- 實機修正後操作者在 E1 可辨識範圍內重複 **3/3 成功**。已核對的一份完整 run：
+  S6 在 152° 以 2/8° slow-tracking 連續兩筆觸發、hold 153°；Stage 2 初檢 confirmed、
+  lift 6/6、return home 成功、回家後仍 confirmed（S6 150°），bus 無失敗、guard 45 次 pass。
+- 將該實測組合升為 `jetson_one_command_grasp.py` 正式預設：target +5 mm、
+  `floor-finger-error=15 mm`、`jaw-track-fraction=0.5`、`tcp-forward-error=20 mm`。
+  `manifest.hardware_gates.first_real_grasp_logged` 改為 true；仍保留 candidate，因 motion
+  envelope、dry-run 與 LEFT/RIGHT scan 硬體 gate 尚未完成。
+## 2026-09-07 — v24 E1 replacement 候選封裝
+
+- 接收訓練端 `v24_e1_corner_recovery_seed23404_r3` 的 selected BC update 10；完整交付
+  55 個 checksum 全部吻合，formal rows 重算 230/235，舊 v23 弱點 `(0.280,-0.070)`
+  為 15/15。新 model/VecNormalize hash 分別以 `0ed998...d81`、`6ebb5a...d26` 鎖定。
+- 新增 `grasp/v24/run_candidate.py`、`manifest.json`、必要 provenance 與 9 項靜態測試。
+  wrapper 重用 `grasp/v23/x3plus_real_grasp.py`，拒絕使用者覆寫 model、VecNormalize、
+  contract、release manifest 或既有 E1 3/3 runtime profile，避免產生另一份會漂移的
+  motor/servo/safety runtime，也避免驗收時同時改權重與控制參數。
+- v23 release gate 現可由版本 wrapper 指定所屬 manifest；hash 與 incremental contract
+  仍不可由 `--unlock-candidate-real` 繞過。v24 的新 hash 硬體 gate 全部起始為 false。
+- 尚未執行模型反序列化、模擬重播或實機動作。97/235 正式模擬紀錄低於部署 8mm
+  clearance，且 evaluator 含 magnet/scripted return；需完成 deployment parity 與新 hash
+  Jetson／固定座標／E1 視覺 3/3 後才可考慮切換。完整限制見
+  `docs/planning/v24_intake_2026-09-07/INTAKE_REVIEW.md`。

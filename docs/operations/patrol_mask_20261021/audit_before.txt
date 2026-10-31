@@ -1,0 +1,52 @@
+.....................................F......F........................E......................
+======================================================================
+ERROR: test_hardware_recovery_unlocks_only_an_idle_empty_travel_robot (__main__.RoomTests.test_hardware_recovery_unlocks_only_an_idle_empty_travel_robot)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_mission_loop.py", line 660, in test_hardware_recovery_unlocks_only_an_idle_empty_travel_robot
+    self.assertTrue(room.make())
+                    ^^^^^^^^^^^
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 1077, in make
+    travelled = self._back(ROOM_STEP_M)
+                ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\mission_loop.py", line 1027, in _back
+    travelled = runner.back_straight(self.host, metres, self.walls, obstacles=self.obstacles)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1139, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1143, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\AppData\Local\Programs\Python\Python312\Lib\unittest\mock.py", line 1204, in _execute_mock_call
+    result = effect(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_mission_loop.py", line 652, in back
+    raise RuntimeError('maintenance still locked')
+RuntimeError: maintenance still locked
+
+======================================================================
+FAIL: test_a_patrol_cleanup_fault_never_triggers_a_back_or_restart (__main__.PatrolTests.test_a_patrol_cleanup_fault_never_triggers_a_back_or_restart)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_mission_loop.py", line 489, in test_a_patrol_cleanup_fault_never_triggers_a_back_or_restart
+    self.assertFalse(mission.patrol_refused(report))
+AssertionError: True is not false
+
+======================================================================
+FAIL: test_after_a_back_out_patrol_waits_for_new_clear_frames (__main__.PatrolTests.test_after_a_back_out_patrol_waits_for_new_clear_frames)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\tests\test_mission_loop.py", line 524, in test_after_a_back_out_patrol_waits_for_new_clear_frames
+    self.assertGreaterEqual(started_after[0], 5)
+AssertionError: 1 not greater than or equal to 5
+
+----------------------------------------------------------------------
+Ran 92 tests in 1.279s
+
+FAILED (failures=2, errors=1)
+[BLOCKED] localization: not localized
+[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing
+[REFUSED] --real requires --i-am-beside-the-robot
+[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing
+[check] robot, cameras and files passed, localization, box position; no motion.

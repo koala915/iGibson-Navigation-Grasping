@@ -1,0 +1,134 @@
+{
+  "pose": "v23_e1_grasp_home",
+  "camera_pose_reported_by_bridge": "grasp-home",
+  "object_class": "sugarbox",
+  "object_height_m": 0.065,
+  "reference_mark": {
+    "description": "E1 open-jaw gripper_center ground projection",
+    "base_x_m": 0.2287,
+    "base_y_m": -0.0035,
+    "conversion": "base_x = 0.2287 + forward_m; base_y = -0.0035 + left_m"
+  },
+  "points": [
+    {
+      "measurement_id": 2,
+      "placement": "forward 4.0 cm, right 4.5 cm",
+      "u": 451.962,
+      "v": 291.826,
+      "x": 0.2687,
+      "y": -0.0485
+    },
+    {
+      "measurement_id": 3,
+      "placement": "forward 2.0 cm, centre",
+      "u": 227.69,
+      "v": 413.24,
+      "x": 0.2487,
+      "y": -0.0035
+    },
+    {
+      "measurement_id": 5,
+      "placement": "forward 3.0 cm, left 2.0 cm",
+      "u": 106.185,
+      "v": 425.509,
+      "x": 0.2587,
+      "y": 0.0165
+    },
+    {
+      "measurement_id": 6,
+      "placement": "forward 5.0 cm, right 5.0 cm",
+      "u": 509.802,
+      "v": 258.232,
+      "x": 0.2787,
+      "y": -0.0535
+    },
+    {
+      "measurement_id": 7,
+      "placement": "forward 5.0 cm, left 2.0 cm",
+      "u": 103.396,
+      "v": 270.159,
+      "x": 0.2787,
+      "y": 0.0165
+    },
+    {
+      "measurement_id": 12,
+      "placement": "forward 2.0 cm, right 4.0 cm",
+      "u": 421.272,
+      "v": 456.171,
+      "x": 0.2487,
+      "y": -0.0435
+    },
+    {
+      "measurement_id": 13,
+      "placement": "forward 5.0 cm, centre",
+      "u": 202.656,
+      "v": 257.564,
+      "x": 0.2787,
+      "y": -0.0035
+    }
+  ],
+  "holdout_points": [
+    {
+      "measurement_id": 4,
+      "placement": "forward 4.0 cm, centre",
+      "u": 218.696,
+      "v": 320.735,
+      "x": 0.2687,
+      "y": -0.0035,
+      "x_reprojected": 0.2698405017961153,
+      "y_reprojected": -0.004844357626070071,
+      "x_error_cm": 0.11405017961153008,
+      "y_error_cm": -0.13443576260700713,
+      "euclidean_error_cm": 0.17629639173037503,
+      "inside_calibration_hull": true
+    },
+    {
+      "measurement_id": 10,
+      "placement": "forward 3.0 cm, right 2.0 cm",
+      "u": 342.207,
+      "v": 356.389,
+      "x": 0.2587,
+      "y": -0.0235,
+      "x_reprojected": 0.2631801263667268,
+      "y_reprojected": -0.02753434008626411,
+      "x_error_cm": 0.4480126366726789,
+      "y_error_cm": -0.4034340086264111,
+      "euclidean_error_cm": 0.6028883163030951,
+      "inside_calibration_hull": true
+    }
+  ],
+  "excluded_observations": [
+    {
+      "measurement_id": 1,
+      "reported_placement": "forward 4.0 cm, left 4.0 cm",
+      "u": 400.311,
+      "v": 284.558,
+      "reason": "Reported left/right conflicts with every other E1 sample. Used as reported, the 10-point fit RMSE is 5.206 cm. Interpreting it as right 4.0 cm gives a 0.777 cm error against the independent seven-point fit, so it is probably a transcription error; excluded until the operator confirms it."
+    },
+    {
+      "measurement_id": 8,
+      "reported_placement": "forward 7.0 cm, centre",
+      "reason": "bbox touches top frame edge"
+    },
+    {
+      "measurement_id": 9,
+      "reported_placement": "forward 1.0 cm, right 2.0 cm",
+      "reason": "bbox touches bottom frame edge"
+    },
+    {
+      "measurement_id": 11,
+      "reported_placement": "forward 3.0 cm, left 3.0 cm",
+      "reason": "bbox touches left frame edge"
+    }
+  ],
+  "validation": {
+    "fit_point_count": 7,
+    "fit_rmse_cm": 0.3884432377004006,
+    "fit_max_error_cm": 0.6800605588006656,
+    "holdout_point_count": 2,
+    "holdout_max_abs_x_error_cm": 0.4480126366726789,
+    "holdout_max_abs_y_error_cm": 0.4034340086264111,
+    "holdout_max_euclidean_error_cm": 0.6028883163030951,
+    "gate": "PASS: >=6 fit points, fit RMSE <=1 cm, and both holdouts have |x| and |y| error <=1 cm"
+  }
+}

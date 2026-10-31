@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "frame_id": "laser",
+  "tolerance_m": 0.025,
+  "source": "Operator-confirmed empty room and fixed body/cables; 2026-10-17/18 turn observations plus 2026-10-18 patrol and stationary raw scan",
+  "scope": "Fixed local body rectangles only; no blind distance/sector cutoff, no automatic learning. Masked rays remain unknown.",
+  "laser_geometry": {"forward_m": 0.10, "yaw_rad": 3.141592653589793},
+  "ranges_by_angle_deg": {},
+  "body_rectangles_base_m": [
+    {"bounds_xyxy": [-0.15, -0.14, 0.22, 0.14], "source": "Measured travel footprint with existing turn-gate measurement allowance"},
+    {"bounds_xyxy": [-0.18, -0.22, -0.06, -0.13], "source": "Operator-confirmed fixed rear-right structure, 2026-10-17"},
+    {"bounds_xyxy": [-0.20, 0.10, -0.15, 0.14], "source": "Previously confirmed rear-left cable patch"},
+    {"bounds_xyxy": [-0.05, -0.29, 0.02, -0.21], "source": "Operator-confirmed right-side cable patch, 2026-10-18"},
+    {"bounds_xyxy": [0.04, -0.29, 0.075, -0.21], "source": "Confirmed right fixed structure; stationary scan x0.049..0.069 y-0.277..-0.214"},
+    {"bounds_xyxy": [-0.23, -0.205, -0.18, -0.135], "source": "Rear-right border persisted across rotated views; current stationary scan x-0.220 y-0.197"}
+  ]
+}

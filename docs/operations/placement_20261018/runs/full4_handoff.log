@@ -1,0 +1,9 @@
+[E1] seen=True border=[] estimate=[0.2635, 0.0006] age=0.5s -> no move
+[E1] seen=True border=[] estimate=[0.2635, 0.0006] age=0.5s -> no move
+[E1] seen=True border=[] estimate=[0.2635, 0.0006] age=0.2s -> no move
+[E1] seen=True border=[] estimate=[0.2634, 0.0006] age=0.0s -> no move
+Traceback (most recent call last):
+  File "<string>", line 7, in <module>
+  File "C:\Users\user\Documents\repo\iGibson-Navigation-Grasping\integration\sugarbox_approach_grasp.py", line 382, in handoff
+    raise RuntimeError('no stable fresh E1 target; stopped without grasp')
+RuntimeError: no stable fresh E1 target; stopped without grasp

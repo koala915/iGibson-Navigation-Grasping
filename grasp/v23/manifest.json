@@ -1,0 +1,351 @@
+{
+  "package": "grasp-v23-candidate",
+  "status": "candidate",
+  "status_note": "NOT sim-approved and not ready to leave candidate status. This is a 250k checkpoint with no formal held-out evaluation, and one training grid cell (0.28, -0.070) is still at 73.3% against an 80% per-cell gate. E1 homography and one-command grasp are now hardware-backed: on 2026-08-30 the validated runtime tuple succeeded 3/3 within the recognisable single-view area, with one complete stdout reviewed. Motion-envelope, dry-run and LEFT/RIGHT scan gates remain open. --real therefore still requires --unlock-candidate-real and a person beside the robot.",
+  "created": "2026-08-29",
+  "staged_from": "grasp/deploy_v23/ handoff package. Its model/, deploy_contract.py, action_execution_v21.py and x3plus/ were taken; its x3plus_real_grasp.py was NOT -- see deployment_base below.",
+  "deployment_base": {
+    "script": "grasp/v21/x3plus_real_grasp.py (3268 lines), with home_deg, the model paths and the target envelope changed. Nothing else.",
+    "why_not_the_packaged_script": "grasp/deploy_v23/x3plus_real_grasp.py is byte-identical to grasp/v21/reference/x3plus_real_grasp.release_branch.py apart from three hunks (model paths, home_deg, and home_deg's comment). That reference copy is labelled 'do not execute' in grasp/v21/reference/README.md: it forked before the 2026-07-31 hardware work and is missing _park_jaw_hold / jaw_contact (without it the jaw walks to the 180 deg stop and holds near-stall torque -- audible gear grinding on 2026-07-31), _check_target_envelope, obj_provider, move_home, the half-duplex bus read that checks WHICH servo answered, and the manifest release gate. It also lacks 12 CLI flags the rest of the repo passes, among them --latch-obj, --i-confirm-external-frame, --unlock-candidate-real, --pose-tol-deg and --stale-timeout, so jetson_one_command_grasp.py cannot drive it.",
+    "what_v23_actually_changes": "deploy_contract.py and action_execution_v21.py are byte-identical between v21 and the v23 package once line endings are normalised (sha256 prefixes 3e311af159156337 and a90d68fdedef4def), and the URDF is identical too. The only real differences are the weights and the home pose.",
+    "release_only_flags": "--release-to-bin / --release-only / --bin-rim-height exist in the packaged script but not here. v21 carries the same release motion as configuration (release_enable, bin_rim_height, release_clearance) rather than as flags. If the bin release is wanted on v23, port the flags across the way 2026-08-04 ported the motion -- do not swap the whole script back."
+  },
+  "source": {
+    "repo": "koala915/igibson_x3_test",
+    "seed": 23401,
+    "checkpoint": 250000,
+    "teacher": "runs/three_stage_20260818-024231/checkpoints/ppo_three_stage_801408_steps.zip",
+    "note": "Taken from grasp/deploy_v23/DEPLOY_V23_MANIFEST.md. No git_head, no training timestamps and no training-metadata file came with the package, so this run is NOT reproducible from what is recorded here. v21 shipped evidence/v21_seed816_training_metadata.json with a source_sha256 for every file used; ask the training side for the equivalent before this leaves 'candidate'."
+  },
+  "artifacts": {
+    "model": {
+      "file": "models/candidate_v23_seed23401_ckpt250000.zip",
+      "sha256": "e8142ab1ae40714f0b823da0fe67685689df6b3a7d5b215d5bc842a0ae927a13"
+    },
+    "vecnormalize": {
+      "file": "models/candidate_v23_seed23401_ckpt250000_vec.pkl",
+      "sha256": "2e8ea8b3f396293c70f9f69365c5f0ded13a593d6548199538921cf768792cc6"
+    },
+    "pairing_rule": "These two files are one unit. Never load this model with another VecNormalize, or this VecNormalize with another model.",
+    "integrity_verified": "2026-08-29, laptop. Hashed on copy out of grasp/deploy_v23/model/. There is no upstream hash to compare against -- the package shipped none.",
+    "vecnormalize_note": "The .pkl itself stores training=True / norm_reward=True. x3plus_real_grasp.py overrides both to False after loading (see lines ~901-902). Do NOT load this pkl through any other code path without applying the same override.",
+    "gitignore_note": "Repo-root .gitignore ignores *.zip as a blanket large-binary rule; grasp/v23/models/*.zip is un-ignored explicitly. It fails SILENTLY -- git status will not mention a missed model. Confirm with git show --stat after committing. The .pkl is not affected."
+  },
+  "contract": {
+    "name": "obs_28_incremental",
+    "observation_dim": 28,
+    "action_dim": 6,
+    "arm_action_mode": "incremental",
+    "arm_step_rad": 0.08,
+    "arm_action_semantics": "desired[i] = current[i] + action[i] * 0.08 rad, for all five arm joints",
+    "gripper_action_mode": "absolute",
+    "action_contract_string": "6D_arm_incremental_gripper_absolute",
+    "tcp_definition": "gripper_center = midpoint of the two finger-pad links",
+    "fk_base_position": [
+      0.019896,
+      -0.003359,
+      -0.009072
+    ],
+    "fk_base_note": "URDF_TO_TRAINING_FRAME in deploy_contract.py. Corrects a 2.2 cm frame offset introduced by iGibson link merging during training. The URDF is loaded at this basePosition, NOT at the origin.",
+    "obs_layout": {
+      "0:5": "arm joint angles (sim rad)",
+      "5": "gripper angle (sim rad)",
+      "6:9": "TCP position (m), gripper_center",
+      "9:13": "TCP quaternion (x, y, z, w)",
+      "13:16": "object position (m)",
+      "16:19": "relative position = obj - tcp",
+      "19:22": "stage one-hot [s0, s1, s2]",
+      "22:28": "previous action (6D)"
+    },
+    "obs_layout_note": "Identical to the 28D layout documented in CLAUDE.md. Only the ACTION decode differs from the v17/v18 stack."
+  },
+  "servo_mapping": {
+    "api_mapping": "api_deg = 90 + sim_deg for every arm joint",
+    "arm_hw_invert": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "gripper": {
+      "open_deg": 30,
+      "closed_deg": 180
+    },
+    "max_delta_deg": 8.0,
+    "max_delta_note": "Raised from the v17 stack's 3.0. One full-magnitude incremental step is 0.08 rad = 4.58 deg, so a 3.0 deg limiter would saturate on every step and silently throttle the policy. Safety is instead carried by the preventive FloorGuard, which sweeps the whole commanded path before sending."
+  },
+  "urdf": {
+    "path": "../x3plus/yahboomcar.urdf",
+    "sha256_lf_normalized": "0a43968783b178d2f270572dc2e01c684722864af1bf8a0c52f05a66fe9d2be2",
+    "git_blob_sha1": "b5f21e2af19be2204b123cf533b5fe1ffaa17e28",
+    "verified_identical": true,
+    "verification_note": "Verified 2026-07-30 against the URDF shipped in the handoff package. Hash the git blob (git cat-file blob HEAD:<path>), NOT the working file: core.autocrlf=true rewrites line endings on checkout and the working-file sha256 differs spuriously. Re-checked 2026-08-29: grasp/deploy_v23/x3plus/yahboomcar.urdf is identical to grasp/x3plus/yahboomcar.urdf, so the package's copy is not duplicated here either.",
+    "meshes": "Reused from grasp/x3plus/meshes/. All 38 meshes the URDF references were compared file-by-file against the package copies on 2026-07-30 and are byte-identical; the repo set is a superset. The package's 151 MB mesh copy is deliberately NOT duplicated here."
+  },
+  "grasp_home": {
+    "name": "E1",
+    "sim_rad": [
+      0.0,
+      -0.275,
+      -1.42,
+      -1.42,
+      0.0
+    ],
+    "api_deg": [
+      90.0,
+      74.2,
+      8.6,
+      8.6,
+      90.0,
+      30.0
+    ],
+    "previous": {
+      "name": "C3",
+      "api_deg": [
+        90.0,
+        67.08,
+        9.79,
+        9.79,
+        90.0,
+        30.0
+      ],
+      "package": "grasp-v21-candidate"
+    },
+    "fk_geometry_training_frame_m": {
+      "note": "Computed 2026-08-29 with this package's own FKComputer, URDF loaded at dc.URDF_TO_TRAINING_FRAME, jaw open (S6=30). These are the numbers this code actually uses, not numbers quoted from the handoff.",
+      "camera_mono_link": {
+        "c3": [
+          0.2762,
+          -0.0056,
+          0.2183
+        ],
+        "e1": [
+          0.2723,
+          -0.0056,
+          0.234
+        ],
+        "delta_z_m": 0.0158
+      },
+      "gripper_center_open": {
+        "c3": [
+          0.2263,
+          -0.0035,
+          0.1439
+        ],
+        "e1": [
+          0.2287,
+          -0.0035,
+          0.1558
+        ],
+        "delta_z_m": 0.0119
+      },
+      "gripper_center_closed": {
+        "c3": [
+          0.2246,
+          -0.0035,
+          0.1154
+        ],
+        "e1": [
+          0.2294,
+          -0.0035,
+          0.1272
+        ]
+      },
+      "pad_bottom_open_z": {
+        "c3": 0.111,
+        "e1": 0.1231
+      },
+      "optical_axis_unit": {
+        "c3": [
+          -0.0583,
+          0.0,
+          -0.9983
+        ],
+        "e1": [
+          0.0244,
+          0.0,
+          -0.9997
+        ]
+      },
+      "optical_axis_from_vertical_deg": {
+        "c3": 3.34,
+        "e1": 1.4
+      },
+      "frame_reconciliation": "DEPLOY_V23_MANIFEST.md quotes camera height 22.7 -> 24.3 cm and gc_z 0.145 -> 0.158 m. Those are URDF-origin values; this package works in the training frame, which sits 0.907 cm lower (dc.URDF_TO_TRAINING_FRAME z = -0.009072). 0.2183 + 0.0091 = 0.2274 and 0.2340 + 0.0091 = 0.2431, so both sets agree and both deltas are +1.6 cm. Neither is wrong; do not mix them inside one calculation."
+    },
+    "camera_warning": "The optical axis CROSSES VERTICAL between C3 and E1: its x component goes from -0.0583 (leaning back) to +0.0244 (leaning forward), and the tilt off vertical falls from 3.34 to 1.40 degrees. arm_cam_geometry's trigonometric ground-distance model was already ill-conditioned at C3 -- the lateral offset it recovers collapses toward zero as the camera approaches vertical -- and E1 is worse. E1 vision is homography-only. That is not a preference: vision_grasp_bridge refuses anything else at a grasp-home pose.",
+    "nav_stop_distance": "Add +1.3 cm relative to v21/C3 (the package's figure; FK here says +1.19 cm for gripper_center). NOT yet applied to any navigation code -- v23 has no mode A or mode C wiring."
+  },
+  "target_envelope": {
+    "trained_x_range": [
+      0.205,
+      0.28
+    ],
+    "trained_y_range": [
+      -0.07,
+      0.065
+    ],
+    "documented_x_range": [
+      0.205,
+      0.28
+    ],
+    "documented_y_range": [
+      -0.07,
+      0.065
+    ],
+    "source": "DEPLOY_V23_MANIFEST.md spawn band, already inset 2.5 cm for object width so the YOLO box is not clipped at the frame edge. Usable area ~101 cm^2, up 44% from C3's ~70 cm^2.",
+    "why_both_tiers_are_equal": "v21 split trained (formal evaluation, x 0.20-0.33) from documented (what the package vouched for, x 0.20-0.28) because it had two bodies of evidence. v23 has one. Widening 'trained' would claim an evaluation nobody ran at this pose; narrowing 'documented' would claim a vouching nobody gave. Split them again when a formal v23 evaluation exists.",
+    "weak_cell": {
+      "cell": [
+        0.28,
+        -0.07
+      ],
+      "score": 0.733,
+      "gate": 0.8,
+      "status": "hotspot added in training; the RL re-run has NOT been done",
+      "note": "This is the far corner of the permitted band and the envelope guard will allow targets there. A failure at that corner is expected, not a new bug."
+    },
+    "fov_vs_envelope": "E1 sees 44% more ground than C3 while the trained band is NARROWER than v21's. The camera can therefore see well outside where the policy has been trained, and a perfectly working detector can hand over a target that is finite, in frame, geometrically sound and completely unevaluated. That is exactly what _check_target_envelope is for -- do not widen it to match the FOV."
+  },
+  "hardware_gates": {
+    "note": "E1 homography, height, first-real-grasp, Jetson self-test, dry-run and object-height gates are true. LEFT/RIGHT S1 scan motion and held-out yaw-mapping validation, the E1 FOV ruler check, the real reach envelope and the 8 mm guard margin remain open.",
+    "e1_homography_measured": true,
+    "left_scan_motion_validated": false,
+    "right_scan_motion_validated": false,
+    "left_yaw_mapping_validated": false,
+    "right_yaw_mapping_validated": false,
+    "e1_fov_ruler_check": false,
+    "e1_gripper_center_height_ruler_check": true,
+    "e1_real_reach_envelope": false,
+    "jetson_sb3_load_ok": true,
+    "jetson_self_tests": true,
+    "jetson_dry_run_ok": true,
+    "object_heights_measured": true,
+    "jetson_self_tests_note": "TRUE on 2026-09-25. Repo commit d7f9c0e's grasp/v23 -- controller, models and tests -- was run from a sandbox on the Jetson, with this machine's grasp/x3plus (URDF sha256 matches) and Rosmaster_Lib linked in: controller 163, servo read 37, floor guard 641, launcher 62, three-pose 89, all pass. The live 2026-08-30 snapshot on the robot separately passes its own suite (148/37/641/50/89).",
+    "jetson_dry_run_ok_note": "TRUE on 2026-09-25, same sandbox run: dry-run exit 0 with wrist_z_offset = 0.0564, and the release gate refusing --real with exit 3 before the serial port is opened, sha256 and contract matching.",
+    "object_heights_measured_note": "TRUE on 2026-09-20: operator ruler measurement of the object used as the sugarbox target, 6.5 cm floor to top, matching --class-height sugarbox=0.065 used by the launcher and the resident service.",
+    "guard_margin_8mm_validated_on_hardware": false,
+    "first_real_grasp_logged": true,
+    "inherited_from_v21_do_not_assume": "v21's true gates -- c3_gripper_center_height_ruler_check and the 2026-07-31 first real grasp -- were measured AT C3. The arm pose is the one thing v23 changes, so neither carries over. What DOES carry over is what they validated that is pose-independent: the five-joint FK chain, the URDF_TO_TRAINING_FRAME correction and the gripper_center TCP definition.",
+    "e1_minimum_object_height_measured": true,
+    "e1_ruler_measurement_2026_08_29": {
+      "method": "pose_check.py --real at E1; arm held by x3plus_real_grasp.py --max-steps 0. Only S6 was driven.",
+      "gripper_center_above_ground_cm": {
+        "open_s6_30": {
+          "measured": 15.2,
+          "fk_predicted": 15.58,
+          "delta": -0.38
+        },
+        "closed_s6_180": {
+          "measured": 12.0,
+          "fk_predicted": 12.72,
+          "delta": -0.72
+        }
+      },
+      "finger_bottom_above_ground_cm": {
+        "open_s6_30": {
+          "measured": 13.5,
+          "fk_predicted": 12.31,
+          "delta": 1.19
+        },
+        "closed_s6_180": {
+          "measured": 11.0,
+          "fk_predicted": 9.46,
+          "delta": 1.54
+        }
+      },
+      "close_drop_cm": {
+        "measured_gripper_center": 3.2,
+        "fk_predicted": 2.86,
+        "contract_constant": 2.67,
+        "verdict": "the contract UNDERSTATES the real drop by 5.3 mm. It helps rather than hurts here (the pads end lower than modelled), but dc.GRASP_CLOSE_DROP is not the measured value."
+      },
+      "urdf_finger_error_at_e1_mm": {
+        "open": 11.9,
+        "closed": 15.4,
+        "note": "C3 measured 17 mm at the open angle on 2026-07-31. The three readings do not agree to better than ~5 mm, which is about what a ruler on a curved blade-shaped finger tip gives."
+      },
+      "unexplained": "gripper_center came out 4-7 mm BELOW the FK prediction at E1. At C3 the same check was exact (14.4 measured vs 14.39 predicted), so this is new. Candidates: ruler error, the arm not actually reaching E1 (+-2 deg pose repeatability), or S2 falling short of 74.2. It matters beyond this table: if the arm is not at E1, the homography measured there is offset too. Check the controller's '[Start] home: reached=True (residual X deg)' line on the next run."
+    },
+    "e1_minimum_object_height_2026_08_29": {
+      "graspable_min_cm": 3.0,
+      "fails_at_cm": 2.0,
+      "placement": "base (0.2587, -0.0035), i.e. 3 cm forward of the E1 ground mark",
+      "failure_mode": "ABORT at the fully-closed stop -- the jaw closes on air, NOT a floor collision. At 2 cm the gate read pad_after_close=16.9 mm against object_top=20.0 mm and passed, while the real pads sat ~15 mm higher and never reached the object.",
+      "why_the_floor_guard_is_not_the_limit": "At 3.6 cm the modelled pad sits at ~18.5 mm against an 8 mm guard line, so the guard has ~10 mm of slack and never fires. --floor-finger-error-mm therefore does nothing for this limit: it relaxes the guard, and the guard is not what is binding. The binding term is that _grasp_geometry computes pad_after_close from fk.pad_bottom_z() with NO finger-error correction, so the readiness gate fires ~1.5 cm too early.",
+      "predicted_vs_measured": "A model built from the ruler readings put the boundary at 3.6 cm; the robot grasps at 3.0. The mechanism was right and the threshold was 0.6 cm pessimistic -- consistent with the ~5 mm spread in the finger readings themselves.",
+      "workaround_if_lower_is_needed": "Understate --object-height. The stage-0 target is hover_gripper_center_z = 0.0597 + 0.45*height, so declaring height Δ short lowers the pads by 0.45Δ, and it lowers object_top in the readiness gate as well, which pushes the same way. --obj-z is NOT a knob: episode_wrist_z_offset subtracts it right back out, so the target height is unchanged."
+    },
+    "validated_runtime_defaults_2026_08_30": {
+      "result": "3/3 successful supervised grasps within the E1 single-view recognisable area; operator confirmation. One complete integrated stdout was separately reviewed.",
+      "launcher_defaults": {
+        "grasp_forward_offset_mm": 5.0,
+        "floor_finger_error_mm": 15.0,
+        "jaw_track_fraction": 0.5,
+        "tcp_forward_error_mm": 20.0,
+        "stage0_s6_contact_steps": 2,
+        "jaw_hold_bias_deg": 1.0
+      },
+      "reviewed_run_controller_log": "/home/jetson/mode_b_integrated_20260830_204657_controller.log",
+      "reviewed_run_evidence": "Stage 0 slow tracking fired at S6=152 deg after encoder progress 2/8 deg for two consecutive samples; command parked at 153 deg. Stage-2 grasp CONFIRMED, all 6 lift steps passed, return home passed, post-return grasp CONFIRMED at 150 deg, floor guard pass=45, servo bus reported no failures.",
+      "scope": "Validates the E1 one-command grasp inside the camera-recognisable area. It does not validate targets outside the current FOV, LEFT/RIGHT scan motion, yaw mapping, or the full trained motion envelope."
+    },
+    "jetson_sb3_load_note": "2026-08-29: the v23 pair loads under the Jetson's grasp_venv and the release gate passes ('[UNLOCKED] status=candidate ... Integrity and contract verified'). Rosmaster opened on /dev/myserial, the arm reached E1 in one step, and the run completed with '[Bus] servo reads: no failures'.",
+    "first_real_grasp_logged_note": "TRUE on 2026-08-30. Complete integrated stdout reviewed for mode_b_integrated_20260830_204657_controller.log; the operator then repeated the same validated tuple three times total and reported 3/3 successful grasps within the recognisable E1 area."
+  },
+  "known_gaps": [
+    "The URDF fingers are 16.7 mm longer than the real ones (measured at C3, 2026-07-31, pose_check.py). Unfixed, and not re-measured at E1. Short objects (paper balls, bottle caps) remain out of reach; --floor-finger-error-mm is a partial compensation only, and it raises the pads, so it does not help when a non-pad link is the lowest part.",
+    "Grid cell (0.28, -0.070) sits at 73.3% against an 80% per-cell gate, awaiting an RL re-run.",
+    "Pose repeatability of +-2 deg gives roughly 1.6 cm of clip-free depth variation. It is mitigated only if the detector reprojects from joint angles; a fixed homography cannot adapt, which is one more reason the arm pose is re-verified on every detection (detection_pose_tol_deg).",
+    "No training metadata, no git_head and no formal evaluation shipped with the package, so the run cannot be reproduced from what is recorded here.",
+    "Modes A and C (integration/vision_grasp_pipeline.py, integration/nav_rl_grasp_pipeline.py) still load grasp/v21/ through _load_grasp_module(). They are untouched by this package and still run the C3 policy at the C3 pose."
+  ],
+  "how_to_run": {
+    "0_preflight_no_hardware": "cd grasp/v23 && ./jetson_verify.sh",
+    "1_dry_run": "python3 x3plus_real_grasp.py --model models/candidate_v23_seed23401_ckpt250000.zip --vecnorm models/candidate_v23_seed23401_ckpt250000_vec.pkl --contract obs_28_incremental --object-height 0.065 --obj-x 0.24 --obj-y 0.00 --obj-z 0.0325",
+    "2_park_at_e1_for_calibration": "python3 jetson_one_command_grasp.py --calibrate   # holds E1, prints pixels",
+    "3_real_fixed_coordinate": "1_dry_run plus --real --unlock-candidate-real. A person stays beside the robot with a hand on the power switch; the power switch IS the stop button.",
+    "4_real_visual_top_clip_exception": "python3 jetson_one_command_grasp.py --allow-top-clipped. Explicitly accepts TOP-only bbox clipping under the measured E1 homography because bottom-centre and both side edges remain visible. Left/right/bottom clipping, target-centre homography-hull failures and calibration clipping remain fail-closed. Bbox sides are width-only and may leave the centre hull under the 6 cm jaw bound. Outside the dedicated S1-only scanner, never move away from E1 and reuse this homography.",
+    "5_validate_three_pose_scan": "python3 jetson_one_command_grasp.py --scan-calibrate-pose LEFT, then RIGHT. These poses differ from E1 only in S1 (70/90/110 deg), so they reuse E1's homography and rotate base XY about training-frame arm_joint1 at (0.118146,-0.003359), yaw sign -1. Do not fit extra homographies. Confirm each move is collision-free and compare predicted_x/y against at least two spread-out ruler points per side; every axis error must be <=1 cm before setting that side's hardware_validated and yaw_mapping_validated true.",
+    "6_real_three_pose_scan": "python3 jetson_one_command_grasp.py --three-pose-scan --allow-top-clipped. This remains preflight-blocked until LEFT/RIGHT motion and yaw mappings are hardware-validated. The scanner owns camera+serial, returns to verified E1 and exits before PPO starts with a fixed base target.",
+    "valid_target_range": "x 0.205-0.280 m, y -0.070..+0.065 m, base/URDF frame",
+    "object_height_required": "--object-height is mandatory under obs_28_incremental; without it there is no wrist_z_offset.",
+    "wrist_z_offset_is_pose_independent": "hover_gripper_center_z is anchored to the FLOOR, not to the arm, so the 0.0564 dry-run figure for a 6.6 cm object resting at z 0.033 is unchanged from v21. If it moves, something other than the pose changed."
+  },
+  "isolation": {
+    "warning": "This is a SELF-CONTAINED deployment stack, not a set of weights for the existing controller. Nothing else in this repo loads it and nothing else should.",
+    "danger": "NEVER run these weights through grasp/x3plus_real_grasp.py (v17, absolute action decode), and never run them through grasp/v21/ either. v21 and v23 share the same 28D/6D contract AND the same incremental decode, so no shape check and no contract check anywhere can tell the two pairs apart. The only difference is the pose the episode starts from, and starting v23 weights from C3 -- or v21 weights from E1 -- is straightforwardly out of distribution. The manifest sha256 gate is what catches this, which is why --real reads manifest.json before anything is loaded.",
+    "coexistence": "grasp/v21/ is untouched. v23 now has a 2026-08-30 E1 one-command real-grasp record (3/3 within the recognisable area), but Modes A, B and C still point at v21."
+  },
+  "rollback": {
+    "to": "grasp/v21/",
+    "how": "Nothing needs undoing. v21 is a separate directory with its own models and its own manifest, and no file in grasp/v23/ is imported by anything outside grasp/v23/. Stop using v23 and the previous behaviour is already there."
+  },
+  "tools": {
+    "bus_probe.py": "Read-only servo bus diagnostic; issues no writes, so the arm cannot move. Reads all six servos N times via the raw get_uart_servo_value call and classifies every response as answered-by-itself, misdirected (answered by another servo), timed out, or out of range -- the three failure modes the driver collapses into a single -1. --gap-ms spaces the reads out, so raising it until misdirects vanish measures the right --bus-quiet-ms. Run it in whatever pose the arm is already in, immediately after a failure and BEFORE power-cycling, which destroys the evidence.",
+    "pose_check.py": "Gripper geometry measurement, copied from v21. It reads cfg.home_deg, so here it refuses unless the arm is already within 3 deg of E1 -- but its printed text and its baked-in comparison figures (14.4 measured / 14.39 predicted gripper_center, 12.8 / 11.10 pad bottom) are C3's. At E1 FK predicts 15.58 and 12.31 cm. Read the FK table it prints, not the prose."
+  },
+  "change_log": [
+    {
+      "date": "2026-08-30",
+      "what": "Promoted the supervised E1 hardware tuple to one-command launcher defaults after 3/3 successful grasps in the recognisable single-view area: base-X target +5 mm, finger correction 15 mm, slow-jaw tracking fraction 0.5, TCP forward correction 20 mm, two blocked samples and 1 degree hold bias. One full run showed Stage-0 slipping contact at 152 degrees, 6/6 lift steps, confirmed return-home hold and no bus failures. first_real_grasp_logged is now true; candidate status remains because motion-envelope, dry-run and LEFT/RIGHT scan gates are still open."
+    },
+    {
+      "date": "2026-08-30",
+      "what": "Replaced the near/middle/far E1/F3/F6 scan with lateral LEFT/E1/RIGHT S1-only views at 70/90/110 degrees. A single measured E1 homography maps pixels into the reference base plane, then a verified rigid rotation uses the training-frame S1 pivot (0.118146,-0.003359) and yaw sign -1. Config validation forbids any S2-S5 difference and keeps LEFT/RIGHT motion plus held-out <=1cm yaw-mapping gates false until measured on hardware. Guarded E1 return, five-sample medians and 1cm cross-view consensus remain fail-closed."
+    },
+    {
+      "date": "2026-08-29",
+      "what": "Separated the strict target-centre homography hull from width-only bbox side mappings after a forward-4cm/right-3cm sugarbox was rejected solely because its right silhouette extended outside a hull built from calibration centres. The target remains strict; each side and total width remain bounded by the 6 cm jaw opening."
+    },
+    {
+      "date": "2026-08-29",
+      "what": "Added an explicit --allow-top-clipped E1 runtime path after a forward-4cm centred sugarbox touched only the image top. It does not weaken left/right/bottom or homography-hull gates, is unavailable during calibration, and does not move the arm because leaving E1 invalidates the fixed homography."
+    },
+    {
+      "date": "2026-08-29",
+      "what": "Package created on branch v23-grasp-test from grasp/deploy_v23/ weights plus grasp/v21/'s hardened controller. Not merged to main; the merge is conditional on a measured E1 homography and a real grasp."
+    }
+  ]
+}

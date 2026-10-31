@@ -1,0 +1,75 @@
+[
+  {
+    "test": [
+      "tests/test_mission_loop.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "tests/test_placement_dock.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "tests/test_flow_contracts.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "tests/test_patrol_vision_permit.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "tests/test_safety_guards.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "grasp/v21/test_deploy_controller.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "grasp/v21/test_servo_read.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "grasp/v21/test_deploy_floor_guard.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "integration/mission_fsm.py",
+      "--selftest"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "ui/test_server.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "tests/test_sugarbox_approach_grasp.py"
+    ],
+    "exit_code": 0
+  },
+  {
+    "test": [
+      "tests/test_patrol_mask_reduction.py"
+    ],
+    "exit_code": 0
+  }
+]

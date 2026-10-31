@@ -1,0 +1,29 @@
+{
+  "source_run19": "logs/mission_20261021_patrol19/mission.out and archived mission_patrol.json",
+  "source_run20": "logs/mission_20261021_patrol20/patrol_report.json",
+  "run19_pose": [
+    1.1693715418558626,
+    0.4592572957499115,
+    0.7799332543002317
+  ],
+  "run20_pose": [
+    1.1817191333368025,
+    0.4560464858500346,
+    0.72176373495964
+  ],
+  "run19_odom": [
+    -0.7014169662624016,
+    1.161501851401423,
+    -2.3292263391632018
+  ],
+  "run20_odom": [
+    -0.7014169662624016,
+    1.161501851401423,
+    -2.3292263391632018
+  ],
+  "retreat_steps_m": [
+    0.232,
+    0.065
+  ],
+  "release_reconstruction_assumption": "Approximate: reverse was straight, heading taken from the stopped pose; not an independently measured release pose."
+}

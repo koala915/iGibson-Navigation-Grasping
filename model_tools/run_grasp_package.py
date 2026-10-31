@@ -33,6 +33,13 @@ def main() -> None:
 
     package_dir = args.package_dir.resolve()
     manifest = verify_package_directory(package_dir)
+    action_mode = manifest["contract"].get("arm_action_mode")
+    if action_mode != "absolute":
+        raise SystemExit(
+            "this wrapper launches the legacy absolute-action runtime and refuses "
+            f"a {action_mode!r} package; use the versioned v21/v23 launcher for "
+            "incremental models"
+        )
     is_real = "--real" in deploy_args
     if is_real:
         if manifest["status"] != "hardware-approved":
@@ -59,4 +66,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

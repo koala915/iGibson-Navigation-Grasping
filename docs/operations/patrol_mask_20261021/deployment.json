@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "backup": "/home/jetson/Documents/deploy_jetson2/backups/patrol_mask_20261021T141648765387Z",
+  "hashes": {
+    "integration/g2_patrol_policy.py": "f96f66adb1f5bbf6bda159ec1f70685ad253f994c89223059331e1962d76892e",
+    "maps/demo_box_20261018_patrol/navigation_center_mask.pgm": "91829173a070731da5971ca1a1fb2066a898d7778554eb4f87c52474a8a45279",
+    "maps/demo_box_20261018_patrol/scene_layout.json": "6b349b8b512056e0144df319bd9af9ac8ab898cd0a9136e54a05e3ae4fb48aac"
+  },
+  "service_pid": 26244,
+  "moving": false,
+  "motors": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "maintenance": true,
+  "run19_turn_reserve_passed": true,
+  "motion_commands_sent": 0
+}

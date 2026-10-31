@@ -1,0 +1,30 @@
+{
+  "text_files": 440,
+  "python_files": 258,
+  "text_lines": 174741,
+  "extensions": {
+    "": 4,
+    ".md": 103,
+    ".txt": 14,
+    ".py": 258,
+    ".json": 39,
+    ".yaml": 5,
+    ".urdf": 6,
+    ".sh": 6,
+    ".yml": 1,
+    ".html": 2,
+    ".js": 1,
+    ".css": 1
+  },
+  "parse_failures": [],
+  "excluded_directories": [
+    ".codebase-memory",
+    ".git",
+    ".pytest_cache",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "venv"
+  ],
+  "audit_output_excluded": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\planning\\codebase_audit_2026-09-06"
+}

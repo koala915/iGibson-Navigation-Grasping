@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import unittest
+from unittest import mock
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError
@@ -67,14 +68,13 @@ class TestSafetyGates(unittest.TestCase):
         r = c.build_argv({"mode": "A", "real": True, "unlock": False})
         self.assertIn("error", r)
 
-    def test_real_allowed_only_with_both(self):
+    def test_real_still_refused_when_mode_specific_evidence_is_unavailable(self):
         c = srv.Console(Args(allow_real=True))
-        r = c.build_argv({"mode": "A", "real": True, "unlock": True})
-        self.assertNotIn("error", r)
-        self.assertIn("--real", r["argv"])
-        # The grasp package is still 'candidate', so a real run has to carry the
-        # unlock flag or the mission itself refuses to start.
-        self.assertIn("--unlock-candidate-real", r["argv"])
+        for mode in "ABC":
+            with self.subTest(mode=mode):
+                r = c.build_argv({"mode": mode, "real": True, "unlock": True})
+                self.assertIn("error", r)
+                self.assertNotIn("argv", r)
 
     def test_simulate_never_drives(self):
         c = srv.Console(Args(allow_real=True, simulate=True))
@@ -149,6 +149,24 @@ class TestArgvBuilding(unittest.TestCase):
                       self.c.build_argv({"mode": "A", "deliver": False})["argv"])
         self.assertNotIn("--no-deliver",
                          self.c.build_argv({"mode": "A", "deliver": True})["argv"])
+
+    def test_each_dry_mode_is_accepted_by_its_real_parser(self):
+        import mission_pipeline
+        import vision_grasp_bridge
+        import nav_rl_grasp_pipeline
+        parsers = {
+            "A": mission_pipeline.parse_args,
+            "B": vision_grasp_bridge.parse_args,
+            "C": nav_rl_grasp_pipeline.parse_args,
+        }
+        for mode, parser in parsers.items():
+            argv = self.c.build_argv({"mode": mode})["argv"]
+            with self.subTest(mode=mode), mock.patch.object(sys, "argv", argv[1:]):
+                parsed = parser()
+                if mode in ("A", "B"):
+                    self.assertTrue(parsed.dry_run)
+                else:
+                    self.assertFalse(parsed.real)
 
 
 class TestHub(unittest.TestCase):
@@ -519,6 +537,242 @@ class TestSimulator(unittest.TestCase):
             self.assertIn(key, f)
         self.assertTrue(f["simulated"])
         json.dumps(f, allow_nan=False)
+
+
+class FakeService:
+    """The resident grasp service: scripted replies, every command recorded."""
+
+    def __init__(self, health=None, **replies):
+        self.sent = []
+        self.health = health or {}
+        self.replies = replies
+
+    def __call__(self, command, timeout):
+        self.sent.append(command)
+        if command == "health":
+            base = {"ok": True, "holding": False, "service_pid": 7,
+                    "chassis": {"moving": False, "motors": [0, 0, 0, 0], "client": None,
+                                "arm_busy": False, "arm_pose": "travel",
+                                "maintenance": False}}
+            base.update({k: v for k, v in self.health.items() if k != "chassis"})
+            base["chassis"].update(self.health.get("chassis", {}))
+            return base
+        reply = self.replies.get(command.replace("-", "_"), {"ok": True})
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+
+class TestFixedPointGrasp(unittest.TestCase):
+    """Fixed-point grasp: through the resident service, behind the same gates."""
+
+    def console(self, service=None, **args):
+        c = srv.Console(Args(**dict({"allow_real": True}, **args)))
+        c.arm.request = service or FakeService()
+        return c
+
+    def run_arm(self, c, action, **body):
+        r = c.start_arm(dict({"action": action, "confirm": True}, **body))
+        if c.arm.thread is not None:
+            c.arm.thread.join(5)
+        return r
+
+    def test_grasp_is_home_grasp_stow_through_the_service(self):
+        service = FakeService(grasp={"ok": True, "confirmed": True, "outcome": "confirmed"})
+        c = self.console(service)
+        self.assertTrue(self.run_arm(c, "grasp")["ok"])
+        self.assertEqual(service.sent, ["health", "home", "grasp", "stow", "health"])
+        state = c.arm.snapshot()
+        self.assertFalse(state["running"])
+        self.assertIsNone(state["error"])
+        self.assertEqual(state["result"], "confirmed")
+
+    def test_release_reaches_from_e1_by_itself_then_stows(self):
+        service = FakeService(health={"holding": True},
+                              release={"ok": True, "outcome": "released"})
+        c = self.console(service)
+        self.assertTrue(self.run_arm(c, "release")["ok"])
+        self.assertEqual(service.sent, ["health", "release", "stow", "health"])
+
+    def test_stow_goes_home_first_from_a_failed_boot_pose(self):
+        # 2026-10-29: the service booted with the jaw closed, left the arm in
+        # place ("startup_failed"), and its stow refused arm_not_at_e1.
+        for pose, expected in (("startup_failed", ["home", "stow"]), ("unknown", ["home", "stow"]),
+                               ("e1", ["stow"]), ("travel", ["stow"])):
+            with self.subTest(pose=pose):
+                service = FakeService(health={"chassis": {"arm_pose": pose}})
+                c = self.console(service)
+                self.assertTrue(self.run_arm(c, "stow")["ok"])
+                self.assertEqual(service.sent, ["health"] + expected + ["health"])
+
+    def test_stow_from_an_unknown_pose_never_opens_a_holding_jaw(self):
+        service = FakeService(health={"holding": True, "chassis": {"arm_pose": "startup_failed"}})
+        c = self.console(service)
+        r = self.run_arm(c, "stow")
+        self.assertFalse(r["ok"])
+        self.assertIn("鬆開物體", r["error"])
+        self.assertEqual(service.sent, ["health"])
+
+    def test_home_is_one_service_command_from_any_pose(self):
+        service = FakeService(health={"chassis": {"arm_pose": "startup_failed"}})
+        c = self.console(service)
+        self.assertTrue(self.run_arm(c, "home")["ok"])
+        self.assertEqual(service.sent, ["health", "home", "health"])
+        self.assertIsNone(c.arm.snapshot()["error"])
+
+    def test_grasp_from_a_failed_boot_pose_points_at_home(self):
+        service = FakeService(health={"chassis": {"arm_pose": "startup_failed"}})
+        r = self.run_arm(self.console(service), "grasp")
+        self.assertFalse(r["ok"])
+        self.assertIn("手臂回原位", r["error"])
+        self.assertEqual(service.sent, ["health"])
+
+    def test_nothing_moves_without_both_gates(self):
+        for args, body, why in (({"allow_real": False}, {}, "--allow-real"),
+                                ({}, {"confirm": False}, "勾選"),
+                                ({}, {"action": "reboot"}, "未知")):
+            with self.subTest(why=why):
+                service = FakeService()
+                c = self.console(service, **args)
+                r = c.start_arm(dict({"action": "grasp", "confirm": True}, **body))
+                self.assertFalse(r["ok"])
+                self.assertIn(why, r["error"])
+                self.assertEqual(service.sent, [])
+
+    def test_never_alongside_a_mission_or_after_the_stop_latch(self):
+        service = FakeService()
+        c = self.console(service)
+        c.mission.proc = mock.Mock(poll=mock.Mock(return_value=None), pid=1)
+        self.assertIn("任務執行中", c.start_arm({"action": "grasp", "confirm": True})["error"])
+        c.mission.proc = None
+        c.mission.estop_latched = True
+        self.assertIn("停止鍵", c.start_arm({"action": "grasp", "confirm": True})["error"])
+        self.assertEqual(service.sent, [])
+
+    def test_the_robot_must_be_still_free_and_in_the_right_holding_state(self):
+        cases = (({"chassis": {"moving": True}}, "grasp", "還在動"),
+                 ({"chassis": {"motors": None}}, "grasp", "還在動"),
+                 ({"chassis": {"client": "patrol"}}, "grasp", "其他程式"),
+                 ({"chassis": {"arm_busy": True}}, "grasp", "正在動作"),
+                 ({"holding": True}, "grasp", "已經夾著"),
+                 ({"holding": None}, "grasp", "沒有回報夾爪"),
+                 ({}, "release", "空的"),
+                 ({"chassis": {"arm_pose": "other"}}, "grasp", "不在行駛或 E1"),
+                 ({"ok": False, "reason": "startup_failed"}, "stow", "異常"))
+        for health, action, why in cases:
+            with self.subTest(why=why, action=action):
+                service = FakeService(health=health)
+                r = self.console(service).start_arm({"action": action, "confirm": True})
+                self.assertFalse(r["ok"])
+                self.assertIn(why, r["error"])
+                self.assertEqual(service.sent, ["health"])     # nothing but the look
+
+    def test_a_failed_grasp_still_stows_and_says_why(self):
+        for reply, why in (({"ok": True, "confirmed": False, "outcome": "empty"}, "沒有夾到"),
+                           ({"ok": False, "reason": "no_fresh_detection"}, "no_fresh_detection")):
+            with self.subTest(why=why):
+                service = FakeService(grasp=reply)
+                c = self.console(service)
+                self.run_arm(c, "grasp")
+                self.assertEqual(service.sent, ["health", "home", "grasp", "stow", "health"])
+                self.assertIn(why, c.arm.snapshot()["error"])
+
+    def test_a_failed_home_goes_no_further(self):
+        service = FakeService(home={"ok": False, "reason": "arm_not_at_e1_or_travel"})
+        c = self.console(service)
+        self.run_arm(c, "grasp")
+        self.assertEqual(service.sent, ["health", "home", "health"])
+        self.assertIn("arm_not_at_e1_or_travel", c.arm.snapshot()["error"])
+
+    def test_a_maintenance_lock_is_lifted_for_the_action_and_put_back(self):
+        service = FakeService(health={"chassis": {"maintenance": True}},
+                              grasp={"ok": True, "confirmed": True, "outcome": "confirmed"})
+        c = self.console(service)
+        self.run_arm(c, "grasp")
+        self.assertEqual(service.sent, ["health", "maintenance-unlock", "home", "grasp",
+                                        "stow", "maintenance-lock", "health"])
+        refused = FakeService(health={"chassis": {"maintenance": True}},
+                              maintenance_unlock={"ok": False, "reason": "busy"})
+        c = self.console(refused)
+        self.run_arm(c, "grasp")
+        self.assertEqual(refused.sent, ["health", "maintenance-unlock", "maintenance-lock",
+                                        "health"])
+        self.assertIn("維護鎖", c.arm.snapshot()["error"])
+
+    def test_the_stop_latch_takes_effect_between_steps(self):
+        c = self.console()
+        service = FakeService()
+
+        def latch_after_home(command, timeout):
+            reply = service(command, timeout)
+            if command == "home":
+                c.mission.estop_latched = True
+            return reply
+        c.arm.request = latch_after_home
+        self.run_arm(c, "grasp")
+        self.assertEqual(service.sent, ["health", "home", "health"])
+        self.assertIn("停止", c.arm.snapshot()["error"])
+
+    def test_one_owner_at_a_time(self):
+        gate = threading.Event()
+        service = FakeService()
+
+        def slow(command, timeout):
+            if command == "home":
+                gate.wait(5)
+            return service(command, timeout)
+        c = self.console()
+        c.arm.request = slow
+        self.assertTrue(c.start_arm({"action": "grasp", "confirm": True})["ok"])
+        self.assertIn("還在執行", c.start_arm({"action": "stow", "confirm": True})["error"])
+        r = c.start_mission({"mode": "A"})
+        self.assertFalse(r["ok"])
+        self.assertIn("定點夾取", r["error"])
+        gate.set()
+        c.arm.thread.join(5)
+
+    def test_an_unreachable_service_is_reported_not_raised(self):
+        c = srv.Console(Args(allow_real=True))
+        c.arm.request = mock.Mock(side_effect=OSError("no such socket"))
+        r = c.start_arm({"action": "grasp", "confirm": True})
+        self.assertFalse(r["ok"])
+        self.assertIn("連不到", r["error"])
+
+    def test_simulation_runs_the_whole_grasp_without_a_robot(self):
+        c = srv.Console(Args(simulate=True))
+        with mock.patch.dict(srv.SimulatedService.DELAYS, {"home": 0, "grasp": 0, "stow": 0}):
+            self.assertTrue(self.run_arm(c, "grasp")["ok"])
+        state = c.arm.snapshot()
+        self.assertEqual([s["command"] for s in state["steps"]], ["home", "grasp", "stow"])
+        self.assertTrue(state["holding"])
+
+    def test_the_http_route_and_the_snapshot(self):
+        service = FakeService(grasp={"ok": True, "confirmed": True, "outcome": "confirmed"})
+        c = self.console(service)
+        httpd = srv.build_server(c, 0, "127.0.0.1", False)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            base = "http://127.0.0.1:%d" % httpd.server_address[1]
+            req = Request(base + "/api/arm", data=json.dumps(
+                {"action": "grasp", "confirm": True}).encode(),
+                headers={"Content-Type": "application/json"})
+            with urlopen(req, timeout=5) as r:
+                self.assertTrue(json.loads(r.read())["ok"])
+            c.arm.thread.join(5)
+            with urlopen(base + "/api/state", timeout=5) as r:
+                self.assertEqual(json.loads(r.read())["arm"]["result"], "confirmed")
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+    def test_the_page_has_the_panel_and_its_confirmation(self):
+        html = (HERE / "static" / "index.html").read_text(encoding="utf-8")
+        js = (HERE / "static" / "app.js").read_text(encoding="utf-8")
+        for needle in ('id="armConfirm"', 'data-arm="grasp"', 'data-arm="release"',
+                       'data-arm="stow"'):
+            self.assertIn(needle, html)
+        self.assertIn('source.addEventListener("arm"', js)
+        self.assertIn('"/api/arm"', js)
 
 
 def run_selftest() -> None:

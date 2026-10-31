@@ -1,0 +1,330 @@
+pybullet build time: Jul 10 2026 12:08:18
+b3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_linkb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+base_footprintb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+No inertial data for link, using mass=1, localinertiadiagonal = 1,1,1, identity local inertial frameb3Warning[examples/Importers/ImportURDFDemo/BulletUrdfImporter.cpp,126]:
+imu_link==========================================================================
+deployment controller state machine (fake servo plant)
+==========================================================================
+
+[1] a long move is iterated until it actually arrives
+  [ok]   long move reports arrival
+  [ok]   took 6 iterations (>1 command)
+  [ok]   plant S2 actually reached 110.0 deg
+  [ok]   internal state matches the plant, not the command
+
+[1b] a 2.1 deg chassis-jostle residual is recoverable, but not unbounded
+  [ok]   3.0 deg startup window accepts the measured 2.1 deg residual
+  [ok]   reported residual stays explicit (2.100000796532612 deg)
+  [ok]   the normal 2.0 deg gate still refuses the same stalled pose
+
+[1c] the measured finger error reaches pads_ready, not just the guard
+  [ok]   pad_after_close rises by exactly the finger error (15.00 mm)
+  [ok]   the geometry reports which correction it used
+  [ok]   the object is unchanged -- only where the pads are believed to be
+  [ok]   the corrected pads sit HIGHER, so the gate fires later, not sooner
+  [ok]   the default is still 0.0, so nothing changes without an explicit opt-in
+
+[1d] a jaw that moves SLOWER than commanded is contact too
+  [ok]   the absolute test alone squeezes 33 deg past contact
+  [ok]   the ratio test cuts that to 16 deg
+  [ok]   the ratio test DOES detect it
+  [ok]   ...and says which test fired (slipping)
+  [ok]   the reason line distinguishes a slip from a stall
+  [ok]   a hard block is still reported as a stall, not a slip
+
+[1e] the force ceiling bounds torque even when no detector fires
+  [ok]   the command never exceeds encoder + 15 deg (max 143.0, encoder 128.0)
+  [ok]   without the ceiling the error grows past it (38 deg vs 15)
+  [ok]   ...and the command goes further (166 vs 143 deg)
+  [ok]   an unobstructed jaw still reaches its target
+  [ok]   the ceiling stays above the deliberate hold bias
+
+[2] a write failure stops the move and leaves state untouched
+  [ok]   move reports failure
+  [ok]   reason names the write failure: servo write failed
+  [ok]   internal arm state did not advance
+
+[3] a read failure stops the move and leaves state untouched
+  [ok]   move reports failure
+  [ok]   reason names the read failure: servo read failed: S1: simulated servo read failure; S2: simulated servo read failure; S3: simulated servo read failure; S4: simulated servo read failure; S5: simulated servo read failure; S6: simulated servo read failure
+  [ok]   internal arm state did not advance
+
+[4] empty jaw closes to the stop → grasp REJECTED
+  [ok]   close completed
+  [ok]   jaw reached the closed stop (180.0 deg)
+  [ok]   grasp check rejects an empty jaw (got 'rejected')
+
+[5] object stalls the jaw → grasp ACCEPTED
+  [ok]   jaw stalled on the object at 150.0 deg
+  [ok]   grasp check accepts a genuine stall (got 'confirmed')
+
+[6] a full close is rate-limited and needs many commands
+  [ok]   close took 19 commands (>= 17 for 150 deg at 8 deg/step)
+
+[7] unreadable gripper → grasp NOT confirmed
+  [ok]   grasp unconfirmed when the servo cannot be read (got 'rejected')
+
+[8] emergency raise increases min link z over many below-floor poses
+  [ok]   exercised 120 genuinely below-floor poses
+  [ok]   120 poses raised, 0 held
+         smallest height gain among raises: +3.082 mm
+
+[10] emergency raise is SENT and the plant really rises
+  [ok]   a command was actually written to the plant (20)
+  [ok]   plant min_link_z rose +0.90 → +144.12 mm
+  [ok]   never claims arrival while still below the line (reached=False, z=+144.12 mm)
+
+[11] guard clamping during the close ⇒ no lift, no stage 2, no success
+  [ok]   close verdict forbids lifting
+  [ok]   reason names the guard: floor guard intervened during the close (['clamped']) — the jaw never reached a known state
+  [ok]   guard actions recorded: ['clamped']
+  [ok]   stage did not advance (stage=0)
+  [ok]   plant never went below the line during the clamped close (+8.39 mm >= 8.0 mm)
+
+[12] jaw closing all the way (nothing in it) ⇒ lift forbidden
+  [ok]   an unobstructed full close is not treated as a grasp
+  [ok]   reason explains why: jaw reached the fully-closed stop — nothing blocked it, so there is no object between the fingers
+
+[13] genuine stall ⇒ lift permitted
+  [ok]   a real stall permits the lift
+  [ok]   guard stayed out of the way: ['pass']
+
+[13b] jaw contact parks the command at contact+bias — no stall grind
+  [ok]   contact still counts as a grasp
+  [ok]   reason reports the contact, not a bare stall: jaw contact at 135.0 deg, holding at 143.0 deg
+  [ok]   command parked at 143.0 deg — within the hold bias of the 135.0 block, nowhere near the 180 stop
+  [ok]   command keeps a grip bias past contact (143.0 deg), not zero squeeze
+  [ok]   the hold is recorded for stage 2
+
+[13c] stage 2 maintains the hold — grip force survives the ride home
+  [ok]   close grips the object
+  [ok]   stage 2 completes and still detects the object (got 'confirmed')
+  [ok]   every stage-2 jaw command is the hold (143.0 deg); saw [143.0]
+  [ok]   no stage-2 command resumes the walk toward the closed stop
+  [ok]   the object is still squeezing the jaw at 135.0 deg at home
+
+[13d] hover fallback: 1 mm outside the gate for 3 s earns the close
+  [ok]   no fire during the first 29 near-miss steps
+  [ok]   fires on step 30
+  [ok]   reason names the fallback: 'hover fallback: 30 consecutive steps within +5mm of the entry radius'
+  [ok]   a step outside the band resets the streak
+  [ok]   never fires with xy out of tolerance
+  [ok]   never fires with z out of tolerance
+  [ok]   never fires with pads not ready
+  [ok]   never fires with radius beyond the slack
+
+[13e] --floor-finger-error-mm raises the pads, not the whole linkage
+  [ok]   correction never lowers clearance (111.0 -> 127.7mm)
+  [ok]   correction never exceeds the finger error itself — a non-pad link that is lowest caps the gain, which is exactly the ambiguity it must not paper over
+  [ok]   the lowest link is identified (link 17, pad=True)
+  [ok]   lowest_gripper_link agrees with min_gripper_link_z
+  [ok]   default stays 0.0 — the conservative metric is opt-out, not opt-in
+
+[13f] a guard that intervenes forever without gaining height gives up
+  [ok]   tolerates 24 interventions — intervening is normal, only never gaining is not
+  [ok]   trips at 25 consecutive
+  [ok]   a guard gaining 2mm per step is progress, not a deadlock
+  [ok]   one clean step resets the streak
+
+[14] simulated readings never report a grasp as successful
+  [ok]   status is 'unverified', not a pass (got 'unverified')
+  [ok]   simulated readings cannot confirm a grasp
+
+[15] unconfirmed return-home aborts instead of reporting delivery
+  [ok]   return-home failure yields 'aborted', not success
+  [ok]   outcome records return-home failure ('return_home_not_confirmed')
+  [ok]   return-home failure triggers emergency stop
+  [ok]   test exercised the return-home leg
+
+[9] no command path bypasses the floor guard
+  [ok]   send_degrees call sites outside the primitives: 0 (total 3, allowed 3)
+  [ok]   _park_jaw_hold contains exactly one send (1)
+  [ok]   _park_jaw_hold documents why it is allowed to bypass the guard
+
+[10] socket detections are validated before they can reach the policy
+  [ok]   well-formed payload parses: [0.25, 0.009999999776482582, 0.019999999552965164]
+  [ok]   height is carried through: 0.03
+  [ok]   a payload with no cam_pose yields no stamp
+  [ok]   absent height stays None (contract decides: hard error or documented symmetric-object fallback) rather than being invented here
+  [ok]   a cam_pose stamp is carried through with its name: ((90.0, 67.08, 9.79, 9.79, 90.0, 30.0), 'v21_c3_grasp_home')
+  [ok]   ...and its joint angles survive intact
+  [ok]   rejected (not silently treated as unstamped): cam_pose as a string
+  [ok]   rejected (not silently treated as unstamped): cam_pose too short
+  [ok]   rejected (not silently treated as unstamped): cam_pose too long
+  [ok]   rejected (not silently treated as unstamped): cam_pose with a null
+  [ok]   rejected (not silently treated as unstamped): cam_pose with NaN
+  [ok]   rejected: empty message
+  [ok]   rejected: JSON array, not an object
+  [ok]   rejected: NaN position
+  [ok]   rejected: infinite position
+  [ok]   rejected: missing x
+  [ok]   rejected: negative height
+  [ok]   rejected: zero height
+  [ok]   rejected: NaN height
+
+[11] a detection that stopped arriving is not served as current
+  [ok]   before any detection arrives, snapshot reports fresh=False
+  [ok]   ...and hands back the DEFAULT, not the uninitialised buffer — otherwise the latch would freeze a placeholder and call it a detection
+  [ok]   ...and withholds the pose stamp too, so a stale stamp cannot vouch for a default position
+  [ok]   a just-received detection is fresh
+  [ok]   ...and carries its height
+  [ok]   ...and its pose stamp comes from the same locked read as the position
+  [ok]   a detection older than the stale timeout is no longer fresh
+  [ok]   ...and get()/snapshot() fall back to the default
+  [ok]   ...and the stale height is withdrawn, not left standing
+
+[12] --latch-obj freezes one detection; real mode refuses a stale latch
+[Latch] NOTE: the detection carries no cam_pose stamp, so the arm pose its geometry assumes cannot be checked against the encoders. --i-confirm-external-frame is the only thing standing behind the coordinate frame.
+[Latch] Object latched at home pose: pos=[0.3100000023841858, 0.0, 0.019999999552965164] height=0.030m
+  [ok]   latch records that it fired
+  [ok]   repeated reads return the same frozen position [0.3100000023841858, 0.0, 0.019999999552965164] even though the receiver keeps reporting new ones
+  [ok]   the height is latched together with the position, not re-read separately
+  [ok]   real mode + latch timeout raises instead of moving toward the default
+[Latch] WARNING: no detection within 0.05s; falling back to [0.25999999046325684, 0.0, 0.019999999552965164]
+  [ok]   dry-run falls back to the default with a warning instead of refusing
+
+[13] --real --socket refuses without --latch-obj and frame confirmation
+  [ok]   main() gates --real --socket on --i-confirm-external-frame
+  [ok]   main() gates --real --socket on --latch-obj
+  [ok]   both refusals happen before the model loads and before the port opens
+
+[17] every self.<attr> a method reads is assigned somewhere
+  [ok]   no attribute is read without being assigned somewhere
+  [ok]   self.real_servo is stored, not just taken as a parameter
+
+[16] a detection computed for the wrong arm pose is refused
+[Latch] cam_pose stamp v21_c3_grasp_home agrees with the encoders (worst joint off by 0.00 deg, tol 1.0 deg)
+  [ok]   a stamp matching the encoders passes
+  [ok]   real mode REFUSES a detection computed at a different arm pose
+  [ok]   ...and names the pose the sender used, so the fix is obvious
+[Latch] WARN: detection cam_pose does not match the arm.
+    sender computed for : [90.0, 140.0, 0.0, 0.0, 90.0]  (v17_nav_home)
+    encoders report     : [90.0, 67.08, 9.79, 9.79, 90.0]
+    worst joint S2 differs by 72.92 deg (tolerance 1.0 deg)
+    The arm camera is mounted on arm_link4, so the sender's height and
+    pitch model is valid at its declared pose only. Either move the arm
+    to that pose before detecting, or re-measure the sender's extrinsics
+    at the pose this arm actually starts from.
+  [ok]   dry-run warns about the same mismatch instead of raising
+[Latch] cam_pose stamp v21_c3_grasp_home agrees with the encoders (worst joint off by 0.00 deg, tol 1.0 deg)
+  [ok]   a different gripper angle is not treated as a pose mismatch
+[Latch] cam_pose stamp close agrees with the encoders (worst joint off by 0.50 deg, tol 1.0 deg)
+  [ok]   0.5 deg of drift is within the 1.0 deg tolerance
+  [ok]   2.0 deg of drift is refused
+  [ok]   unreadable encoders fail closed rather than skipping the check
+[Latch] NOTE: the detection carries no cam_pose stamp, so the arm pose its geometry assumes cannot be checked against the encoders. --i-confirm-external-frame is the only thing standing behind the coordinate frame.
+  [ok]   an unstamped detection is not refused outright (sender compatibility)
+  [ok]   the sender uses the same cam_pose key ('cam_pose')
+  [ok]   ...and the same name key ('cam_pose_name')
+
+==========================================================================
+all 135 checks passed

@@ -1,0 +1,7 @@
+test_fewer_than_six_samples_are_refused (__main__.RearGroundHomographyTests.test_fewer_than_six_samples_are_refused) ... ok
+test_synthetic_mapping_is_recovered (__main__.RearGroundHomographyTests.test_synthetic_mapping_is_recovered) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.538s
+
+OK

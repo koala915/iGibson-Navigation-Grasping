@@ -101,6 +101,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> Dict[str, Any]:
                  "grasp contract observation_dim must be 28")
         _require(contract.get("action_dim") == 6,
                  "grasp contract action_dim must be 6")
+        _require(contract.get("arm_action_mode") in {"absolute", "incremental"},
+                 "grasp contract arm_action_mode must be 'absolute' or 'incremental'")
         for key, length in (("grasp_home_sim_rad", 5), ("grasp_home_api_deg", 6)):
             values = contract.get(key)
             _require(isinstance(values, list) and len(values) == length and

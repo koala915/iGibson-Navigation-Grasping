@@ -1,0 +1,116 @@
+{
+  "started_at": "2026-10-20T21:56:11.567266+08:00",
+  "python": "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+  "head": "c311c1313748774198458f1e613a02eeb488f209",
+  "source_hashes": {
+    ".github/workflows/tests.yml": "af1e046c260483149d2f5828eb5e59642e744bcedf7b4793e07dd9325268f387",
+    "CLAUDE.md": "cfe9619a2eba545ab76491b6766318ebae7676c09a05086c09ff1f821157dafd",
+    "deploy/ros/start_rear_approach_stream.sh": "540f56ad7047fffd22265c5bf1bb5f43d00112a9ea63fe2ad5b10fc7f2fefbbc",
+    "docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md": "afd4e6465f64550d3f434c8734c5ec1767b66a70a4fdedd0a855bf3c8adfa7c6",
+    "grasp/v23/chassis_server.py": "ada64eeeccef1e8f05cedd4ef0ef11aa47a11b87f29c5ffd624ad57bf44833f9",
+    "grasp/v23/grasp_service.py": "547b8034ff468805621cfa511346d60c8279f603378fc14ee00ad2ebc479cbba",
+    "grasp/v23/graspctl.py": "ac4e4cdeaca7f954508638c9afc3ac7bffbe02b95719cde6109da182662fcdfe",
+    "grasp/v23/test_chassis_server.py": "0a66aac9bf1d843fad544e0c4f1709bb54f7a2a033bcf03d2a20b846f57c3b17",
+    "grasp/v23/test_travel_pose.py": "dc45b173793767b007cb423a9a5c5765d45b615afe277fa054215b83fa1d6d0a",
+    "grasp/v23/x3plus_real_grasp.py": "fa458de3de8295e0734ba72043e999ae34f555469fb1246dfecab0f074e78abc",
+    "integration/mission_loop.py": "a770a815a6e66ca214f89fa800ecd9136236860c4851302ed312536f560dc1ce",
+    "integration/placement_dock.py": "91d42eefd86ee2d935e78fd6833e92852325aed218722a422518dba3a8323c91",
+    "integration/rear_stream.py": "c06bc666e56968cbd886e8ce546cd73e3e4bd2ce5fdbdf90f5fa2b9391d69a38",
+    "integration/sugarbox_approach_grasp.py": "264b6f1afa816732f8c934596b22bad3312bed972b5da98d41c5ec9ad3e32343",
+    "integration/sugarbox_rl_approach_final2.py": "bad32c27df678cd647c7002cc3133464b217ff328a42fa302da2c77e1496da73",
+    "tests/test_mission_loop.py": "c5edc5205e655af91a5b44862c39c674ac2fceae921027c06654b6af8a55e515",
+    "tests/test_placement_dock.py": "dddf73175951b71ac920acdfceb2f6a41772041eec6c9e2126101e60c5709557",
+    "tests/test_sugarbox_approach_grasp.py": "cdcce5f4d536fb1d796ec05bb94e583b83d28c1d71774adc4505bec903156fed",
+    "tests/test_sugarbox_blind_finish.py": "43f3bb621bf0907d48e4b163dff3000fdffbccbb871e3b2ac6d81719cc2da5b5",
+    "tests/test_sugarbox_seed_target.py": "a2e1c8ee0681796d9e6ff3df1a7d846d37910f32a865cca407896af7ee88c761",
+    "integration/patrol_vision_permit_jetson.py": "dab64ab1a22145367c1092037b97120896934d098f981d6371cfd1fab7b90315",
+    "tests/test_patrol_vision_permit.py": "36bd715aa48802acecab6ef78a5b18d3f5eb15a508b886d3e3a8aa2a5690fd03",
+    "tests/test_flow_contracts.py": "3cf95b2612c9943306a856a317dedb33d90db1b3ff6895456dec05bbda8a4d0c",
+    "integration/mission_runtime.py": "01238efb2f97e59e1aaad3373f37bff374a161808310c50aba5da7910f8bfbbe",
+    "integration/robot_rpc.py": "47b114124b478dd69a45cc76325150aae44ab2117c72b67f42405c53b184c850",
+    "tests/test_mission_runtime.py": "c7510c51ad2f6cfe14a6a496f52ee3aa6358de8a3470ad38d2dcaa673c87409b"
+  },
+  "changed_during_tests": [],
+  "results": [
+    {
+      "suite": "tests/test_flow_contracts.py",
+      "exit_code": 0,
+      "seconds": 2.14,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_flow_contracts.py.txt",
+      "counts": [
+        "Ran 21 tests in 0.241s\r"
+      ],
+      "tail": ".....................\r\n----------------------------------------------------------------------\r\nRan 21 tests in 0.241s\r\n\r\nOK\r\n"
+    },
+    {
+      "suite": "tests/test_mission_loop.py",
+      "exit_code": 0,
+      "seconds": 3.81,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_mission_loop.py.txt",
+      "counts": [
+        "Ran 66 tests in 1.893s\r"
+      ],
+      "tail": "KED] localization: not localized\r\n[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing\r\n[REFUSED] --real requires --i-am-beside-the-robot\r\n[MISSION] PC 10.0.0.2 | patrol maps/demo_box_20261018_patrol | until two laps find nothing\r\n[check] robot, cameras and files passed, localization, box position; no motion.\r\n"
+    },
+    {
+      "suite": "tests/test_sugarbox_seed_target.py",
+      "exit_code": 0,
+      "seconds": 2.78,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_sugarbox_seed_target.py.txt",
+      "counts": [
+        "Ran 25 tests in 0.776s\r"
+      ],
+      "tail": ".........................\r\n----------------------------------------------------------------------\r\nRan 25 tests in 0.776s\r\n\r\nOK\r\n[SEED] box +25.0 deg to the side: turning in place to face it first\r\n[SEED] facing the box (+4.0 deg); the policy drives at it\r\n[SEED] box -15.0 deg to the side: turning in place to face it first\r\n"
+    },
+    {
+      "suite": "tests/test_sugarbox_approach_grasp.py",
+      "exit_code": 0,
+      "seconds": 4.97,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_sugarbox_approach_grasp.py.txt",
+      "counts": [
+        "Ran 56 tests in 3.208s\r"
+      ],
+      "tail": "gsz=640 final_travel_m=0.15 handoff_m=1.0 final_x_m=0.213 aim_y_m=-0.028 wall_m=None empty_test=False\r\n[FACE] the scene layout box position is not verified: turned toward it only; the camera has to find the box from here\r\n[ARRIVAL] {\"arrived\": true, \"reason\": \"PURSUIT_DONE x=0.211 y=-0.029\", \"seeded\": false, \"x\": 0.211, \"y\": -0.029}\r\n{\"ok\": true}\r\n"
+    },
+    {
+      "suite": "tests/test_placement_dock.py",
+      "exit_code": 0,
+      "seconds": 0.8,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_placement_dock.py.txt",
+      "counts": [
+        "Ran 18 tests in 0.018s\r"
+      ],
+      "tail": "..................\r\n----------------------------------------------------------------------\r\nRan 18 tests in 0.018s\r\n\r\nOK\r\n"
+    },
+    {
+      "suite": "tests/test_patrol_vision_permit.py",
+      "exit_code": 0,
+      "seconds": 0.5,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_patrol_vision_permit.py.txt",
+      "counts": [
+        "Ran 6 tests in 0.034s\r"
+      ],
+      "tail": "......\r\n----------------------------------------------------------------------\r\nRan 6 tests in 0.034s\r\n\r\nOK\r\n"
+    },
+    {
+      "suite": "tests/test_mission_runtime.py",
+      "exit_code": 0,
+      "seconds": 14.39,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_mission_runtime.py.txt",
+      "counts": [
+        "Ran 27 tests in 12.492s\r"
+      ],
+      "tail": "...............FAKE RUN sugarbox\r\n............\r\n----------------------------------------------------------------------\r\nRan 27 tests in 12.492s\r\n\r\nOK\r\n"
+    },
+    {
+      "suite": "tests/test_sugarbox_blind_finish.py",
+      "exit_code": 0,
+      "seconds": 16.48,
+      "log": "C:\\Users\\user\\Documents\\repo\\iGibson-Navigation-Grasping\\docs\\operations\\latency_fixes_2026-10-20\\targeted\\tests__test_sugarbox_blind_finish.py.txt",
+      "counts": [
+        "Ran 72 tests in 15.377s\r"
+      ],
+      "tail": "ring error, 0.30..0.60 rad/s, none within 1.0 deg\r\n[PURSUIT] to x=0.28 m, y=-0.044 m ahead of the centre | vx=0.08 m/s | turn 4.0 x bearing error, 0.30..0.60 rad/s, none within 1.0 deg\r\n[STOPPED] NO_PROGRESS 10s: not 3 cm closer | last: FWD_BLOCK_HOLD front=0.290m\r\n[MOTOR] refused vx=-0.080 wz=+0.000 (1x): slowest allowed +0.000 m/s; sending stop\r\n"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+test_angular_limiter_does_not_change_linear_action (__main__.NavigationSafetyTests.test_angular_limiter_does_not_change_linear_action) ... ok
+test_disabled_brake_keeps_reverse_and_turn_available (__main__.NavigationSafetyTests.test_disabled_brake_keeps_reverse_and_turn_available) ... ok
+test_disabled_brake_preserves_clusters_speckles_and_emergencies (__main__.NavigationSafetyTests.test_disabled_brake_preserves_clusters_speckles_and_emergencies) ... ok
+test_disabled_emergency_brake_clears_when_return_disappears (__main__.NavigationSafetyTests.test_disabled_emergency_brake_clears_when_return_disappears) ... ok
+test_disabled_mode_preserves_the_existing_emergency_front_brake (__main__.NavigationSafetyTests.test_disabled_mode_preserves_the_existing_emergency_front_brake) ... ok
+test_enhanced_front_excludes_self_returns_in_both_mountings (__main__.NavigationSafetyTests.test_enhanced_front_excludes_self_returns_in_both_mountings) ... ok
+test_enhanced_front_uses_forward_x_instead_of_radial_range (__main__.NavigationSafetyTests.test_enhanced_front_uses_forward_x_instead_of_radial_range) ... ok
+test_enhanced_side_guards_remain_active_in_both_mountings (__main__.NavigationSafetyTests.test_enhanced_side_guards_remain_active_in_both_mountings) ... ok
+test_hard_stop_uses_minimum_and_latches_until_exit (__main__.NavigationSafetyTests.test_hard_stop_uses_minimum_and_latches_until_exit) ... ok
+test_recovery_is_opt_in_and_odometry_measured (__main__.NavigationSafetyTests.test_recovery_is_opt_in_and_odometry_measured) ... ok
+test_robust_front_distance_ignores_one_isolated_low_return (__main__.NavigationSafetyTests.test_robust_front_distance_ignores_one_isolated_low_return) ... ok
+test_side_guard_blocks_turning_toward_close_side (__main__.NavigationSafetyTests.test_side_guard_blocks_turning_toward_close_side) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.004s
+
+OK

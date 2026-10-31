@@ -1,0 +1,562 @@
+67d29af58ae68acbba020e427c748d1790bc3b1b 2026-09-06T14:26:24+08:00 Give v21 the jaw protections that were only ever fixed in v23
+
+M	grasp/v21/jetson_verify.sh
+M	grasp/v21/test_deploy_controller.py
+M	grasp/v21/x3plus_real_grasp.py
+a7143bc1362fa699df67af419215d7e13c1ef53c 2026-08-30T22:13:56+08:00 Read the shared homography from where it lives, not from the pose
+
+M	grasp/v23/README.md
+M	grasp/v23/jetson_verify.sh
+M	grasp/v23/test_three_pose_scan.py
+M	grasp/v23/three_pose_scan.py
+3386fb06a8e16611059f429e5f9d20026012513a 2026-08-30T22:06:52+08:00 Let an operator try the side poses without pretending they are validated
+
+M	grasp/v23/README.md
+M	grasp/v23/jetson_one_command_grasp.py
+M	grasp/v23/jetson_verify.sh
+M	grasp/v23/manifest.json
+M	grasp/v23/test_deploy_controller.py
+M	grasp/v23/test_one_command_launcher.py
+M	grasp/v23/test_three_pose_scan.py
+M	grasp/v23/three_pose_scan.py
+M	grasp/v23/x3plus_real_grasp.py
+8e8bc0fc2c4ed083a995c81edd0f8ff23641940b 2026-08-30T19:42:12+08:00 Stop squeezing an object that is slipping, and cap the force outright
+
+M	grasp/v23/README.md
+M	grasp/v23/jetson_one_command_grasp.py
+M	grasp/v23/jetson_verify.sh
+M	grasp/v23/test_deploy_controller.py
+M	grasp/v23/test_one_command_launcher.py
+M	grasp/v23/test_three_pose_scan.py
+M	grasp/v23/three_pose_scan.py
+M	grasp/v23/x3plus_real_grasp.py
+5abae1325c8d96ac678edc3961e252fa2ade4e4d 2026-08-30T19:17:15+08:00 Let the measured finger error reach the gate that closes the jaw
+
+M	grasp/v23/README.md
+M	grasp/v23/jetson_one_command_grasp.py
+M	grasp/v23/jetson_verify.sh
+M	grasp/v23/test_deploy_controller.py
+M	grasp/v23/x3plus_real_grasp.py
+2aabefb0a04465c235ecce9e069e94814bb54da6 2026-08-30T14:18:38+08:00 Refuse a non-rigid base transform, and poison the fabricated scan pose
+
+M	CLAUDE.md
+M	INDEX.md
+A	docs/images/pose_C3.jpg
+A	docs/images/pose_E1.jpg
+A	docs/images/pose_F1.jpg
+A	docs/images/pose_F2.jpg
+A	docs/images/pose_F3.jpg
+A	docs/images/pose_F4.jpg
+A	docs/images/pose_F5.jpg
+A	docs/images/pose_F6.jpg
+A	docs/images/session.json
+M	grasp/v23/README.md
+M	grasp/v23/jetson_verify.sh
+M	grasp/v23/manifest.json
+M	grasp/v23/test_one_command_launcher.py
+M	grasp/v23/test_three_pose_scan.py
+A	grasp/v23/three_pose_scan.json
+M	grasp/v23/three_pose_scan.py
+M	integration/arm_cam_geometry.py
+M	integration/vision_grasp_bridge.py
+M	progress.md
+M	tests/test_vision_grasp_bridge_pose.py
+6b8582b3a0e70f36dfb95bd7ced78168c722b9c3 2026-08-30T11:09:55+08:00 Send the scanner one SIGINT, and size its window from the work it does
+
+M	grasp/v23/jetson_one_command_grasp.py
+M	grasp/v23/test_three_pose_scan.py
+0826b5043e7e43de2e16e4b803b07039ab461247 2026-08-30T11:00:56+08:00 Confirm a lone rotated view from E1, where no rotation is applied
+
+M	grasp/v23/jetson_one_command_grasp.py
+A	grasp/v23/test_three_pose_scan.py
+A	grasp/v23/three_pose_scan.py
+b1092902dbcb98f94973ad82f49c239db5c3b3eb 2026-08-29T22:25:05+08:00 Answer "what about S2=S3=S4=90", and widen the sweep it exposed
+
+M	grasp/v23/pose_explorer.py
+29865c906eae3f1a58fe65faadd5bfeb2930e2ea 2026-08-29T22:09:49+08:00 The camera was handing back the previous pose, not the current one
+
+M	grasp/v23/pose_explorer.py
+7cebf17481af2d0fb958ebd9832879e5734fe715 2026-08-29T22:04:04+08:00 Measure chassis drift instead of discovering it in the pictures
+
+M	grasp/v23/pose_explorer.py
+e8638f3548f3f83f3b48d7814a547b94d228847e 2026-08-29T21:41:43+08:00 Measure where the fingers really are at E1, and what that costs
+
+M	grasp/v23/manifest.json
+bf3396dc71ee80e4690ac6cfc004d3dc22542751 2026-08-29T21:04:48+08:00 Record the measured E1 homography, and a way to pick a better pose
+
+M	CLAUDE.md
+A	docs/calibration/e1_grasp_home_points_20260829.json
+M	grasp/v23/README.md
+M	grasp/v23/manifest.json
+A	grasp/v23/pose_explorer.py
+M	grasp/v23/x3plus_real_grasp.py
+M	integration/arm_cam_geometry.py
+A	integration/grasp_home_homography_e1.json
+M	progress.md
+fed3c4fb037b1fe70a515c2ee3f60fe1f59362a7 2026-08-29T17:26:35+08:00 Stand v23 up on v21's controller, not on the script it shipped with
+
+M	.gitignore
+M	CLAUDE.md
+M	INDEX.md
+M	docs/calibration/CALIBRATION_PLAN.md
+A	grasp/v23/.gitattributes
+A	grasp/v23/README.md
+A	grasp/v23/action_execution_v21.py
+A	grasp/v23/bus_probe.py
+A	grasp/v23/deploy_contract.py
+A	grasp/v23/handoff/DEPLOY_V23_MANIFEST.md
+A	grasp/v23/handoff/README.md
+A	grasp/v23/handoff/README_as_delivered.md
+A	grasp/v23/jetson_one_command_grasp.py
+A	grasp/v23/jetson_verify.sh
+A	grasp/v23/manifest.json
+A	grasp/v23/models/candidate_v23_seed23401_ckpt250000.zip
+A	grasp/v23/models/candidate_v23_seed23401_ckpt250000_vec.pkl
+A	grasp/v23/pose_check.py
+A	grasp/v23/test_deploy_controller.py
+A	grasp/v23/test_deploy_floor_guard.py
+A	grasp/v23/test_one_command_launcher.py
+A	grasp/v23/test_servo_read.py
+A	grasp/v23/x3plus_real_grasp.py
+M	integration/arm_cam_geometry.py
+M	integration/preflight.py
+M	integration/vision_grasp_bridge.py
+719cf6aebc6dcc8792b8ca9938b39bf81b592209 2026-08-29T16:54:54+08:00 Check the calibration before the arm is powered, not after
+
+M	CLAUDE.md
+M	INDEX.md
+M	TROUBLESHOOTING.md
+M	grasp/v21/jetson_one_command_grasp.py
+M	grasp/v21/jetson_verify.sh
+A	grasp/v21/test_one_command_launcher.py
+M	integration/MISSION.md
+M	integration/preflight.py
+0e2d574200961ccc91ead4d9f9c078cf60400a4e 2026-08-07T16:08:23+08:00 Record the new module where each doc would look for it
+
+M	INDEX.md
+M	README.md
+M	integration/MISSION.md
+585e1731e393ae564a35633b42551f58db5573b9 2026-08-07T15:15:56+08:00 Wire the offboard SAM2 detector into the mission loop
+
+M	.github/workflows/tests.yml
+M	CLAUDE.md
+M	README.md
+M	integration/mission_pipeline.py
+M	integration/ros_io.py
+A	integration/trash_target.py
+A	tests/test_trash_target.py
+3eb02b731c2356949f258bbcae0f292d921bb086 2026-08-07T13:50:57+08:00 Draw the architecture, and say which parts are wired in
+
+M	README.md
+93892a30f0b420f0bd07692e2a952019179c4cc3 2026-08-07T13:48:13+08:00 Add the rear-camera SAM2 target publisher
+
+M	CLAUDE.md
+A	detection/rear_cam_sam2_publisher.py
+M	detection/requirements_detection.txt
+bb12875642269fd6621d2fff5e17158e2ef8efbc 2026-08-07T13:20:50+08:00 Let the facts stand without commentary
+
+M	README.md
+84ac780804498b8b997451ebb2a33026e73215bb 2026-08-07T04:32:04+08:00 Explain the iGibson half, and link the repo it lives in
+
+M	README.md
+41af09eb20aea10c9d9828b00710ddc854a7d1f9 2026-08-07T00:42:43+08:00 Stop the index describing the version that is not deployed
+
+M	INDEX.md
+M	integration/README.md
+edf0421b3ac2755e1ccdbad1d71ee85a5df1d977 2026-08-07T00:30:13+08:00 Say 21 states, because that is how many there are
+
+M	CLAUDE.md
+M	INDEX.md
+M	README.md
+b68d97a45f745867c280b592a661ad2cd2a1c4dd 2026-08-06T20:40:01+08:00 Point the code index at the script that is actually deployed
+
+M	INDEX.md
+de38f104b6577fb772337af07940a737ab748e94 2026-08-06T20:35:17+08:00 Add the badges now that there is something true to point at
+
+M	README.md
+4ad9f106b5ee8f8508fe02395a3021e5c27a25d2 2026-08-06T20:28:40+08:00 Make CI install its dependencies from a file it can cache
+
+M	.github/workflows/tests.yml
+A	requirements-ci.txt
+3d21651587c48b2775e20eddc1e20c7a6b584626 2026-08-06T20:26:25+08:00 Give the repo a front door, and file the working notes behind it
+
+A	.github/workflows/tests.yml
+M	AGENTS.md
+M	CLAUDE.md
+A	LICENSE
+A	README.md
+M	TROUBLESHOOTING.md
+M	detection/calibration/calibrate_intrinsics.py
+R100	CALIBRATION_PLAN.md	docs/calibration/CALIBRATION_PLAN.md
+R098	CAMERA_CALIBRATION_PARAMETERS.md	docs/calibration/CAMERA_CALIBRATION_PARAMETERS.md
+R100	arm_pose.md	docs/calibration/arm_pose.md
+R100	c3_calib_real_20260802.json	docs/calibration/c3_calib_real_20260802.json
+R100	DESKTOP_AI_MODEL_EXPORT_PROMPT.md	docs/handoff/DESKTOP_AI_MODEL_EXPORT_PROMPT.md
+R099	GRASP_HOME_FOV_RETRAINING_HANDOFF.md	docs/handoff/GRASP_HOME_FOV_RETRAINING_HANDOFF.md
+R100	HANDOFF.md	docs/handoff/HANDOFF.md
+R100	HANDOFF_VERIFY_2026-08-04.md	docs/handoff/HANDOFF_VERIFY_2026-08-04.md
+R100	JETSON_RECOVERY_BOOT_TEST_HANDOFF_2026-07-18.md	docs/handoff/JETSON_RECOVERY_BOOT_TEST_HANDOFF_2026-07-18.md
+A	docs/images/ui/01_desktop_launcher_network.png
+A	docs/images/ui/02_desktop_launcher_qr.png
+A	docs/images/ui/03_mobile_connection.png
+A	docs/images/ui/04_mobile_console.png
+A	docs/images/ui/05_mobile_setup_top.png
+A	docs/images/ui/06_mobile_setup_actions.png
+A	docs/images/ui/07_mobile_map.png
+R094	JETSON_DRYRUN_CHECKLIST.md	docs/operations/JETSON_DRYRUN_CHECKLIST.md
+R097	MODE_B_TEST_PLAN.md	docs/operations/MODE_B_TEST_PLAN.md
+R100	STARTUP_DEVICE_CHECK.md	docs/operations/STARTUP_DEVICE_CHECK.md
+R097	GRASP_TRAINING_REQUIREMENTS_2026-07-27.md	docs/planning/GRASP_TRAINING_REQUIREMENTS_2026-07-27.md
+R100	MISSION_PLAN.md	docs/planning/MISSION_PLAN.md
+R100	MODEL_RELEASE_WORKFLOW.md	docs/planning/MODEL_RELEASE_WORKFLOW.md
+R100	V21_DEPLOY_REVIEW_AND_PLAN_2026-07-30.md	docs/planning/V21_DEPLOY_REVIEW_AND_PLAN_2026-07-30.md
+M	integration/README.md
+M	integration/SETMOTOR_ODOM_INTEGRATION.md
+M	integration/arm_cam_geometry.py
+M	integration/capture_arm_cam_obs.py
+M	integration/map_goal_provider.py
+M	integration/mission_pipeline.py
+M	integration/solve_arm_cam_extrinsics.py
+M	integration/vision_grasp_pipeline.py
+M	progress.md
+ba0657fa3559c5ce71cc397735dd1b1cc35be4f3 2026-08-06T20:26:03+08:00 Stop versioning the things that are not source
+
+M	.gitignore
+D	"document/2026\345\205\250\345\234\213\345\244\247\345\260\210\346\240\241\351\231\242\346\231\272\346\205\247\345\211\265\346\226\260\346\232\250\350\267\250\345\237\237\346\225\264\345\220\210\345\211\265\344\275\234\347\253\266\350\263\275\347\263\273\347\265\261\351\234\200\346\261\202\346\233\270 (2).docx"
+D	"document/2026\345\205\250\345\234\213\345\244\247\345\260\210\346\240\241\351\231\242\346\231\272\346\205\247\345\211\265\346\226\260\346\232\250\350\267\250\345\237\237\346\225\264\345\220\210\345\211\265\344\275\234\347\253\266\350\263\275\347\263\273\347\265\261\351\234\200\346\261\202\346\233\270_\346\203\263\345\220\203\345\263\266\345\266\274_iGIbson\346\231\272\346\205\247\345\260\216\350\210\252\345\244\276\345\217\226.docx"
+D	document/SRS_Sample.pdf
+D	mode_b_bridge_forward5mm.log
+D	mode_b_bridge_run1.log
+D	mode_b_bridge_run3.log
+D	mode_b_bridge_run4.log
+7d9774728ab1ba5f935f632a4140f75b6deb8eb7 2026-08-06T20:03:06+08:00 Let the operator drive from a phone instead of a terminal
+
+M	CLAUDE.md
+M	integration/mission_pipeline.py
+A	integration/mission_status.py
+M	integration/nav_rl_grasp_pipeline.py
+M	integration/preflight.py
+M	integration/vision_grasp_bridge.py
+A	ui/README.md
+A	ui/install_desktop_shortcut.sh
+A	ui/jetson_check.sh
+A	ui/launch_ui.sh
+A	ui/launcher.py
+A	ui/make_qr.py
+A	ui/prototype.html
+A	ui/server.py
+A	ui/static/app.js
+A	ui/static/index.html
+A	ui/static/style.css
+A	ui/test_server.py
+0b6e4ffc7228d702ea81cec051d7ed901e8892c0 2026-08-04T19:09:12+08:00 Write the physical test steps against the gates that now exist
+
+M	HANDOFF.md
+M	integration/TEST_PLAN.md
+327855c33b1a4beaa16411505a98e049e256f373 2026-08-04T19:03:06+08:00 Stop the robot pausing itself every time it stands still
+
+M	CLAUDE.md
+M	HANDOFF.md
+A	HANDOFF_VERIFY_2026-08-04.md
+M	integration/MISSION.md
+M	integration/NAV_RL.md
+M	integration/TEST_PLAN.md
+M	integration/mission_pipeline.py
+M	integration/nav_rl.py
+M	integration/nav_rl_grasp_pipeline.py
+M	integration/preflight.py
+M	integration/ros_io.py
+M	tests/test_mission_end_to_end.py
+M	tests/test_safety_guards.py
+1c3d96f8cdb6ebc6d5767465233b3a7e3016a34e 2026-08-04T15:29:46+08:00 Fix the mission-layer bugs the missing tests were hiding
+
+M	CALIBRATION_PLAN.md
+M	HANDOFF.md
+M	integration/MISSION.md
+M	integration/TEST_PLAN.md
+M	integration/mission_fsm.py
+M	integration/mission_pipeline.py
+M	integration/nav_rl_grasp_pipeline.py
+M	integration/preflight.py
+M	integration/vision_grasp_bridge.py
+M	tests/test_grasp_home_homography.py
+M	tests/test_mission_end_to_end.py
+M	tests/test_model_package.py
+M	tests/test_stream_cam_capture.py
+M	tests/test_vision_grasp_bridge_pose.py
+b37c6a24e6f606fb5cfdc25ffc4c3e42919cad4c 2026-08-04T13:08:56+08:00 Tidy the working tree: keep the provenance, ignore the duplicate
+
+M	.gitignore
+A	"document/2026\345\205\250\345\234\213\345\244\247\345\260\210\346\240\241\351\231\242\346\231\272\346\205\247\345\211\265\346\226\260\346\232\250\350\267\250\345\237\237\346\225\264\345\220\210\345\211\265\344\275\234\347\253\266\350\263\275\347\263\273\347\265\261\351\234\200\346\261\202\346\233\270 (2).docx"
+A	"document/2026\345\205\250\345\234\213\345\244\247\345\260\210\346\240\241\351\231\242\346\231\272\346\205\247\345\211\265\346\226\260\346\232\250\350\267\250\345\237\237\346\225\264\345\220\210\345\211\265\344\275\234\347\253\266\350\263\275\347\263\273\347\265\261\351\234\200\346\261\202\346\233\270_\346\203\263\345\220\203\345\263\266\345\266\274_iGIbson\346\231\272\346\205\247\345\260\216\350\210\252\345\244\276\345\217\226.docx"
+A	document/SRS_Sample.pdf
+A	grasp/v21/reference/README.md
+A	grasp/v21/reference/x3plus_real_grasp.release_branch.py
+A	yolo/sugarbox_yolo11_release/README.md
+A	yolo/sugarbox_yolo11_release/best.pt
+A	yolo/sugarbox_yolo11_release/data.yaml
+A	yolo/sugarbox_yolo11_release/predict_demo.py
+A	yolo/sugarbox_yolo11_release/webcam_demo.py
+ebb283d42078e307032864a6fb06b71f175d7445 2026-08-04T04:20:01+08:00 Let preflight find the route in a handed-off package
+
+M	integration/preflight.py
+b1d05f02f4321baa917fd819c165b76284a8c1f7 2026-08-04T04:14:41+08:00 Simulate the whole mission offline, and fix the three things it found
+
+A	HANDOFF.md
+M	integration/TEST_PLAN.md
+M	integration/mission_fsm.py
+M	integration/mission_pipeline.py
+A	integration/preflight.py
+A	tests/test_mission_end_to_end.py
+da75c7c9057a1c59684515be0c1373a821f0d001 2026-08-04T03:34:57+08:00 Drive with the arm folded, raise to the grasp pose only at the handoff
+
+M	integration/MISSION.md
+M	integration/TEST_PLAN.md
+M	integration/mission_pipeline.py
+02ca1f9c83c49073bc0eefb2930a91feb7ba6837 2026-08-04T03:18:35+08:00 Refuse to drive when the lidar cannot see where we are going
+
+M	integration/TEST_PLAN.md
+M	integration/mission_pipeline.py
+M	integration/nav_rl.py
+M	tests/test_safety_guards.py
+ab115f5a99745d8c302c5c82f5b780eaca8dec99 2026-08-04T02:56:27+08:00 Add the mission layer: patrol, spot trash, drive to it, grasp it, bin it
+
+M	CLAUDE.md
+A	integration/MISSION.md
+A	integration/TEST_PLAN.md
+A	integration/feedback_odom.py
+A	integration/map_goal_provider.py
+A	integration/mission_fsm.py
+A	integration/mission_pipeline.py
+A	integration/ros_io.py
+a3a07091ca780c80d558a711a0e5cef0cd0b7150 2026-08-04T02:55:15+08:00 Merge the v21 grasp stack into this repo
+
+M	.gitignore
+M	AGENTS.md
+M	CALIBRATION_PLAN.md
+M	INDEX.md
+A	MODE_B_TEST_PLAN.md
+A	V21_DEPLOY_REVIEW_AND_PLAN_2026-07-30.md
+A	c3_calib_real_20260802.json
+M	detection/arm_cam.py
+D	detection/debug_tools/keyboard_cmd_test.py
+D	detection/debug_tools/keyboard_motor_A_test.py
+D	detection/debug_tools/keyboard_motor_B_test.py
+A	detection/models/best.pt
+A	detection/models/best_eraser_detect_train11.pt.bak
+A	detection/models/best_trash_identify_train5.pt.bak
+M	detection/models/data.yaml
+A	detection/models/yolo11n.pt
+D	detection/rear_nav/2D_RL_Simulator.py
+D	detection/rear_nav/back_cam.py
+D	detection/rear_nav/dual_cam_rl_nav.py
+D	detection/rear_nav/dual_cam_setmotor_nav.py
+D	detection/rear_nav/pc_sim_nav.py
+D	detection/rear_nav/rear_camera_continuous_curve_follow.py
+D	detection/rear_nav/rear_diagonal_mecanum_follow.py
+D	detection/rear_nav/two_trash_memory_nav.py
+A	grasp/trained_6d_models_v18/README.md
+A	grasp/trained_6d_models_v18/manifest.json
+A	grasp/trained_6d_models_v18/ppo_6d_final_ready_for_real_robot.zip
+A	grasp/trained_6d_models_v18/vecnormalize_6d_final.pkl
+A	grasp/trained_6d_models_v18/verify_v18.py
+A	grasp/v21/.gitattributes
+A	grasp/v21/HANDOFF.md
+A	grasp/v21/README.md
+A	grasp/v21/action_execution_v21.py
+A	grasp/v21/bus_probe.py
+A	grasp/v21/deploy_contract.py
+A	grasp/v21/evidence/v21_formal_claim.json
+A	grasp/v21/evidence/v21_formal_evaluation_seed90210.json
+A	grasp/v21/evidence/v21_seed816_training_metadata.json
+A	grasp/v21/evidence/v21_selection_lock.json
+A	grasp/v21/jetson_one_command_grasp.py
+A	grasp/v21/jetson_verify.sh
+A	grasp/v21/manifest.json
+A	grasp/v21/models/candidate_v21_seed816_ckpt550000.zip
+A	grasp/v21/models/candidate_v21_seed816_ckpt550000_vec.pkl
+A	grasp/v21/pose_check.py
+A	grasp/v21/test_deploy_controller.py
+A	grasp/v21/test_deploy_floor_guard.py
+A	grasp/v21/test_servo_read.py
+A	grasp/v21/x3plus_real_grasp.py
+D	grasp/x3plus_deploy_bridge.py
+M	integration/README.md
+A	integration/arm_cam_geometry.py
+A	integration/capture_arm_cam_obs.py
+M	integration/nav_rl_grasp_pipeline.py
+A	integration/smoke_mode_b.py
+A	integration/solve_arm_cam_extrinsics.py
+M	integration/verify_camera_grasp_frame.py
+M	integration/verify_x3plus_deploy.py
+M	integration/vision_grasp_bridge.py
+M	integration/vision_grasp_pipeline.py
+A	mode_b_bridge_forward5mm.log
+A	mode_b_bridge_run1.log
+A	mode_b_bridge_run3.log
+A	mode_b_bridge_run4.log
+M	progress.md
+M	tests/test_safety_guards.py
+20ad4a4270904796ed27521bff00e75cf2ee4c62 2026-07-30T23:27:32+08:00 Initial commit for iGibson Navigation & Grasping pipeline
+
+A	.gitignore
+A	AGENTS.md
+A	CALIBRATION_PLAN.md
+A	CAMERA_CALIBRATION_PARAMETERS.md
+A	CLAUDE.md
+A	DESKTOP_AI_MODEL_EXPORT_PROMPT.md
+A	GRASP_HOME_FOV_RETRAINING_HANDOFF.md
+A	GRASP_TRAINING_REQUIREMENTS_2026-07-27.md
+A	INDEX.md
+A	JETSON_DRYRUN_CHECKLIST.md
+A	JETSON_RECOVERY_BOOT_TEST_HANDOFF_2026-07-18.md
+A	MISSION_PLAN.md
+A	MODEL_RELEASE_WORKFLOW.md
+A	STARTUP_DEVICE_CHECK.md
+A	TROUBLESHOOTING.md
+A	arm_pose.md
+A	detection/arm_cam.py
+A	detection/arm_center_setmotor.py
+A	detection/calibration/Vx.csv
+A	detection/calibration/Wz.csv
+A	detection/calibration/action_speed_calibration_raw.csv
+A	detection/calibration/action_speed_calibration_result.json
+A	detection/calibration/arm_camera_calibration_points.csv
+A	detection/calibration/calibrate_arm_camera_theta.py
+A	detection/calibration/calibrate_intrinsics.py
+A	detection/calibration/calibrate_mecanum_setmotor.py
+A	detection/calibration/calibrate_rearcam.py
+A	detection/calibration/calibrate_vy_only.py
+A	detection/calibration/calibrate_wx_only.py
+A	detection/calibration/rear_camera_calibration_points.csv
+A	detection/calibration/wz_90deg_calibration_result.json
+A	detection/debug_tools/armcam_photoshot.py
+A	detection/debug_tools/check_rl_model.py
+A	detection/debug_tools/detect_video.py
+A	detection/debug_tools/keyboard_cmd_test.py
+A	detection/debug_tools/keyboard_motor_A_test.py
+A	detection/debug_tools/keyboard_motor_B_test.py
+A	detection/debug_tools/multiple_ball_detect.py
+A	detection/debug_tools/rear_cam_autophoto.py
+A	detection/debug_tools/snapshot_sim.py
+A	detection/debug_tools/test.py
+A	detection/debug_tools/train_yolo.py
+A	detection/debug_tools/yolo_test.py
+A	detection/models/README.roboflow.txt
+A	detection/models/data.yaml
+A	detection/nav_arm_cam.py
+A	detection/rear_nav/2D_RL_Simulator.py
+A	detection/rear_nav/back_cam.py
+A	detection/rear_nav/dual_cam_rl_nav.py
+A	detection/rear_nav/dual_cam_setmotor_nav.py
+A	detection/rear_nav/pc_sim_nav.py
+A	detection/rear_nav/rear_camera_continuous_curve_follow.py
+A	detection/rear_nav/rear_diagonal_mecanum_follow.py
+A	detection/rear_nav/rear_to_arm_blind_handoff.py
+A	detection/rear_nav/two_trash_memory_nav.py
+A	detection/requirements_detection.txt
+A	grasp/Rosmaster_Lib_reference.py
+A	grasp/fk_test.py
+A	grasp/joint_direction_calibration.py
+A	grasp/move_arm.py
+A	grasp/requirements_jetson.txt
+A	grasp/servo_test.py
+A	grasp/trained_6d_models_v17/ppo_6d_final_ready_for_real_robot.zip
+A	grasp/trained_6d_models_v17/vecnormalize_6d_final.pkl
+A	grasp/trained_6d_models_v5/vecnormalize_6d_final.pkl
+A	grasp/workspace_scan.py
+A	grasp/x3plus/__init__.py
+A	grasp/x3plus/meshes/sensor/collision/camera_link.STL
+A	grasp/x3plus/meshes/sensor/collision/laser_link.STL
+A	grasp/x3plus/meshes/sensor/collision/mono_link.STL
+A	grasp/x3plus/meshes/sensor/visual/camera_link.STL
+A	grasp/x3plus/meshes/sensor/visual/camera_link.obj
+A	grasp/x3plus/meshes/sensor/visual/laser_link.STL
+A	grasp/x3plus/meshes/sensor/visual/laser_link.obj
+A	grasp/x3plus/meshes/sensor/visual/mono_link.STL
+A	grasp/x3plus/meshes/sensor/visual/mono_link.obj
+A	grasp/x3plus/meshes/x3/arm_link1.STL
+A	grasp/x3plus/meshes/x3/arm_link1.obj
+A	grasp/x3plus/meshes/x3/arm_link2.STL
+A	grasp/x3plus/meshes/x3/arm_link2.obj
+A	grasp/x3plus/meshes/x3/arm_link3.STL
+A	grasp/x3plus/meshes/x3/arm_link3.obj
+A	grasp/x3plus/meshes/x3/arm_link4.STL
+A	grasp/x3plus/meshes/x3/arm_link4.obj
+A	grasp/x3plus/meshes/x3/arm_link5.STL
+A	grasp/x3plus/meshes/x3/arm_link5.obj
+A	grasp/x3plus/meshes/x3/back_left_wheel.STL
+A	grasp/x3plus/meshes/x3/back_left_wheel.obj
+A	grasp/x3plus/meshes/x3/back_right_wheel.STL
+A	grasp/x3plus/meshes/x3/back_right_wheel.obj
+A	grasp/x3plus/meshes/x3/base_link.STL
+A	grasp/x3plus/meshes/x3/base_link.obj
+A	grasp/x3plus/meshes/x3/front_left_wheel.STL
+A	grasp/x3plus/meshes/x3/front_left_wheel.obj
+A	grasp/x3plus/meshes/x3/front_right_wheel.STL
+A	grasp/x3plus/meshes/x3/front_right_wheel.obj
+A	grasp/x3plus/meshes/x3/llink1.STL
+A	grasp/x3plus/meshes/x3/llink1.obj
+A	grasp/x3plus/meshes/x3/llink2.STL
+A	grasp/x3plus/meshes/x3/llink2.obj
+A	grasp/x3plus/meshes/x3/llink3.STL
+A	grasp/x3plus/meshes/x3/llink3.obj
+A	grasp/x3plus/meshes/x3/mecanum/back_left_wheel.STL
+A	grasp/x3plus/meshes/x3/mecanum/back_right_wheel.STL
+A	grasp/x3plus/meshes/x3/mecanum/base_link.STL
+A	grasp/x3plus/meshes/x3/mecanum/base_link1.stl
+A	grasp/x3plus/meshes/x3/mecanum/front_left_wheel.STL
+A	grasp/x3plus/meshes/x3/mecanum/front_right_wheel.STL
+A	grasp/x3plus/meshes/x3/mecanum/hokuyo.dae
+A	grasp/x3plus/meshes/x3/mecanum/kinect.dae
+A	grasp/x3plus/meshes/x3/mecanum/mecanum_left_hands.stl
+A	grasp/x3plus/meshes/x3/mecanum/mecanum_right_hands.stl
+A	grasp/x3plus/meshes/x3/rlink1.STL
+A	grasp/x3plus/meshes/x3/rlink1.obj
+A	grasp/x3plus/meshes/x3/rlink2.STL
+A	grasp/x3plus/meshes/x3/rlink2.obj
+A	grasp/x3plus/meshes/x3/rlink3.STL
+A	grasp/x3plus/meshes/x3/rlink3.obj
+A	grasp/x3plus/yahboomcar.urdf
+A	grasp/x3plus_deploy_bridge.py
+A	grasp/x3plus_real_grasp.py
+A	integration/DEPLOY_VERIFY.md
+A	integration/KALMAN_FILTER_DESIGN.md
+A	integration/NAV_RL.md
+A	integration/README.md
+A	integration/SETMOTOR_ODOM_INTEGRATION.md
+A	integration/grasp_home_homography.py
+A	integration/nav_best_model/P2_J_collision_guard_rewardparams.json
+A	integration/nav_best_model/best_model.zip
+A	integration/nav_best_model/best_vecnormalize.pkl
+A	integration/nav_best_model/doorway_ft_final.zip
+A	integration/nav_best_model/doorway_ft_final_vecnormalize.pkl
+A	integration/nav_best_model/doorway_ft_training_config.json
+A	integration/nav_best_model/ppo_nav_281440_steps.zip
+A	integration/nav_best_model/ppo_nav_vecnormalize_281440_steps.pkl
+A	integration/nav_rl.py
+A	integration/nav_rl_grasp_pipeline.py
+A	integration/solve_cam_to_base.py
+A	integration/verify_camera_grasp_frame.py
+A	integration/verify_x3plus_deploy.py
+A	integration/vision_grasp_bridge.py
+A	integration/vision_grasp_pipeline.py
+A	model_tools/__init__.py
+A	model_tools/export_model_package.py
+A	model_tools/fetch_model_release.py
+A	model_tools/grasp_v18_manifest.template.json
+A	model_tools/install_model_package.py
+A	model_tools/model_package.py
+A	model_tools/run_grasp_package.py
+A	model_tools/verify_model_package.py
+A	progress.md
+A	set_jetson_host.ps1
+A	startup_device_check.py
+A	stream_cam.py
+A	tests/test_grasp_home_homography.py
+A	tests/test_model_package.py
+A	tests/test_safety_guards.py
+A	tests/test_stream_cam_capture.py
+A	tests/test_vision_grasp_bridge_pose.py
+
+STDERR:

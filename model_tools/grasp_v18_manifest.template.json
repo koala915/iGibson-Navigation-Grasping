@@ -21,6 +21,7 @@
   "contract": {
     "observation_dim": 28,
     "action_dim": 6,
+    "arm_action_mode": "absolute",
     "grasp_home_sim_rad": [0.0, -0.4, -1.4, -1.4, 0.0],
     "grasp_home_api_deg": [90.0, 67.08, 9.79, 9.79, 90.0, 30.0],
     "arm_hw_invert": [false, false, false, false, false],
@@ -44,4 +45,3 @@
   },
   "notes": "Candidate only. The exporter replaces files and SHA256 values. Do not mark hardware-approved until every gate passes."
 }
-

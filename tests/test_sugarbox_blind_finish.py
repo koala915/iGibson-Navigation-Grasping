@@ -661,7 +661,8 @@ class ContractModeTests(unittest.TestCase):
                     if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == name)
 
     def handoff(self, contract=True, dist=0.99, stop=False, active=False,
-                block_m=float('inf'), blocked_ticks=0, seeded=False, look='FREE'):
+                block_m=float('inf'), blocked_ticks=0, seeded=False, look='FREE',
+                stop_line=False):
         # The whole if/elif chain: seed give-up, handoff, handback.
         block = next(n for n in ast.walk(self.main) if isinstance(n, ast.If)
                      and 'SEED_GIVE_UP_CENTER_M' in ast.unparse(n.test))
@@ -669,6 +670,7 @@ class ContractModeTests(unittest.TestCase):
         pursuit = SimpleNamespace(active=active, start=lambda now: started.append(now),
                                   reset=lambda: resets.append(True))
         scope = dict(TRAINING_CONTRACT=contract, should_stop=stop, arrived_latched=False,
+                     past_stop_line=lambda _: stop_line,
                      safety_reason='', CONTRACT_HANDOFF_CENTER_M=1.00, pursuit=pursuit, now=5.0,
                      contract_action=SimpleNamespace(reset=lambda: None),
                      anti_jitter=SimpleNamespace(reset_motion=lambda: None), math=math,
@@ -690,6 +692,14 @@ class ContractModeTests(unittest.TestCase):
         self.assertEqual(scope['started'], [])
         self.assertTrue(scope['handoff_deferred'])
         self.assertEqual(self.handoff()['started'], [5.0])            # clear path
+
+    def test_the_stop_line_beats_the_handback_and_a_blocked_handoff(self):
+        # 2026-11-01: the policy drove the placement box edge to 0.09 m, wanted 0.253.
+        driving = self.handoff(block_m=0.02, stop_line=True)
+        self.assertEqual(driving['started'], [5.0])
+        self.assertFalse(driving['handoff_deferred'])
+        steering = self.handoff(active=True, block_m=0.02, blocked_ticks=1, stop_line=True)
+        self.assertEqual(steering['resets'], [])
 
     def test_steer_in_hands_back_to_the_policy_when_its_path_closes(self):
         once = self.handoff(active=True, block_m=0.40)

@@ -3810,6 +3810,22 @@ class FinalApproachController:
         )
 
 
+# A box this far to the side of the line is one the policy is driving past, not at.
+CONTRACT_STOP_LINE_HALF_WIDTH_M = 0.10
+
+
+def past_stop_line(target):
+    """The measured box has reached the stop line, whoever is driving.
+
+    2026-11-01: a LiDAR return on the path handed the last stretch back to the
+    policy, which has no stop line and drove on at up to 0.15 m/s: the placement box
+    edge ended at 0.09 and 0.19 m, wanted 0.253, and the first run hit the box.
+    """
+    return (target.has_memory() and not target.seeded
+            and float(target.x) <= CONTRACT_FINAL_CENTER_X_M
+            and abs(float(target.y)) <= CONTRACT_STOP_LINE_HALF_WIDTH_M)
+
+
 class PursuitController:
     """enoch mode's last stretch: creep at the box, steering it onto the E1 line.
 
@@ -6850,6 +6866,12 @@ def main(resources=None, go_stream=None, headless=False):
                     print("[STOPPED] " + blocked_reason)
                     safety_reason = blocked_reason
                     should_stop = True
+                elif TRAINING_CONTRACT and not should_stop and past_stop_line(target):
+                    # Ahead of the handoff and handback below: this tick the
+                    # pursuit reports done and the wheels stop.
+                    if pursuit.start(now):
+                        print("[STOP_LINE] box at x={:.3f} m with the policy driving; "
+                              "stopping".format(float(target.x)))
                 elif (
                     TRAINING_CONTRACT
                     and not should_stop

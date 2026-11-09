@@ -1,5 +1,10 @@
 # X3Plus 專題 — Sim-to-Real 夾取部署
 
+> **2026-11-09 起這個 repo 只收兩個已結束的方向**：系館走廊巡航（`ui/static`，標籤
+> `corridor-2026-08-07`）與 NIICC 決賽 2×2 m 場地（`ui/loop_console`、ArUco，標籤
+> `niicc-final-2026-11-01`）。兩者操作台不同，不要混用。旺宏金矽獎在私人 repo
+> `koala915/x3plus-golden-silicon`。對照表見 `README.md`「三個方向」。
+
 > **接手這個專案？先讀 [`docs/handoff/HANDOFF_2026-09-20.md`](docs/handoff/HANDOFF_2026-09-20.md)。**
 > 那份講的是「現在做到哪裡、能跑什麼指令、卡在哪一步、下一步做什麼」，以及機器上的
 > 檔案跟這個 repo 不同步這件事。本檔是規格，那份是現況，兩份都要看。

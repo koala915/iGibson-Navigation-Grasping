@@ -23,6 +23,24 @@ and grasping in PyBullet. First successful physical grasp: 2026-07-31.
 
 ---
 
+## 三個方向（先看這裡）
+
+這個 repo 裝了兩個已經結束的方向，第三個方向另開了 repo。兩個舊方向共用
+`grasp/`（夾取）和 `detection/`（辨識），但**入口程式和操作台各自獨立，不要混用**。
+檔案沒有依方向搬家，因為 Jetson 上的 systemd 服務寫死了這些路徑。
+
+| 方向 | 場地 | 入口 | 操作台 | 凍結版本 |
+|---|---|---|---|---|
+| 1. 系館走廊巡航（最早） | 系館走廊，`route.yaml` 117 個路點 | `integration/mission_pipeline.py`（模式 A）、`vision_grasp_bridge.py`（B）、`nav_rl_grasp_pipeline.py`（C） | `ui/server.py` + `ui/static/` | [`corridor-2026-08-07`](../../releases/tag/corridor-2026-08-07) |
+| 2. NIICC 決賽展演 | 2×2 m 圍牆場地，牆上有 ArUco | `integration/mission_loop.py`（巡航 → 糖果盒 → 放置盒）、`relocalize.py`（ArUco） | `ui/loop_console/` | [`niicc-final-2026-11-01`](../../releases/tag/niicc-final-2026-11-01) |
+| 3. 旺宏金矽獎（規劃中） | 待定 | 另一個私人 repo `x3plus-golden-silicon`，從方向 2 的凍結版本開始 | 待定 | — |
+
+這份 README 以下的內容主要在講**方向 1**。方向 2 的細節看 `CLAUDE.md` 裡
+`mission_loop.py` 那一段，以及 `docs/planning/PATROL_LOOP_DECISIONS_2026-10-19.md`。
+之後在這個 repo 只修 bug，不再開新功能。
+
+---
+
 ## 任務流程
 
 機器人沿預錄路線巡航，用手臂相機找地上的目標物，轉向接近後以 PPO 策略夾取，

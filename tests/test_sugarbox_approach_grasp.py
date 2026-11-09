@@ -511,11 +511,12 @@ class HandoffTests(unittest.TestCase):
         killed.assert_called_once_with(fake[1][0])      # with its camera receiver
         grasp.assert_not_called()
 
-    def test_enoch_hands_over_at_1m_and_stops_the_box_at_34cm_by_default(self):
-        # 0.28 until 2026-10-21: the user saw every stop too close (0.31, then 0.34).
+    def test_enoch_hands_over_at_1m_and_stops_the_box_at_37cm_by_default(self):
+        # 0.28 until 2026-10-21: the user saw every stop too close (0.31, then 0.34, then
+        # 0.37 on 2026-11-01).
         env = self.launched_env([])
         self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
-                         ('1.0', '0.34'))
+                         ('1.0', '0.37'))
         env = self.launched_env(['--handoff-m', '1.0', '--final-x-m', '0.34'])
         self.assertEqual((env['SUGARBOX_CONTRACT_HANDOFF_M'], env['SUGARBOX_CONTRACT_FINAL_X_M']),
                          ('1.0', '0.34'))

@@ -52,12 +52,13 @@ class GeometryTests(unittest.TestCase):
 
     def test_release_point_sits_over_the_box(self):
         # SAM measures the near edge: it stops half the 13.5 cm depth short of 0.28 m,
-        # and 4 cm farther since 2026-10-21 (the robot ran into the box).
+        # and 7 cm farther since 2026-11-01 (it ran into the box on 10-21, then too far).
         self.assertAlmostEqual(dock.PLACEMENT_FINAL_X_M + dock.BOX_DEPTH_M / 2
                                - dock.PLACEMENT_STOP_BACK_M,
                                dock.RELEASE_CENTER_X_M, delta=0.001)
-        # The jaw still opens over the box, a sugarbox's half width past its near edge.
-        self.assertGreaterEqual(dock.RELEASE_CENTER_X_M - dock.PLACEMENT_FINAL_X_M, 0.0265)
+        # The user's choice, 2026-11-01: on the line exactly, the jaw is at the near edge.
+        self.assertAlmostEqual(dock.RELEASE_CENTER_X_M - dock.PLACEMENT_FINAL_X_M, -0.0025,
+                               delta=0.0006)
         self.assertGreater(dock.PLACEMENT_FINAL_X_M, 0.15 + 0.03)   # chassis front + 3 cm
 
 

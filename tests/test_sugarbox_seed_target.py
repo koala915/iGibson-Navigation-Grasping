@@ -24,9 +24,11 @@ TREE = ast.parse(SOURCE.read_text(encoding='utf-8'))
 SETTINGS = {'RUN_MODE', 'CONTRACT_HANDOFF_CENTER_M', 'TARGET_KIND', 'CONTRACT_FINAL_CENTER_X_M',
             'CONTRACT_FINAL_MIN_X_M', '_seed', 'SEED_TARGET', 'ARRIVAL_REPORT_PATH',
             'CONTRACT_AIM_Y_M', 'SEED_MIN_M', 'FAR_SEED', 'FAR_SEED_FRAMES',
-            'FAR_SEED_MAX_ERROR_M', 'SEED_GIVE_UP_CENTER_M', 'TRAINING_CONTRACT'}
-FUNCTIONS = {'get_age', 'arrival_record', 'write_arrival_report', 'coarse_ground'}
-CLASSES = {'TargetState', 'FarSighting', 'SeedFacing', 'SeedLook'}
+            'FAR_SEED_MAX_ERROR_M', 'SEED_GIVE_UP_CENTER_M', 'TRAINING_CONTRACT',
+            'CONTRACT_STOP_LINE_HALF_WIDTH_M'}
+FUNCTIONS = {'get_age', 'arrival_record', 'write_arrival_report', 'coarse_ground',
+             'past_stop_line'}
+CLASSES = {'TargetState', 'FarSighting', 'SeedFacing', 'SeedLook', 'PursuitController'}
 
 
 def engine(env=None):
@@ -147,6 +149,32 @@ class FarSeedTests(unittest.TestCase):
         rt = self.rt
         self.assertLess(rt['SEED_GIVE_UP_CENTER_M'], rt['CONTRACT_HANDOFF_CENTER_M'])
         self.assertGreater(rt['SEED_GIVE_UP_CENTER_M'], 0.64)
+
+
+class StopLineTests(unittest.TestCase):
+    """The policy has no stop line: 2026-11-01 it drove the placement box edge to 0.09 m."""
+
+    def setUp(self):
+        self.scope = engine({'SUGARBOX_CONTRACT_FINAL_X_M': '0.253'})
+
+    def box(self, x, y=0.0, seeded=False, memory=True):
+        return SimpleNamespace(x=x, y=y, seeded=seeded, has_memory=lambda: memory)
+
+    def test_only_a_measured_box_on_the_line_stops_the_robot(self):
+        line = self.scope['past_stop_line']
+        self.assertTrue(line(self.box(0.253)))
+        self.assertTrue(line(self.box(0.19, 0.018)))
+        self.assertFalse(line(self.box(0.26)))
+        self.assertFalse(line(self.box(0.19, seeded=True)))
+        self.assertFalse(line(self.box(0.19, memory=False)))
+        self.assertFalse(line(self.box(0.19, 0.15)))     # being driven past
+
+    def test_the_pursuit_it_starts_ends_on_that_tick_with_the_reason_the_runner_wants(self):
+        pursuit = self.scope['PursuitController']()
+        self.assertTrue(pursuit.start(0.0))
+        vx, wz, done, reason = pursuit.command(self.box(0.25, -0.02), 0.1)
+        self.assertEqual((vx, wz, done), (0.0, 0.0, True))
+        self.assertTrue(reason.startswith('PURSUIT_DONE'))
 
 
 class SeedFacingTests(unittest.TestCase):
